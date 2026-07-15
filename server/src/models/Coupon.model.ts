@@ -39,8 +39,5 @@ const CouponSchema: Schema = new Schema(
   }
 );
 
-// Indexes
-CouponSchema.index({ code: 1 });
-
 const Coupon = mongoose.model<ICoupon>('Coupon', CouponSchema);
 export default Coupon;

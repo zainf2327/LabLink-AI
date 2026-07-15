@@ -22,6 +22,7 @@ import couponRoutes from './routes/coupon.routes.js';
 import aiRoutes from './routes/ai.routes.js';
 import analyticsRoutes from './routes/analytics.routes.js';
 import auditLogRoutes from './routes/auditLog.routes.js';
+import webhookRoutes from './routes/webhook.routes.js';
 
 const app = express();
 
@@ -31,6 +32,10 @@ app.use(cors({
   origin: true, // Allow all origins for development, adjust as needed
   credentials: true
 }));
+
+// Mount Webhook route BEFORE express.json() because Stripe requires raw body
+app.use('/api/v1/webhooks', webhookRoutes);
+
 app.use(express.json());
 app.use(cookieParser());
 

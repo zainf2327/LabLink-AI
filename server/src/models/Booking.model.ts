@@ -18,7 +18,7 @@ export interface IBooking extends Document {
   patientId: mongoose.Types.ObjectId;
   forMemberId?: mongoose.Types.ObjectId | null;
   tests: IBookingTest[];
-  status: 'scheduled' | 'sample_collected' | 'in_lab' | 'report_ready' | 'completed' | 'cancelled';
+  status: 'pending_payment' | 'scheduled' | 'sample_collected' | 'in_lab' | 'report_ready' | 'completed' | 'cancelled';
   totalAmount: number;
   discountAmount: number;
   finalAmount: number;
@@ -57,8 +57,8 @@ const BookingSchema: Schema = new Schema(
     },
     status: {
       type: String,
-      enum: ['scheduled', 'sample_collected', 'in_lab', 'report_ready', 'completed', 'cancelled'],
-      default: 'scheduled',
+      enum: ['pending_payment', 'scheduled', 'sample_collected', 'in_lab', 'report_ready', 'completed', 'cancelled'],
+      default: 'pending_payment',
       required: true,
     },
     totalAmount: { type: Number, required: true, min: 0 },

@@ -18,7 +18,7 @@ const PaymentSchema: Schema = new Schema(
     bookingId: { type: Schema.Types.ObjectId, ref: 'Booking', required: true },
     patientId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
     amount: { type: Number, required: true, min: 0 },
-    currency: { type: String, required: true, default: 'pkr' },
+    currency: { type: String, required: true, default: 'usd' },
     method: {
       type: String,
       enum: ['stripe'],
