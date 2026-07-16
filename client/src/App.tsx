@@ -19,7 +19,7 @@ export const App: React.FC = () => {
 
   if (isCheckingAuth) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-zinc-950 text-white">
+      <div className="min-h-screen flex flex-col items-center justify-center bg-zinc-950 text-zinc-100">
         <div className="relative w-16 h-16">
           <div className="absolute inset-0 rounded-full border-4 border-emerald-500/20 border-t-emerald-400 animate-spin"></div>
           <div className="absolute inset-4 rounded-full bg-emerald-500/20 blur-sm animate-pulse"></div>

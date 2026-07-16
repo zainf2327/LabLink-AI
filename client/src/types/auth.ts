@@ -5,6 +5,8 @@ export interface User {
   phone?: string;
   role: 'patient' | 'staff' | 'admin';
   isActive: boolean;
+  googleCalendarConnected?: boolean;
+  googleEmail?: string;
 }
 
 export interface AuthResponse {

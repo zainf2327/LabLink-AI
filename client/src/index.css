@@ -4,6 +4,65 @@
 
 @theme {
   --font-sans: 'Plus Jakarta Sans', sans-serif;
+
+  /* Custom Light Theme overrides for Zinc (Greys) */
+  --color-zinc-50: #09090b;       /* Map dark zinc values to very dark slate/black text */
+  --color-zinc-100: #0f172a;      /* Main text color */
+  --color-zinc-200: #1e293b;      /* Primary headings */
+  --color-zinc-300: #334155;      /* Subheadings */
+  --color-zinc-400: #475569;      /* Secondary text */
+  --color-zinc-500: #64748b;      /* Muted text */
+  --color-zinc-600: #94a3b8;      /* Disabled text / placeholders */
+  --color-zinc-700: #cbd5e1;      /* Heavy borders / lines */
+  --color-zinc-750: #e2e8f0;      /* Custom light grey border */
+  --color-zinc-800: #e2e8f0;      /* Standard borders / divider lines */
+  --color-zinc-850: #f1f5f9;      /* Light grey container backgrounds */
+  --color-zinc-900: #ffffff;      /* White card background */
+  --color-zinc-950: #f8fafc;      /* Clean slate light page background */
+
+  /* Map emerald (previously green) to Clinical Blue accents */
+  --color-emerald-50: #eff6ff;    /* Lightest blue alert background */
+  --color-emerald-100: #dbeafe;   /* Light blue badges */
+  --color-emerald-200: #bfdbfe;
+  --color-emerald-300: #93c5fd;
+  --color-emerald-400: #3b82f6;   /* Sky-blue hover */
+  --color-emerald-500: #2563eb;   /* Medical primary blue */
+  --color-emerald-600: #1d4ed8;   /* Medical active blue */
+  --color-emerald-700: #1e40af;
+  --color-emerald-800: #1e3a8a;
+  --color-emerald-900: #172554;
+  --color-emerald-950: #0f172a;
+
+  /* Map teal to Clinical Cyan/Teal accents */
+  --color-teal-50: #ecfeff;
+  --color-teal-100: #cffafe;
+  --color-teal-200: #a5f3fc;
+  --color-teal-300: #67e8f9;
+  --color-teal-400: #22d3ee;      /* Bright clinical cyan text */
+  --color-teal-500: #0891b2;      /* Medium clinical cyan */
+  --color-teal-600: #0e7490;      /* Dark clinical cyan */
+  --color-teal-700: #0369a1;
+  --color-teal-800: #075985;
+  --color-teal-900: #0c4a6e;
+  --color-teal-950: #082f49;
+
+  /* Map purple (admin accents) to Clinical Blue accents */
+  --color-purple-50: #eff6ff;
+  --color-purple-100: #dbeafe;
+  --color-purple-200: #bfdbfe;
+  --color-purple-300: #93c5fd;
+  --color-purple-400: #3b82f6;
+  --color-purple-500: #3b82f6;
+  --color-purple-600: #2563eb;
+  --color-purple-700: #1e40af;
+  --color-purple-800: #1e3a8a;
+  --color-purple-900: #172554;
+  --color-purple-950: #0f172a;
+
+  /* Map red alert system to high-contrast red alerts */
+  --color-red-950: #fee2e2;       /* Light red background */
+  --color-red-900: #fca5a5;       /* Saturated red border border */
+  --color-red-400: #dc2626;       /* Clean legible error text */
 }
 
 /* Custom premium design classes and utility properties */
@@ -11,44 +70,45 @@
   .bg-grid-pattern {
     background-size: 40px 40px;
     background-image: 
-      linear-gradient(to right, rgba(24, 24, 27, 0.6) 1px, transparent 1px),
-      linear-gradient(to bottom, rgba(24, 24, 27, 0.6) 1px, transparent 1px);
+      linear-gradient(to right, rgba(148, 163, 184, 0.08) 1px, transparent 1px),
+      linear-gradient(to bottom, rgba(148, 163, 184, 0.08) 1px, transparent 1px);
   }
   
   .glassmorphic-card {
-    background: rgba(18, 18, 24, 0.75);
+    background: rgba(255, 255, 255, 0.85);
     backdrop-filter: blur(16px);
     -webkit-backdrop-filter: blur(16px);
-    border: 1px solid rgba(63, 63, 70, 0.3);
-    box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.4);
+    border: 1px solid rgba(226, 232, 240, 0.8);
+    box-shadow: 0 10px 30px -10px rgba(148, 163, 184, 0.15);
   }
 
   .glassmorphic-input {
-    background: rgba(9, 9, 11, 0.5);
-    border: 1px solid rgba(63, 63, 70, 0.5);
+    background: rgba(255, 255, 255, 0.9);
+    border: 1px solid rgba(203, 213, 225, 1);
+    color: #0f172a;
     transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   }
 
   .glassmorphic-input:focus {
-    border-color: rgba(16, 185, 129, 0.8);
-    box-shadow: 0 0 12px rgba(16, 185, 129, 0.2);
-    background: rgba(9, 9, 11, 0.8);
+    border-color: rgba(37, 99, 235, 0.8);
+    box-shadow: 0 0 12px rgba(37, 99, 235, 0.25);
+    background: #ffffff;
     outline: none;
   }
 
   .glow-text-emerald {
-    text-shadow: 0 0 10px rgba(52, 211, 153, 0.4);
+    text-shadow: 0 0 10px rgba(37, 99, 235, 0.2);
   }
 
   .neon-border-glow {
-    box-shadow: 0 0 20px rgba(16, 185, 129, 0.15);
+    box-shadow: 0 4px 20px rgba(37, 99, 235, 0.08);
   }
 }
 
 body {
   font-family: var(--font-sans);
-  background-color: #030303;
-  color: #f4f4f5;
+  background-color: var(--color-zinc-950);
+  color: var(--color-zinc-100);
   overflow-x: hidden;
 }
 
@@ -57,12 +117,12 @@ body {
   width: 6px;
 }
 ::-webkit-scrollbar-track {
-  background: #09090b;
+  background: var(--color-zinc-950);
 }
 ::-webkit-scrollbar-thumb {
-  background: #27272a;
+  background: var(--color-zinc-800);
   border-radius: 3px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #3f3f46;
+  background: var(--color-zinc-700);
 }

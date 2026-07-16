@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import useAuthStore from '../../store/useAuthStore';
 import { bookingService } from '../../services/booking.service';
+import { authService } from '../../services/auth.service';
 import type { Booking } from '../../services/booking.service';
 import {
   LogOut,
@@ -24,6 +25,41 @@ export const PatientDashboard: React.FC = () => {
   const { user, logout } = useAuthStore();
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
+  const [syncingCalendar, setSyncingCalendar] = useState(false);
+
+  const handleConnectCalendar = async () => {
+    setSyncingCalendar(true);
+    try {
+      const res = await authService.getGoogleCalendarConnectUrl();
+      if (res.success && res.url) {
+        window.location.href = res.url;
+      } else {
+        alert('Failed to get connection URL.');
+      }
+    } catch (err: any) {
+      console.error('Calendar sync error:', err);
+      alert(err.response?.data?.message || 'Failed to connect Google Calendar.');
+    } finally {
+      setSyncingCalendar(false);
+    }
+  };
+
+  const handleDisconnectCalendar = async () => {
+    if (!window.confirm('Are you sure you want to disconnect Google Calendar?')) return;
+    setSyncingCalendar(true);
+    try {
+      const res = await authService.disconnectGoogleCalendar();
+      if (res.success) {
+        alert('Google Calendar disconnected successfully.');
+        // Reload page to re-trigger getMe and update UI status
+        window.location.reload();
+      }
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Failed to disconnect Google Calendar.');
+    } finally {
+      setSyncingCalendar(false);
+    }
+  };
 
   const fetchBookings = async () => {
     try {
@@ -204,6 +240,46 @@ export const PatientDashboard: React.FC = () => {
                 <Shield size={16} className="text-zinc-500" />
                 <span className="capitalize">Role: {user?.role}</span>
               </div>
+            </div>
+
+            {/* Google Calendar Section */}
+            <div className="mt-6 pt-6 border-t border-zinc-800/80">
+              <h4 className="text-xs font-semibold uppercase tracking-wider text-zinc-400 mb-3 flex items-center gap-2">
+                <Calendar size={14} className="text-emerald-400" />
+                <span>Google Integration</span>
+              </h4>
+              
+              {user?.googleCalendarConnected ? (
+                <div className="space-y-3">
+                  <div className="p-3 rounded-xl bg-emerald-500/5 border border-emerald-500/10 flex flex-col gap-1">
+                    <span className="text-[10px] text-emerald-400 font-extrabold uppercase tracking-wide flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping animate-duration-1000"></span>
+                      Calendar Synced
+                    </span>
+                    <span className="text-xs text-zinc-300 truncate">{user.googleEmail}</span>
+                  </div>
+                  <button
+                    onClick={handleDisconnectCalendar}
+                    disabled={syncingCalendar}
+                    className="w-full py-2 rounded-lg border border-red-900/20 hover:border-red-900/40 bg-red-950/10 hover:bg-red-950/20 text-xs font-semibold text-red-400 hover:text-red-300 transition-all duration-200 cursor-pointer disabled:opacity-50"
+                  >
+                    Disconnect Google Calendar
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <p className="text-xs text-zinc-500 leading-relaxed">
+                    Link your Google Calendar to automatically receive calendar events for your scheduled lab test appointments.
+                  </p>
+                  <button
+                    onClick={handleConnectCalendar}
+                    disabled={syncingCalendar}
+                    className="w-full py-2.5 rounded-xl border border-zinc-800 hover:border-zinc-700 bg-zinc-900 hover:bg-zinc-800 text-xs font-semibold text-zinc-300 hover:text-emerald-400 transition-all duration-200 cursor-pointer flex items-center justify-center gap-2 disabled:opacity-50"
+                  >
+                    <span>Connect Google Calendar</span>
+                  </button>
+                </div>
+              )}
             </div>
           </div>
 

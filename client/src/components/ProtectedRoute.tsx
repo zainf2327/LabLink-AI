@@ -12,7 +12,7 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, allowe
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-zinc-950 text-white">
+      <div className="min-h-screen flex flex-col items-center justify-center bg-zinc-950 text-zinc-100">
         <div className="relative w-16 h-16">
           {/* Neon spinning outer ring */}
           <div className="absolute inset-0 rounded-full border-4 border-emerald-500/20 border-t-emerald-400 animate-spin"></div>

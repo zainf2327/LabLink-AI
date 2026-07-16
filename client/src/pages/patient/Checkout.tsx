@@ -103,18 +103,20 @@ const CheckoutForm: React.FC = () => {
     e.preventDefault();
     setErrorMessage(null);
 
-    // Validate home collection scheduling details
+    // Validate appointment scheduling details (required for all)
+    if (!scheduledAt) {
+      setErrorMessage('Please select a scheduled date and time.');
+      return;
+    }
+    if (new Date(scheduledAt) <= new Date()) {
+      setErrorMessage('Appointment slot must be in the future.');
+      return;
+    }
+
+    // Validate home collection address (only required for home sampling)
     if (requestHomeSampling) {
       if (!address.trim()) {
         setErrorMessage('Please enter an address for home sampling collection.');
-        return;
-      }
-      if (!scheduledAt) {
-        setErrorMessage('Please select a scheduled date and time.');
-        return;
-      }
-      if (new Date(scheduledAt) <= new Date()) {
-        setErrorMessage('Appointment slot must be in the future.');
         return;
       }
     }
@@ -126,13 +128,11 @@ const CheckoutForm: React.FC = () => {
         forMemberId: selectedMemberId || null,
         tests: items.map((t) => t._id || ''),
         couponCode: appliedCoupon ? couponCode : null,
-        homeSampling: requestHomeSampling
-          ? {
-              requested: true,
-              address,
-              scheduledAt,
-            }
-          : { requested: false },
+        homeSampling: {
+          requested: requestHomeSampling,
+          address: requestHomeSampling ? address : undefined,
+          scheduledAt,
+        },
         notes,
       });
 
@@ -369,22 +369,24 @@ const CheckoutForm: React.FC = () => {
                         value={address}
                         onChange={(e) => setAddress(e.target.value)}
                         placeholder="House/Apt No., Street, City"
-                        className="w-full py-3 px-4 rounded-xl border border-zinc-800/80 bg-zinc-900/40 text-zinc-200 text-sm placeholder:text-zinc-655 focus:outline-none focus:border-emerald-500/50"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wider block">
-                        Preferred Date & Time Slot
-                      </label>
-                      <input
-                        type="datetime-local"
-                        value={scheduledAt}
-                        onChange={(e) => setScheduledAt(e.target.value)}
-                        className="w-full py-3 px-4 rounded-xl border border-zinc-800/80 bg-zinc-900/40 text-zinc-200 text-sm focus:outline-none focus:border-emerald-500/50 cursor-pointer"
+                        className="w-full py-3 px-4 rounded-xl border border-zinc-800/80 bg-zinc-900/40 text-zinc-200 text-sm placeholder:text-zinc-600 focus:outline-none focus:border-emerald-500/50"
                       />
                     </div>
                   </div>
                 )}
+              </div>
+
+              {/* Preferred Date & Time Slot (Always Visible) */}
+              <div className="space-y-2">
+                <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wider block">
+                  Preferred Date & Time Slot
+                </label>
+                <input
+                  type="datetime-local"
+                  value={scheduledAt}
+                  onChange={(e) => setScheduledAt(e.target.value)}
+                  className="w-full py-3 px-4 rounded-xl border border-zinc-800/80 bg-zinc-900/40 text-zinc-200 text-sm focus:outline-none focus:border-emerald-500/50 cursor-pointer"
+                />
               </div>
 
               {/* Special Notes */}
@@ -456,17 +458,17 @@ const CheckoutForm: React.FC = () => {
                       options={{
                         style: {
                           base: {
-                            color: '#e4e4e7', // Tailwind zinc-200
+                            color: '#0f172a', // Tailwind zinc-100 dark text
                             fontFamily: 'Inter, sans-serif',
                             fontSmoothing: 'antialiased',
                             fontSize: '14px',
                             '::placeholder': {
-                              color: '#52525b', // Tailwind zinc-600
+                              color: '#94a3b8', // Tailwind zinc-600 light placeholder
                             },
                           },
                           invalid: {
-                            color: '#f87171', // Tailwind red-400
-                            iconColor: '#f87171',
+                            color: '#dc2626', // Tailwind red-400 dark red
+                            iconColor: '#dc2626',
                           },
                         },
                       }}
