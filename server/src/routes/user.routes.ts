@@ -1,9 +1,12 @@
 import { Router } from 'express';
-import { getAllUsers, getUserById, updateUser, deactivateUser, updateProfile } from '../controllers/user.controller.js';
+import { getAllUsers, getUserById, updateUser, deactivateUser, updateProfile, getStaffUsers } from '../controllers/user.controller.js';
 import { authenticate } from '../middleware/auth.middleware.js';
 import { authorize } from '../middleware/role.middleware.js';
 
 const router = Router();
+
+// Staff-listing endpoint for dropdowns (accessible by staff & admin)
+router.get('/staff', authenticate, authorize('staff', 'admin'), getStaffUsers);
 
 // Admin-only endpoints
 router.get('/', authenticate, authorize('admin'), getAllUsers);

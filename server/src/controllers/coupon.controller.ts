@@ -1,35 +1,21 @@
 import { Request, Response } from 'express';
 import asyncHandler from '../utils/asyncHandler.js';
 import Coupon from '../models/Coupon.model.js';
+import { createCouponSchema, updateCouponSchema, validateCouponSchema } from '../utils/validators.js';
+
 
 export const createCoupon = asyncHandler(
   async (req: Request, res: Response): Promise<void> => {
-    const {
-      code,
-      discountType,
-      discountValue,
-      minOrderValue,
-      maxUses,
-      expiresAt,
-      isActive,
-    } = req.body;
-
-    if (!code || !discountType || discountValue === undefined) {
-      res.status(400).json({
-        success: false,
-        message: 'Code, discountType, and discountValue are required',
-      });
-      return;
-    }
+    const validated = createCouponSchema.parse(req.body);
 
     const coupon = new Coupon({
-      code: code.toUpperCase(),
-      discountType,
-      discountValue,
-      minOrderValue: minOrderValue !== undefined ? minOrderValue : null,
-      maxUses: maxUses !== undefined ? maxUses : null,
-      expiresAt: expiresAt ? new Date(expiresAt) : null,
-      isActive: isActive !== undefined ? isActive : true,
+      code: validated.code.toUpperCase(),
+      discountType: validated.discountType,
+      discountValue: validated.discountValue,
+      minOrderValue: validated.minOrderValue !== undefined ? validated.minOrderValue : null,
+      maxUses: validated.maxUses !== undefined ? validated.maxUses : null,
+      expiresAt: validated.expiresAt ? validated.expiresAt : null,
+      isActive: validated.isActive !== undefined ? validated.isActive : true,
     });
 
     await coupon.save();
@@ -74,23 +60,15 @@ export const updateCoupon = asyncHandler(
       return;
     }
 
-    const {
-      code,
-      discountType,
-      discountValue,
-      minOrderValue,
-      maxUses,
-      expiresAt,
-      isActive,
-    } = req.body;
+    const validated = updateCouponSchema.parse(req.body);
 
-    if (code) coupon.code = code.toUpperCase();
-    if (discountType) coupon.discountType = discountType;
-    if (discountValue !== undefined) coupon.discountValue = discountValue;
-    if (minOrderValue !== undefined) coupon.minOrderValue = minOrderValue;
-    if (maxUses !== undefined) coupon.maxUses = maxUses;
-    if (expiresAt !== undefined) coupon.expiresAt = expiresAt ? new Date(expiresAt) : null;
-    if (isActive !== undefined) coupon.isActive = isActive;
+    if (validated.code) coupon.code = validated.code.toUpperCase();
+    if (validated.discountType) coupon.discountType = validated.discountType;
+    if (validated.discountValue !== undefined) coupon.discountValue = validated.discountValue;
+    if (validated.minOrderValue !== undefined) coupon.minOrderValue = validated.minOrderValue;
+    if (validated.maxUses !== undefined) coupon.maxUses = validated.maxUses;
+    if (validated.expiresAt !== undefined) coupon.expiresAt = validated.expiresAt;
+    if (validated.isActive !== undefined) coupon.isActive = validated.isActive;
 
     await coupon.save();
 
@@ -118,18 +96,10 @@ export const deleteCoupon = asyncHandler(
 
 export const validateCoupon = asyncHandler(
   async (req: Request, res: Response): Promise<void> => {
-    const { code, totalAmount } = req.body;
-
-    if (!code || totalAmount === undefined) {
-      res.status(400).json({
-        success: false,
-        message: 'Coupon code and totalAmount are required',
-      });
-      return;
-    }
+    const validated = validateCouponSchema.parse(req.body);
 
     const coupon = await Coupon.findOne({
-      code: code.toUpperCase(),
+      code: validated.code.toUpperCase(),
       isActive: true,
     });
 
@@ -155,7 +125,7 @@ export const validateCoupon = asyncHandler(
     if (
       coupon.minOrderValue !== undefined &&
       coupon.minOrderValue !== null &&
-      totalAmount < coupon.minOrderValue
+      validated.totalAmount < coupon.minOrderValue
     ) {
       res.status(400).json({
         success: false,
@@ -166,12 +136,12 @@ export const validateCoupon = asyncHandler(
 
     let discountAmount = 0;
     if (coupon.discountType === 'percentage') {
-      discountAmount = (coupon.discountValue / 100) * totalAmount;
+      discountAmount = (coupon.discountValue / 100) * validated.totalAmount;
     } else {
       discountAmount = coupon.discountValue;
     }
 
-    discountAmount = Math.min(discountAmount, totalAmount);
+    discountAmount = Math.min(discountAmount, validated.totalAmount);
 
     res.status(200).json({
       success: true,

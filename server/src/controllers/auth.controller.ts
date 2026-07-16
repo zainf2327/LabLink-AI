@@ -5,6 +5,8 @@ import { env } from '../config/env.js';
 import User from '../models/User.model.js';
 import asyncHandler from '../utils/asyncHandler.js';
 import { registerSchema, loginSchema } from '../utils/validators.js';
+import { calendarService } from '../services/calendar.service.js';
+import crypto from 'crypto';
 
 const generateAccessToken = (userId: string, role: string): string => {
   return jwt.sign({ id: userId, role }, env.JWT_ACCESS_SECRET, { expiresIn: '15m' });
@@ -17,7 +19,7 @@ const generateRefreshToken = (userId: string): string => {
 const setRefreshTokenCookie = (res: Response, token: string): void => {
   res.cookie('refreshToken', token, {
     httpOnly: true,
-    secure: process.env.NODE_ENV === 'production', // true in production
+    secure: env.NODE_ENV === 'production', // true in production
     sameSite: 'lax',
     maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days in milliseconds
   });
@@ -81,6 +83,14 @@ export const login = asyncHandler(async (req: Request, res: Response): Promise<v
     return;
   }
 
+  if (!user.passwordHash) {
+    res.status(401).json({
+      success: false,
+      message: 'Invalid email or password',
+    });
+    return;
+  }
+
   const isMatch = await bcrypt.compare(validated.password, user.passwordHash);
   if (!isMatch) {
     res.status(401).json({
@@ -104,6 +114,8 @@ export const login = asyncHandler(async (req: Request, res: Response): Promise<v
       name: user.name,
       email: user.email,
       role: user.role,
+      googleCalendarConnected: user.googleCalendarConnected,
+      googleEmail: user.googleEmail,
     },
   });
 });
@@ -150,7 +162,7 @@ export const refresh = asyncHandler(async (req: Request, res: Response): Promise
 export const logout = asyncHandler(async (req: Request, res: Response): Promise<void> => {
   res.clearCookie('refreshToken', {
     httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
+    secure: env.NODE_ENV === 'production',
     sameSite: 'lax',
   });
 
@@ -187,6 +199,148 @@ export const me = asyncHandler(async (req: Request, res: Response): Promise<void
       email: user.email,
       phone: user.phone,
       role: user.role,
+      googleCalendarConnected: user.googleCalendarConnected,
+      googleEmail: user.googleEmail,
     },
+  });
+});
+
+export const initiateGoogleLogin = asyncHandler(async (req: Request, res: Response): Promise<void> => {
+  const authUrl = calendarService.getAuthUrl('login', false);
+  res.redirect(authUrl);
+});
+
+export const handleGoogleLoginCallback = asyncHandler(async (req: Request, res: Response): Promise<void> => {
+  const { code } = req.query;
+  if (!code) {
+    res.redirect(`${env.FRONTEND_URL}/login?error=no_code_provided`);
+    return;
+  }
+
+  try {
+    const tokens = await calendarService.getTokensFromCode(code as string);
+    const profile = await calendarService.getGoogleProfile(tokens.access_token);
+    
+    // Check if user already exists
+    let user = await User.findOne({ email: profile.email.toLowerCase() });
+    
+    if (!user) {
+      // Register new user as patient
+      user = await User.create({
+        name: profile.name || profile.email.split('@')[0],
+        email: profile.email.toLowerCase(),
+        googleId: profile.id,
+        googleEmail: profile.email,
+        role: 'patient',
+        isActive: true,
+      });
+    } else {
+      // User exists, update Google fields if not set
+      if (!user.googleId) {
+        user.googleId = profile.id;
+        user.googleEmail = profile.email;
+        await user.save();
+      }
+      if (!user.isActive) {
+        res.redirect(`${env.FRONTEND_URL}/login?error=account_deactivated`);
+        return;
+      }
+    }
+
+    // Generate tokens
+    const accessToken = generateAccessToken(user.id, user.role);
+    const refreshToken = generateRefreshToken(user.id);
+
+    setRefreshTokenCookie(res, refreshToken);
+
+    // Redirect to frontend home/dashboard
+    res.redirect(`${env.FRONTEND_URL}/`);
+  } catch (err: any) {
+    console.error('Google Auth Callback Error:', err);
+    res.redirect(`${env.FRONTEND_URL}/login?error=${encodeURIComponent(err.message || 'auth_failed')}`);
+  }
+});
+
+export const initiateGoogleCalendarConnect = asyncHandler(async (req: Request, res: Response): Promise<void> => {
+  if (!req.user) {
+    res.status(401).json({ success: false, message: 'Unauthorized' });
+    return;
+  }
+
+  // Create a cryptographically signed state token to identify the user safely on callback
+  const state = req.user.id + '.' + crypto.createHmac('sha256', env.JWT_ACCESS_SECRET).update(req.user.id).digest('hex');
+  const authUrl = calendarService.getAuthUrl(state, true);
+  
+  res.json({ success: true, url: authUrl });
+});
+
+export const handleGoogleCalendarCallback = asyncHandler(async (req: Request, res: Response): Promise<void> => {
+  const { code, state } = req.query;
+  if (!code || !state) {
+    res.redirect(`${env.FRONTEND_URL}/login?error=invalid_calendar_auth`);
+    return;
+  }
+
+  try {
+    // Verify the state token's signature
+    const [userId, signature] = (state as string).split('.');
+    const expectedSignature = crypto.createHmac('sha256', env.JWT_ACCESS_SECRET).update(userId).digest('hex');
+    
+    if (signature !== expectedSignature) {
+      res.redirect(`${env.FRONTEND_URL}/login?error=state_token_invalid`);
+      return;
+    }
+
+    const user = await User.findById(userId);
+    if (!user) {
+      res.redirect(`${env.FRONTEND_URL}/login?error=user_not_found`);
+      return;
+    }
+
+    const tokens = await calendarService.getTokensFromCode(code as string, true);
+    if (!tokens.refresh_token) {
+      // If we don't get a refresh token, check if we already have one. If not, throw error.
+      if (!user.googleRefreshToken) {
+        res.redirect(`${env.FRONTEND_URL}/${user.role}/dashboard?error=missing_refresh_token`);
+        return;
+      }
+    } else {
+      const { encrypt } = await import('../utils/crypto.js');
+      user.googleRefreshToken = encrypt(tokens.refresh_token);
+    }
+
+    const profile = await calendarService.getGoogleProfile(tokens.access_token);
+    user.googleEmail = profile.email;
+    user.googleCalendarConnected = true;
+    await user.save();
+
+    const redirectPath = user.role === 'patient' ? 'patient/dashboard' : `${user.role}/dashboard`;
+    res.redirect(`${env.FRONTEND_URL}/${redirectPath}?calendar=connected`);
+  } catch (err: any) {
+    console.error('Google Calendar Callback Error:', err);
+    res.redirect(`${env.FRONTEND_URL}/login?error=${encodeURIComponent(err.message || 'calendar_connect_failed')}`);
+  }
+});
+
+export const disconnectGoogleCalendar = asyncHandler(async (req: Request, res: Response): Promise<void> => {
+  if (!req.user) {
+    res.status(401).json({ success: false, message: 'Unauthorized' });
+    return;
+  }
+
+  const user = await User.findById(req.user.id);
+  if (!user) {
+    res.status(404).json({ success: false, message: 'User not found' });
+    return;
+  }
+
+  user.googleCalendarConnected = false;
+  user.googleRefreshToken = undefined;
+  user.googleEmail = undefined;
+  await user.save();
+
+  res.status(200).json({
+    success: true,
+    message: 'Google Calendar disconnected successfully',
   });
 });

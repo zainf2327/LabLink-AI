@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import AuditLog from '../models/AuditLog.model.js';
 
 export interface AuditLogPayload {
   actorId: mongoose.Types.ObjectId | string;
@@ -10,6 +11,10 @@ export interface AuditLogPayload {
 }
 
 export const logAudit = async (payload: AuditLogPayload): Promise<void> => {
-  // Stub for now. Will be fully implemented in Feature 12.
-  console.log(`[AuditLog Stub] Action: ${payload.action} by ${payload.actorRole} (${payload.actorId})`);
+  try {
+    await AuditLog.create(payload);
+  } catch (error) {
+    console.error('Failed to save audit log:', error);
+    throw error;
+  }
 };

@@ -6,12 +6,17 @@ export interface IBookingTest {
   price: number;
 }
 
+export interface IBookingGoogleCalendar {
+  patientEventId?: string | null;
+  staffEventId?: string | null;
+}
+
 export interface IBookingHomeSampling {
   requested: boolean;
   address?: string;
   scheduledAt?: Date;
   assignedStaffId?: mongoose.Types.ObjectId | null;
-  calendarEventId?: string | null;
+  calendarEventId?: string | null; // deprecated
 }
 
 export interface IBooking extends Document {
@@ -24,6 +29,7 @@ export interface IBooking extends Document {
   finalAmount: number;
   couponId?: mongoose.Types.ObjectId | null;
   homeSampling: IBookingHomeSampling;
+  googleCalendar?: IBookingGoogleCalendar;
   notes?: string;
   createdAt: Date;
   updatedAt: Date;
@@ -40,7 +46,12 @@ const BookingHomeSamplingSchema = new Schema({
   address: { type: String, trim: true },
   scheduledAt: { type: Date },
   assignedStaffId: { type: Schema.Types.ObjectId, ref: 'User', default: null },
-  calendarEventId: { type: String, default: null },
+  calendarEventId: { type: String, default: null }, // deprecated
+});
+
+const BookingGoogleCalendarSchema = new Schema({
+  patientEventId: { type: String, default: null },
+  staffEventId: { type: String, default: null },
 });
 
 const BookingSchema: Schema = new Schema(
@@ -66,6 +77,7 @@ const BookingSchema: Schema = new Schema(
     finalAmount: { type: Number, required: true, min: 0 },
     couponId: { type: Schema.Types.ObjectId, ref: 'Coupon', default: null },
     homeSampling: { type: BookingHomeSamplingSchema, required: true },
+    googleCalendar: { type: BookingGoogleCalendarSchema, default: () => ({}) },
     notes: { type: String, trim: true },
   },
   {

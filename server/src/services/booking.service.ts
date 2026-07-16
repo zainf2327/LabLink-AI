@@ -5,8 +5,9 @@ import Coupon from '../models/Coupon.model.js';
 import FamilyMember from '../models/FamilyMember.model.js';
 import Subscription from '../models/Subscription.model.js';
 import Payment from '../models/Payment.model.js';
-import { stripeService } from './stripe.service.js';
+import User from '../models/User.model.js';
 import { calendarService } from './calendar.service.js';
+
 
 export const bookingService = {
   async createBooking(
@@ -87,31 +88,41 @@ export const bookingService = {
       }
     }
 
-    // 4. Validate home sampling if requested
-    if (homeSampling?.requested) {
-      if (!homeSampling.address || !homeSampling.scheduledAt) {
-        const error = new Error(
-          'Address and appointment slot are required for home sampling'
-        ) as any;
+    // 4. Validate scheduling details
+    if (homeSampling) {
+      if (homeSampling.requested) {
+        if (!homeSampling.address) {
+          const error = new Error('Address is required for home sampling') as any;
+          error.statusCode = 400;
+          throw error;
+        }
+
+        const nonHomeCollectionTest = foundTests.find((t) => !t.isHomeCollectionAvailable);
+        if (nonHomeCollectionTest) {
+          const error = new Error(
+            `Home collection is not available for test: "${nonHomeCollectionTest.name}"`
+          ) as any;
+          error.statusCode = 400;
+          throw error;
+        }
+      }
+
+      if (!homeSampling.scheduledAt) {
+        const error = new Error('Appointment slot date and time is required') as any;
         error.statusCode = 400;
         throw error;
       }
 
       const appointmentDate = new Date(homeSampling.scheduledAt);
       if (isNaN(appointmentDate.getTime()) || appointmentDate <= new Date()) {
-        const error = new Error('Home sampling slot must be in the future') as any;
+        const error = new Error('Appointment slot must be in the future') as any;
         error.statusCode = 400;
         throw error;
       }
-
-      const nonHomeCollectionTest = foundTests.find((t) => !t.isHomeCollectionAvailable);
-      if (nonHomeCollectionTest) {
-        const error = new Error(
-          `Home collection is not available for test: "${nonHomeCollectionTest.name}"`
-        ) as any;
-        error.statusCode = 400;
-        throw error;
-      }
+    } else {
+      const error = new Error('Scheduling details are required') as any;
+      error.statusCode = 400;
+      throw error;
     }
 
     // 5. Snapshot test price and name
@@ -227,213 +238,196 @@ export const bookingService = {
         await couponDoc.save();
       }
 
-      // Create calendar event if requested
-      if (booking.homeSampling.requested && booking.homeSampling.scheduledAt) {
-        const eventId = await calendarService.createHomeSamplingEvent(
-          'Patient',
-          booking.homeSampling.address || '',
-          booking.homeSampling.scheduledAt
-        );
-        booking.homeSampling.calendarEventId = eventId;
-      }
-
       await booking.save();
+
+      // Sync to Google Calendar if patient has connected it
+      try {
+        await bookingService.syncBookingToCalendar(booking);
+      } catch (err) {
+        console.error('Failed to sync to Google Calendar:', err);
+      }
     }
 
     return booking;
   },
 
-  async createPaymentIntent(
-    patientId: string,
-    bookingId: string
-  ): Promise<{ clientSecret: string | null; paymentId: string }> {
-    const booking = await Booking.findById(bookingId);
-    if (!booking) {
-      const error = new Error('Booking not found') as any;
-      error.statusCode = 404;
+  async checkStaffConflict(
+    staffId: string,
+    scheduledAt: Date,
+    excludeBookingId?: string
+  ): Promise<void> {
+    // 1. Local database conflict checking (2 hours window: 1 hour before and after)
+    const buffer = 60 * 60 * 1000; // 1 hour
+    const startTime = new Date(scheduledAt.getTime() - buffer);
+    const endTime = new Date(scheduledAt.getTime() + buffer);
+
+    const query: any = {
+      'homeSampling.assignedStaffId': staffId,
+      status: { $in: ['scheduled', 'sample_collected', 'in_lab', 'report_ready'] },
+      'homeSampling.scheduledAt': { $gte: startTime, $lte: endTime },
+    };
+
+    if (excludeBookingId) {
+      query._id = { $ne: excludeBookingId };
+    }
+
+    const conflictingBooking = await Booking.findOne(query);
+    if (conflictingBooking) {
+      const error = new Error(
+        `Staff member has a scheduling conflict in the database at this time.`
+      ) as any;
+      error.statusCode = 409;
       throw error;
     }
 
-    if (booking.patientId.toString() !== patientId) {
-      const error = new Error('Forbidden: Booking does not belong to you') as any;
-      error.statusCode = 403;
-      throw error;
-    }
+    // 2. Google Calendar conflict checking (FreeBusy API)
+    const staff = await User.findById(staffId);
+    if (staff && staff.googleCalendarConnected && staff.googleRefreshToken) {
+      const { decrypt } = await import('../utils/crypto.js');
+      const decryptedToken = decrypt(staff.googleRefreshToken);
+      
+      const isBusy = await calendarService.checkFreeBusy(
+        decryptedToken,
+        staff.googleEmail || staff.email,
+        startTime,
+        endTime
+      );
 
-    if (booking.status !== 'pending_payment') {
-      const error = new Error('Booking is not in pending_payment status') as any;
-      error.statusCode = 400;
-      throw error;
-    }
-
-    // 1. Zero-value check
-    if (booking.finalAmount === 0) {
-      const existingBypassPayment = await Payment.findOne({
-        bookingId,
-        stripePaymentIntentId: 'bypass_zero_amount',
-      });
-      if (existingBypassPayment) {
-        return { clientSecret: null, paymentId: existingBypassPayment._id.toString() };
-      }
-      const payment = new Payment({
-        bookingId: booking._id,
-        patientId: booking.patientId,
-        amount: 0,
-        currency: 'usd',
-        method: 'stripe',
-        stripePaymentIntentId: 'bypass_zero_amount',
-        status: 'succeeded',
-        paidAt: new Date(),
-      });
-      await payment.save();
-      return { clientSecret: null, paymentId: payment._id.toString() };
-    }
-
-    // 2. Check for existing payment record
-    const existingPayment = await Payment.findOne({ bookingId });
-    if (existingPayment) {
-      if (existingPayment.status === 'succeeded') {
-        const error = new Error('Payment already completed for this booking') as any;
-        error.statusCode = 400;
+      if (isBusy) {
+        const error = new Error(
+          `Staff member has a scheduling conflict on Google Calendar.`
+        ) as any;
+        error.statusCode = 409;
         throw error;
       }
-
-      // Retrieve existing PaymentIntent details from Stripe
-      try {
-        const stripeIntent = await stripeService.retrievePaymentIntent(
-          existingPayment.stripePaymentIntentId
-        );
-        return {
-          clientSecret: stripeIntent.client_secret,
-          paymentId: existingPayment._id.toString(),
-        };
-      } catch (err) {
-        console.warn('Failed to retrieve existing Stripe PaymentIntent. Creating new one...');
-      }
     }
-
-    // 3. Create Stripe PaymentIntent
-    const amountInCents = Math.round(booking.finalAmount * 100);
-    const intent = await stripeService.createPaymentIntent(
-      amountInCents,
-      'usd',
-      booking._id.toString()
-    );
-
-    let paymentDoc;
-    if (existingPayment) {
-      existingPayment.stripePaymentIntentId = intent.id;
-      existingPayment.status = 'pending';
-      paymentDoc = await existingPayment.save();
-    } else {
-      paymentDoc = new Payment({
-        bookingId: booking._id,
-        patientId: booking.patientId,
-        amount: booking.finalAmount,
-        currency: 'usd',
-        method: 'stripe',
-        stripePaymentIntentId: intent.id,
-        status: 'pending',
-      });
-      await paymentDoc.save();
-    }
-
-    return {
-      clientSecret: intent.client_secret,
-      paymentId: paymentDoc._id.toString(),
-    };
   },
 
-  async confirmPayment(patientId: string, paymentIntentId: string): Promise<IBooking> {
-    const payment = await Payment.findOne({ stripePaymentIntentId: paymentIntentId });
-    if (!payment) {
-      const error = new Error('Payment record not found') as any;
-      error.statusCode = 404;
-      throw error;
-    }
-
-    if (payment.patientId.toString() !== patientId) {
-      const error = new Error('Forbidden: Payment does not belong to you') as any;
-      error.statusCode = 403;
-      throw error;
-    }
-
-    const booking = await Booking.findById(payment.bookingId);
-    if (!booking) {
-      const error = new Error('Booking not found') as any;
-      error.statusCode = 404;
-      throw error;
-    }
-
-    // Delegate to shared processor
-    await bookingService.processSuccessfulPayment(paymentIntentId);
-
-    // Fetch the updated booking to return
-    const updatedBooking = await Booking.findById(payment.bookingId);
-    if (!updatedBooking) {
-      const error = new Error('Booking not found') as any;
-      error.statusCode = 404;
-      throw error;
-    }
+  async syncBookingToCalendar(booking: IBooking): Promise<void> {
+    const { decrypt } = await import('../utils/crypto.js');
     
-    // Check if the payment actually succeeded
-    const updatedPayment = await Payment.findById(payment._id);
-    if (updatedPayment?.status !== 'succeeded') {
-      const error = new Error('Payment not succeeded or still processing') as any;
-      error.statusCode = 400;
-      throw error;
+    let updated = false;
+
+    // 1. Patient Event Sync
+    const patient = await User.findById(booking.patientId);
+    if (
+      patient &&
+      patient.googleCalendarConnected &&
+      patient.googleRefreshToken &&
+      !booking.googleCalendar?.patientEventId
+    ) {
+      try {
+        const decryptedToken = decrypt(patient.googleRefreshToken);
+        const testNames = booking.tests.map((t) => t.name);
+        
+        let eventId: string;
+        if (booking.homeSampling.requested && booking.homeSampling.scheduledAt) {
+          eventId = await calendarService.createHomeSamplingEvent(
+            decryptedToken,
+            patient.name,
+            booking.homeSampling.address || '',
+            booking.homeSampling.scheduledAt
+          );
+        } else {
+          eventId = await calendarService.createPatientInLabEvent(
+            decryptedToken,
+            testNames,
+            booking.homeSampling.scheduledAt!
+          );
+        }
+        
+        if (!booking.googleCalendar) {
+          booking.googleCalendar = { patientEventId: null, staffEventId: null };
+        }
+        booking.googleCalendar.patientEventId = eventId;
+        updated = true;
+      } catch (err: any) {
+        console.error(`Failed to sync calendar event for patient ${patient._id}:`, err);
+        if (err.message && (err.message.includes('invalid_grant') || err.message.includes('auth'))) {
+          patient.googleCalendarConnected = false;
+          await patient.save();
+        }
+      }
     }
 
-    return updatedBooking;
+    // 2. Staff Event Sync
+    if (
+      booking.homeSampling.requested &&
+      booking.homeSampling.assignedStaffId &&
+      booking.homeSampling.scheduledAt &&
+      !booking.googleCalendar?.staffEventId
+    ) {
+      const staff = await User.findById(booking.homeSampling.assignedStaffId);
+      if (staff && staff.googleCalendarConnected && staff.googleRefreshToken) {
+        try {
+          const decryptedToken = decrypt(staff.googleRefreshToken);
+          const patientName = patient?.name || 'Patient';
+          
+          const eventId = await calendarService.createHomeSamplingEvent(
+            decryptedToken,
+            patientName,
+            booking.homeSampling.address || '',
+            booking.homeSampling.scheduledAt
+          );
+          
+          if (!booking.googleCalendar) {
+            booking.googleCalendar = { patientEventId: null, staffEventId: null };
+          }
+          booking.googleCalendar.staffEventId = eventId;
+          updated = true;
+        } catch (err: any) {
+          console.error(`Failed to sync calendar event for staff ${staff._id}:`, err);
+          if (err.message && (err.message.includes('invalid_grant') || err.message.includes('auth'))) {
+            staff.googleCalendarConnected = false;
+            await staff.save();
+          }
+        }
+      }
+    }
+
+    if (updated) {
+      booking.markModified('googleCalendar');
+      await booking.save();
+    }
   },
 
-  async processSuccessfulPayment(paymentIntentId: string): Promise<void> {
-    const payment = await Payment.findOne({ stripePaymentIntentId: paymentIntentId });
-    if (!payment || payment.status === 'succeeded') return;
+  async removeCalendarEvents(booking: IBooking): Promise<void> {
+    const { decrypt } = await import('../utils/crypto.js');
+    
+    let updated = false;
 
-    const booking = await Booking.findById(payment.bookingId);
-    if (!booking) return;
-
-    // Verify PaymentIntent with Stripe
-    const stripeIntent = await stripeService.retrievePaymentIntent(paymentIntentId);
-    if (stripeIntent.status !== 'succeeded') {
-      payment.status = 'failed';
-      await payment.save();
-      return;
-    }
-
-    // 1. Complete payment
-    payment.status = 'succeeded';
-    payment.paidAt = new Date();
-    await payment.save();
-
-    // 2. Update coupon count if coupon applied
-    if (booking.couponId) {
-      const coupon = await Coupon.findById(booking.couponId);
-      if (coupon) {
-        coupon.usedCount += 1;
-        await coupon.save();
+    if (booking.googleCalendar?.patientEventId) {
+      const patient = await User.findById(booking.patientId);
+      if (patient && patient.googleCalendarConnected && patient.googleRefreshToken) {
+        try {
+          const decryptedToken = decrypt(patient.googleRefreshToken);
+          await calendarService.deleteEvent(decryptedToken, booking.googleCalendar.patientEventId);
+        } catch (err) {
+          console.error('Failed to delete patient calendar event:', err);
+        }
       }
+      booking.googleCalendar.patientEventId = null;
+      updated = true;
     }
 
-    // 3. Create Google Calendar event if requested
-    if (booking.homeSampling.requested && booking.homeSampling.scheduledAt && !booking.homeSampling.calendarEventId) {
-      try {
-        const eventId = await calendarService.createHomeSamplingEvent(
-          'Patient',
-          booking.homeSampling.address || '',
-          booking.homeSampling.scheduledAt
-        );
-        booking.homeSampling.calendarEventId = eventId;
-      } catch (err) {
-        console.error('Failed to create calendar event in webhook:', err);
+    if (booking.googleCalendar?.staffEventId && booking.homeSampling.assignedStaffId) {
+      const staff = await User.findById(booking.homeSampling.assignedStaffId);
+      if (staff && staff.googleCalendarConnected && staff.googleRefreshToken) {
+        try {
+          const decryptedToken = decrypt(staff.googleRefreshToken);
+          await calendarService.deleteEvent(decryptedToken, booking.googleCalendar.staffEventId);
+        } catch (err) {
+          console.error('Failed to delete staff calendar event:', err);
+        }
       }
+      booking.googleCalendar.staffEventId = null;
+      updated = true;
     }
 
-    // 4. Update booking status
-    if (booking.status === 'pending_payment') {
-      booking.status = 'scheduled';
+    if (updated) {
+      booking.markModified('googleCalendar');
       await booking.save();
     }
   },
 };
+

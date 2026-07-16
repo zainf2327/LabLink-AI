@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import logger from '../utils/logger.js';
+import { env } from '../config/env.js';
 
 interface CustomError extends Error {
   statusCode?: number;
@@ -17,6 +18,18 @@ export const errorHandler = (
 
   // Log error using Wininston logger
   logger.error(`${statusCode} - ${message} - ${req.originalUrl} - ${req.method} - ${req.ip} - Stack: ${err.stack}`);
+
+  // Handle Zod validation errors
+  if (err.name === 'ZodError') {
+    const zodError = err as any;
+    const firstErrorMessage = zodError.errors?.[0]?.message || 'Validation failed';
+    res.status(400).json({
+      success: false,
+      message: firstErrorMessage,
+      errors: zodError.errors,
+    });
+    return;
+  }
 
   // Handle Mongoose duplicate key error (11000)
   if (err.code === 11000) {
@@ -39,6 +52,6 @@ export const errorHandler = (
   res.status(statusCode).json({
     success: false,
     message,
-    ...(process.env.NODE_ENV !== 'production' ? { stack: err.stack } : {}),
+    ...(env.NODE_ENV !== 'production' ? { stack: err.stack } : {}),
   });
 };

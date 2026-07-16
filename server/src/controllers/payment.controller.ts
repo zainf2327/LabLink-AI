@@ -1,7 +1,8 @@
 import { Request, Response } from 'express';
 import asyncHandler from '../utils/asyncHandler.js';
 import Payment from '../models/Payment.model.js';
-import { bookingService } from '../services/booking.service.js';
+import { paymentService } from '../services/payment.service.js';
+import { createPaymentIntentSchema, confirmPaymentSchema } from '../utils/validators.js';
 
 export const createPaymentIntent = asyncHandler(async (req: Request, res: Response): Promise<void> => {
   if (!req.user) {
@@ -9,13 +10,9 @@ export const createPaymentIntent = asyncHandler(async (req: Request, res: Respon
     return;
   }
 
-  const { bookingId } = req.body;
-  if (!bookingId) {
-    res.status(400).json({ success: false, message: 'bookingId is required' });
-    return;
-  }
+  const validated = createPaymentIntentSchema.parse(req.body);
 
-  const result = await bookingService.createPaymentIntent(req.user.id, bookingId);
+  const result = await paymentService.createPaymentIntent(req.user.id, validated.bookingId);
 
   res.status(200).json({
     success: true,
@@ -29,13 +26,9 @@ export const confirmPayment = asyncHandler(async (req: Request, res: Response): 
     return;
   }
 
-  const { paymentIntentId } = req.body;
-  if (!paymentIntentId) {
-    res.status(400).json({ success: false, message: 'paymentIntentId is required' });
-    return;
-  }
+  const validated = confirmPaymentSchema.parse(req.body);
 
-  const booking = await bookingService.confirmPayment(req.user.id, paymentIntentId);
+  const booking = await paymentService.confirmPayment(req.user.id, validated.paymentIntentId);
 
   res.status(200).json({
     success: true,
@@ -43,6 +36,7 @@ export const confirmPayment = asyncHandler(async (req: Request, res: Response): 
     data: { booking },
   });
 });
+
 
 export const getMyBillingHistory = asyncHandler(async (req: Request, res: Response): Promise<void> => {
   if (!req.user) {

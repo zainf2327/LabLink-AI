@@ -1,12 +1,10 @@
 import Stripe from 'stripe';
 import { stripeConfig } from '../config/stripe.js';
 
-let stripe: Stripe | null = null;
-if (stripeConfig.secretKey) {
-  stripe = new Stripe(stripeConfig.secretKey);
-} else {
-  console.warn('⚠️ Stripe secret key is missing. Stripe service will run in MOCK mode.');
+if (!stripeConfig.secretKey) {
+  throw new Error('STRIPE_SECRET_KEY is required');
 }
+const stripe = new Stripe(stripeConfig.secretKey);
 
 export const stripeService = {
   async createPaymentIntent(
@@ -14,15 +12,6 @@ export const stripeService = {
     currency: string,
     bookingId: string
   ): Promise<{ id: string; client_secret: string | null }> {
-    if (!stripe) {
-      // Mock mode fallback
-      const mockId = `pi_mock_${Math.random().toString(36).substring(2, 11)}`;
-      return {
-        id: mockId,
-        client_secret: `${mockId}_secret_mock`,
-      };
-    }
-
     try {
       const intent = await stripe.paymentIntents.create({
         amount: amountInCents,
@@ -45,11 +34,6 @@ export const stripeService = {
   async retrievePaymentIntent(
     paymentIntentId: string
   ): Promise<{ status: string; client_secret: string | null }> {
-    if (!stripe || paymentIntentId.startsWith('pi_mock_')) {
-      // Mock mode fallback
-      return { status: 'succeeded', client_secret: `${paymentIntentId}_secret_mock` };
-    }
-
     try {
       const intent = await stripe.paymentIntents.retrieve(paymentIntentId);
       return {

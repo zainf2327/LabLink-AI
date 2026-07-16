@@ -5,6 +5,7 @@ import { z } from 'zod';
 dotenv.config({quiet: true});
 
 const envSchema = z.object({
+  NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
   PORT: z.coerce.number().default(5001),
   MONGODB_URI: z.string().refine(val => val.startsWith('mongodb://') || val.startsWith('mongodb+srv://'), {
     message: 'MONGODB_URI must start with mongodb:// or mongodb+srv://'
@@ -14,13 +15,16 @@ const envSchema = z.object({
   CLOUDINARY_CLOUD_NAME: z.string().optional(),
   CLOUDINARY_API_KEY: z.string().optional(),
   CLOUDINARY_API_SECRET: z.string().optional(),
-  STRIPE_SECRET_KEY: z.string().optional(),
+  STRIPE_SECRET_KEY: z.string().min(1, 'STRIPE_SECRET_KEY is required'),
   STRIPE_WEBHOOK_SECRET: z.string().optional(),
   PINECONE_API_KEY: z.string().optional(),
   PINECONE_INDEX_NAME: z.string().optional(),
-  GOOGLE_CLIENT_ID: z.string().optional(),
-  GOOGLE_CLIENT_SECRET: z.string().optional(),
+  GOOGLE_CLIENT_ID: z.string().min(1, 'GOOGLE_CLIENT_ID is required'),
+  GOOGLE_CLIENT_SECRET: z.string().min(1, 'GOOGLE_CLIENT_SECRET is required'),
+  GOOGLE_REDIRECT_URI: z.string().url('GOOGLE_REDIRECT_URI must be a valid URL'),
+  ENCRYPTION_KEY: z.string().min(32, 'ENCRYPTION_KEY must be at least 32 characters').optional(),
   GROQ_API_KEY: z.string().optional(),
+  FRONTEND_URL: z.string().url('FRONTEND_URL must be a valid URL'),
 });
 
 const parsed = envSchema.safeParse(process.env);

@@ -1,9 +1,10 @@
 import { Request, Response } from 'express';
 import Stripe from 'stripe';
 import { stripeConfig } from '../config/stripe.js';
-import { bookingService } from '../services/booking.service.js';
+import { paymentService } from '../services/payment.service.js';
 import Payment from '../models/Payment.model.js';
 import logger from '../utils/logger.js';
+
 
 export const stripeWebhookHandler = async (req: Request, res: Response): Promise<void> => {
   const sig = req.headers['stripe-signature'];
@@ -39,7 +40,7 @@ export const stripeWebhookHandler = async (req: Request, res: Response): Promise
       case 'payment_intent.succeeded': {
         const paymentIntent = event.data.object as Stripe.PaymentIntent;
         logger.info(`PaymentIntent was successful: ${paymentIntent.id}`);
-        await bookingService.processSuccessfulPayment(paymentIntent.id);
+        await paymentService.processSuccessfulPayment(paymentIntent.id);
         break;
       }
       case 'payment_intent.payment_failed': {

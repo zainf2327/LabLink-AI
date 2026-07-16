@@ -1,12 +1,133 @@
+import { google } from 'googleapis';
+import { env } from '../config/env.js';
+
+const getOAuthClient = (redirectUri?: string) => {
+  return new google.auth.OAuth2(
+    env.GOOGLE_CLIENT_ID,
+    env.GOOGLE_CLIENT_SECRET,
+    redirectUri || env.GOOGLE_REDIRECT_URI
+  );
+};
+
 export const calendarService = {
+  getAuthUrl(state: string, isCalendar: boolean): string {
+    const redirectUri = isCalendar
+      ? env.GOOGLE_REDIRECT_URI.replace('/google/callback', '/google/calendar/callback')
+      : env.GOOGLE_REDIRECT_URI;
+
+    const oauth2Client = getOAuthClient(redirectUri);
+    const scopes = isCalendar
+      ? ['https://www.googleapis.com/auth/calendar.events', 'https://www.googleapis.com/auth/userinfo.email']
+      : ['openid', 'email', 'profile'];
+      
+    return oauth2Client.generateAuthUrl({
+      access_type: 'offline',
+      prompt: 'consent',
+      scope: scopes,
+      state: state,
+    });
+  },
+
+  async getTokensFromCode(code: string, isCalendar: boolean = false): Promise<any> {
+    const redirectUri = isCalendar
+      ? env.GOOGLE_REDIRECT_URI.replace('/google/callback', '/google/calendar/callback')
+      : env.GOOGLE_REDIRECT_URI;
+
+    const oauth2Client = getOAuthClient(redirectUri);
+    const { tokens } = await oauth2Client.getToken(code);
+    return tokens;
+  },
+
+  async getGoogleProfile(accessToken: string): Promise<any> {
+    const oauth2Client = getOAuthClient();
+    oauth2Client.setCredentials({ access_token: accessToken });
+    const oauth2 = google.oauth2({ version: 'v2', auth: oauth2Client });
+    const { data } = await oauth2.userinfo.get();
+    return data;
+  },
+
+  async getCalendarClient(refreshToken: string) {
+    const oauth2Client = getOAuthClient();
+    oauth2Client.setCredentials({ refresh_token: refreshToken });
+    return google.calendar({ version: 'v3', auth: oauth2Client });
+  },
+
   async createHomeSamplingEvent(
+    refreshToken: string,
     patientName: string,
     address: string,
     scheduledAt: Date
   ): Promise<string> {
-    console.log(
-      `[Google Calendar] Mock creating event for patient at ${address} on ${scheduledAt}`
-    );
-    return `mock_gcal_event_${Math.random().toString(36).substring(2, 11)}`;
+    const calendar = await this.getCalendarClient(refreshToken);
+    const start = new Date(scheduledAt);
+    const end = new Date(start.getTime() + 60 * 60 * 1000); // 1 hour duration
+    
+    const response = await calendar.events.insert({
+      calendarId: 'primary',
+      requestBody: {
+        summary: `LabLink AI Home Sampling: ${patientName}`,
+        description: `Home sampling collection appointment.\nAddress: ${address}`,
+        start: { dateTime: start.toISOString() },
+        end: { dateTime: end.toISOString() },
+      },
+    });
+    
+    return response.data.id || '';
   },
+
+  async createPatientInLabEvent(
+    refreshToken: string,
+    testNames: string[],
+    scheduledAt: Date
+  ): Promise<string> {
+    const calendar = await this.getCalendarClient(refreshToken);
+    const start = new Date(scheduledAt);
+    const end = new Date(start.getTime() + 60 * 60 * 1000); // 1 hour duration
+    
+    const response = await calendar.events.insert({
+      calendarId: 'primary',
+      requestBody: {
+        summary: `LabLink AI Appointment: ${testNames.join(', ')}`,
+        description: `Your in-lab booking is scheduled.\nTests: ${testNames.join(', ')}`,
+        start: { dateTime: start.toISOString() },
+        end: { dateTime: end.toISOString() },
+      },
+    });
+    
+    return response.data.id || '';
+  },
+
+  async deleteEvent(refreshToken: string, eventId: string): Promise<void> {
+    const calendar = await this.getCalendarClient(refreshToken);
+    try {
+      await calendar.events.delete({
+        calendarId: 'primary',
+        eventId: eventId,
+      });
+    } catch (err: any) {
+      if (err.code !== 410 && err.code !== 404) {
+        throw err;
+      }
+    }
+  },
+
+  async checkFreeBusy(refreshToken: string, email: string, start: Date, end: Date): Promise<boolean> {
+    const oauth2Client = getOAuthClient();
+    oauth2Client.setCredentials({ refresh_token: refreshToken });
+    const calendar = google.calendar({ version: 'v3', auth: oauth2Client });
+    
+    const response = await calendar.freebusy.query({
+      requestBody: {
+        timeMin: start.toISOString(),
+        timeMax: end.toISOString(),
+        items: [{ id: 'primary' }],
+      },
+    });
+    
+    const calendars = response.data.calendars;
+    if (calendars && calendars['primary'] && calendars['primary'].busy) {
+      return calendars['primary'].busy.length > 0;
+    }
+    return false;
+  }
 };

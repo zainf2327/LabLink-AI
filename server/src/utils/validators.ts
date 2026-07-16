@@ -33,3 +33,59 @@ export const createTestSchema = z.object({
 export const updateTestSchema = createTestSchema.partial().extend({
   isActive: z.boolean().optional(),
 });
+
+export const createCouponSchema = z.object({
+  code: z.string().min(1, 'Coupon code is required'),
+  discountType: z.enum(['percentage', 'fixed']),
+  discountValue: z.number().min(0, 'Discount value must be a non-negative number'),
+  minOrderValue: z.number().min(0, 'Minimum order value must be a non-negative number').nullable().optional(),
+  maxUses: z.number().int().min(0, 'Max uses must be a non-negative integer').nullable().optional(),
+  expiresAt: z.coerce.date().nullable().optional(),
+  isActive: z.boolean().optional(),
+});
+
+export const updateCouponSchema = createCouponSchema.partial();
+
+export const validateCouponSchema = z.object({
+  code: z.string().min(1, 'Coupon code is required'),
+  totalAmount: z.number().min(0, 'Total amount must be a non-negative number'),
+});
+
+export const createBookingSchema = z.object({
+  forMemberId: z.string().regex(/^[0-9a-fA-F]{24}$/, 'Invalid family member ID').nullable().optional(),
+  tests: z.array(z.string().regex(/^[0-9a-fA-F]{24}$/, 'Invalid test ID')).min(1, 'Booking must contain at least one test'),
+  couponCode: z.string().nullable().optional(),
+  homeSampling: z.object({
+    requested: z.boolean(),
+    address: z.string().optional(),
+    scheduledAt: z.string().optional(),
+  }).optional(),
+  notes: z.string().optional(),
+});
+
+export const updateBookingStatusSchema = z.object({
+  status: z.enum([
+    'pending_payment',
+    'scheduled',
+    'sample_collected',
+    'in_lab',
+    'report_ready',
+    'completed',
+    'cancelled',
+  ], {
+    message: 'Invalid booking status',
+  }),
+});
+
+export const assignStaffSchema = z.object({
+  assignedStaffId: z.string().regex(/^[0-9a-fA-F]{24}$/, 'Invalid staff ID').nullable().optional(),
+});
+
+export const createPaymentIntentSchema = z.object({
+  bookingId: z.string().regex(/^[0-9a-fA-F]{24}$/, 'Invalid booking ID'),
+});
+
+export const confirmPaymentSchema = z.object({
+  paymentIntentId: z.string().min(1, 'paymentIntentId is required'),
+});
+
