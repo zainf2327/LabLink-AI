@@ -3,6 +3,7 @@ import mongoose from 'mongoose';
 import asyncHandler from '../utils/asyncHandler.js';
 import Booking from '../models/Booking.model.js';
 import { bookingService } from '../services/booking.service.js';
+import { paymentService } from '../services/payment.service.js';
 import { calendarService } from '../services/calendar.service.js';
 import { createBookingSchema, updateBookingStatusSchema, assignStaffSchema } from '../utils/validators.js';
 
@@ -229,8 +230,21 @@ export const cancelBooking = asyncHandler(async (req: Request, res: Response): P
     }
   }
 
+  // Capture the status BEFORE mutation so wallet logic knows if it was previously paid
+  const previousStatus = booking.status;
+
   booking.status = 'cancelled';
   await booking.save();
+
+  // Credit wallet if booking was already paid (scheduled or beyond)
+  const paidStatuses = ['scheduled', 'sample_collected', 'in_lab', 'report_ready'];
+  if (paidStatuses.includes(previousStatus) && booking.finalAmount > 0) {
+    try {
+      await paymentService.creditWalletOnCancellation(booking);
+    } catch (err) {
+      console.error('Failed to credit wallet on cancellation:', err);
+    }
+  }
 
   // Remove Google Calendar events if any were created
   try {

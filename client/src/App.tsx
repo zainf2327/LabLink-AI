@@ -6,6 +6,7 @@ import Register from './pages/Register';
 import Tests from './pages/Tests';
 import PatientDashboard from './pages/patient/Dashboard';
 import Checkout from './pages/patient/Checkout';
+import WalletPage from './pages/patient/WalletPage';
 import StaffDashboard from './pages/staff/Dashboard';
 import AdminDashboard from './pages/admin/Dashboard';
 import ProtectedRoute from './components/ProtectedRoute';
@@ -63,6 +64,14 @@ export const App: React.FC = () => {
           element={
             <ProtectedRoute allowedRoles={['patient']}>
               <Checkout />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/patient/wallet"
+          element={
+            <ProtectedRoute allowedRoles={['patient']}>
+              <WalletPage />
             </ProtectedRoute>
           }
         />

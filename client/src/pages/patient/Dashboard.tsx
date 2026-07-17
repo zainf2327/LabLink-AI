@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import useAuthStore from '../../store/useAuthStore';
 import { bookingService } from '../../services/booking.service';
+import { walletService } from '../../services/wallet.service';
 import { authService } from '../../services/auth.service';
 import type { Booking } from '../../services/booking.service';
 import {
@@ -19,6 +20,7 @@ import {
   Clock,
   FlaskConical,
   FileCheck,
+  Wallet,
 } from 'lucide-react';
 
 export const PatientDashboard: React.FC = () => {
@@ -26,6 +28,8 @@ export const PatientDashboard: React.FC = () => {
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
   const [syncingCalendar, setSyncingCalendar] = useState(false);
+  const [walletBalance, setWalletBalance] = useState<number>(0);
+  const [cancelMessage, setCancelMessage] = useState<string | null>(null);
 
   const handleConnectCalendar = async () => {
     setSyncingCalendar(true);
@@ -74,16 +78,31 @@ export const PatientDashboard: React.FC = () => {
     }
   };
 
+  const fetchWallet = async () => {
+    try {
+      const res = await walletService.getWalletBalance();
+      if (res.success) setWalletBalance(res.data.walletBalance);
+    } catch {
+      // Non-critical
+    }
+  };
+
   useEffect(() => {
     fetchBookings();
+    fetchWallet();
   }, []);
 
-  const handleCancelBooking = async (bookingId: string) => {
+  const handleCancelBooking = async (bookingId: string, wasPaid: boolean) => {
     if (!window.confirm('Are you sure you want to cancel this booking?')) return;
     try {
       const res = await bookingService.cancelBooking(bookingId);
       if (res.success) {
-        alert('Booking cancelled successfully.');
+        if (wasPaid) {
+          const refundedAmount = res.data.booking.finalAmount;
+          setCancelMessage(`Booking cancelled. $${refundedAmount.toFixed(2)} has been credited to your wallet.`);
+          fetchWallet(); // refresh wallet balance
+          setTimeout(() => setCancelMessage(null), 6000);
+        }
         fetchBookings();
       }
     } catch (err: any) {
@@ -211,6 +230,18 @@ export const PatientDashboard: React.FC = () => {
 
       {/* Main Content */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
+
+        {/* Cancel Refund Toast */}
+        {cancelMessage && (
+          <div className="mb-6 p-4 bg-teal-500/10 border border-teal-500/20 rounded-2xl text-teal-600 text-sm flex items-center gap-3 animate-fadeIn">
+            <Wallet size={18} className="shrink-0 text-teal-500" />
+            <span>{cancelMessage}</span>
+            <Link to="/patient/wallet" className="ml-auto text-xs underline underline-offset-2 hover:text-teal-700 whitespace-nowrap">
+              View Wallet
+            </Link>
+          </div>
+        )}
+
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Profile Card */}
           <div className="lg:col-span-1 glassmorphic-card rounded-2xl p-6 relative overflow-hidden group self-start">
@@ -291,7 +322,7 @@ export const PatientDashboard: React.FC = () => {
                 <span>Quick Health Summary</span>
               </h3>
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
                 <div className="bg-zinc-900/60 border border-zinc-800/80 p-4 rounded-xl">
                   <div className="flex justify-between items-start mb-2">
                     <span className="text-zinc-500 text-xs font-semibold uppercase tracking-wider">
@@ -332,6 +363,22 @@ export const PatientDashboard: React.FC = () => {
                   </p>
                   <span className="text-[10px] text-zinc-500 block mt-1">Reports ready to view</span>
                 </div>
+                {/* Wallet Balance Card */}
+                <Link
+                  to="/patient/wallet"
+                  className="bg-zinc-900/60 border border-zinc-800/80 p-4 rounded-xl hover:border-teal-500/40 transition-all group"
+                >
+                  <div className="flex justify-between items-start mb-2">
+                    <span className="text-zinc-500 text-xs font-semibold uppercase tracking-wider">
+                      Wallet Balance
+                    </span>
+                    <Wallet className="text-teal-500 group-hover:scale-110 transition-transform" size={16} />
+                  </div>
+                  <p className="text-2xl font-bold text-zinc-100">
+                    ${walletBalance.toFixed(2)}
+                  </p>
+                  <span className="text-[10px] text-zinc-500 block mt-1">Tap to view history</span>
+                </Link>
               </div>
             </div>
 
@@ -404,7 +451,7 @@ export const PatientDashboard: React.FC = () => {
                         {getStatusBadge(booking.status)}
                         {booking.status === 'scheduled' && (
                           <button
-                            onClick={() => handleCancelBooking(booking._id)}
+                            onClick={() => handleCancelBooking(booking._id, true)}
                             className="px-3.5 py-1.5 rounded-xl border border-zinc-800 hover:border-red-500/20 bg-zinc-950 text-xs font-semibold text-zinc-400 hover:text-red-400 transition-all cursor-pointer"
                           >
                             Cancel

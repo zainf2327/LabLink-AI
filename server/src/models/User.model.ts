@@ -11,6 +11,7 @@ export interface IUser extends Document {
   googleEmail?: string;
   googleRefreshToken?: string;
   googleCalendarConnected: boolean;
+  walletBalance: number;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -39,6 +40,7 @@ const UserSchema: Schema = new Schema(
     googleEmail: { type: String },
     googleRefreshToken: { type: String },
     googleCalendarConnected: { type: Boolean, default: false, required: true },
+    walletBalance: { type: Number, default: 0, min: 0, required: true },
   },
   {
     timestamps: true,

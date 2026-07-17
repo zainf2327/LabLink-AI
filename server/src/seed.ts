@@ -20,6 +20,7 @@ import Booking from './models/Booking.model.js';
 import Payment from './models/Payment.model.js';
 import FamilyMember from './models/FamilyMember.model.js';
 import AuditLog from './models/AuditLog.model.js';
+import WalletTransaction from './models/WalletTransaction.model.js';
 
 async function seed() {
   const uri = env.MONGODB_URI;
@@ -44,6 +45,7 @@ async function seed() {
     await Payment.deleteMany({});
     await FamilyMember.deleteMany({});
     await AuditLog.deleteMany({});
+    await WalletTransaction.deleteMany({});
     console.log('Database cleared.');
 
     // 2. Create Users
@@ -76,6 +78,7 @@ async function seed() {
       passwordHash,
       phone: '+15550300',
       role: 'patient',
+      walletBalance: 150, // Seeding patient with initial $150 credit for wallet flow testing
       isActive: true,
     });
 
@@ -310,33 +313,35 @@ async function seed() {
       ];
 
       // Booking 1
-      await Booking.create({
+      const booking1 = await Booking.create({
         patientId: patientUser._id,
         tests: [{ testId: cbcTest._id, name: cbcTest.name, price: cbcTest.price }],
         status: 'completed',
         totalAmount: cbcTest.price,
         discountAmount: 0,
         finalAmount: cbcTest.price,
+        walletAmountUsed: 0,
         homeSampling: { requested: false },
         createdAt: dates[0],
         updatedAt: dates[0]
       });
-
+ 
       // Booking 2
-      await Booking.create({
+      const booking2 = await Booking.create({
         patientId: patientUser._id,
         tests: [{ testId: glucoseTest._id, name: glucoseTest.name, price: glucoseTest.price }],
         status: 'completed',
         totalAmount: glucoseTest.price,
         discountAmount: 0,
         finalAmount: glucoseTest.price,
+        walletAmountUsed: 15, // Mocking that $15 was paid by wallet
         homeSampling: { requested: false },
         createdAt: dates[1],
         updatedAt: dates[1]
       });
-
+ 
       // Booking 3
-      await Booking.create({
+      const booking3 = await Booking.create({
         patientId: patientUser._id,
         tests: [
           { testId: cbcTest._id, name: cbcTest.name, price: cbcTest.price },
@@ -346,6 +351,7 @@ async function seed() {
         totalAmount: cbcTest.price + thyroidTest.price,
         discountAmount: 0,
         finalAmount: cbcTest.price + thyroidTest.price,
+        walletAmountUsed: 0,
         homeSampling: {
           requested: true,
           address: '123 Health Ave, Islamabad',
@@ -354,20 +360,53 @@ async function seed() {
         createdAt: dates[2],
         updatedAt: dates[2]
       });
-
+ 
       // Booking 4
-      await Booking.create({
+      const booking4 = await Booking.create({
         patientId: patientUser._id,
         tests: [{ testId: thyroidTest._id, name: thyroidTest.name, price: thyroidTest.price }],
         status: 'sample_collected',
         totalAmount: thyroidTest.price,
         discountAmount: 10,
         finalAmount: thyroidTest.price - 10,
+        walletAmountUsed: 0,
         homeSampling: { requested: false },
         createdAt: dates[3],
         updatedAt: dates[3]
       });
       console.log('Mock bookings created.');
+
+      // 10. Seed diversified WalletTransaction records for Patient
+      console.log('Seeding patient wallet transaction ledger...');
+      await WalletTransaction.create({
+        userId: patientUser._id,
+        type: 'credit',
+        amount: 45,
+        reason: 'cancellation_refund',
+        bookingId: booking1._id,
+        note: `Refund for cancellation of Booking ${booking1._id.toString()}`,
+        createdAt: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000),
+      });
+
+      await WalletTransaction.create({
+        userId: patientUser._id,
+        type: 'debit',
+        amount: 15,
+        reason: 'booking_payment',
+        bookingId: booking2._id,
+        note: `Payment partial debit for Booking ${booking2._id.toString()}`,
+        createdAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000),
+      });
+
+      await WalletTransaction.create({
+        userId: patientUser._id,
+        type: 'credit',
+        amount: 120,
+        reason: 'cancellation_refund',
+        note: 'Manual administrative balance adjustment',
+        createdAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000),
+      });
+      console.log('Wallet transaction ledger seeded.');
     }
 
     console.log('Database seeded successfully! 🌱');

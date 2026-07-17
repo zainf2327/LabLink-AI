@@ -30,6 +30,7 @@ export interface Booking {
   totalAmount: number;
   discountAmount: number;
   finalAmount: number;
+  walletAmountUsed: number;
   couponId?: string | null;
   homeSampling: BookingHomeSampling;
   notes?: string;
@@ -122,7 +123,15 @@ export const bookingService = {
 
   async createPaymentIntent(
     bookingId: string
-  ): Promise<{ success: boolean; data: { clientSecret: string | null; paymentId: string } }> {
+  ): Promise<{
+    success: boolean;
+    data: {
+      clientSecret: string | null;
+      paymentId: string;
+      walletAmountUsed: number;
+      stripeAmount: number;
+    };
+  }> {
     const response = await api.post('/payments/create-intent', { bookingId });
     return response.data;
   },

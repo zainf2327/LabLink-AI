@@ -27,6 +27,7 @@ export interface IBooking extends Document {
   totalAmount: number;
   discountAmount: number;
   finalAmount: number;
+  walletAmountUsed: number;
   couponId?: mongoose.Types.ObjectId | null;
   homeSampling: IBookingHomeSampling;
   googleCalendar?: IBookingGoogleCalendar;
@@ -75,6 +76,7 @@ const BookingSchema: Schema = new Schema(
     totalAmount: { type: Number, required: true, min: 0 },
     discountAmount: { type: Number, required: true, default: 0, min: 0 },
     finalAmount: { type: Number, required: true, min: 0 },
+    walletAmountUsed: { type: Number, required: true, default: 0, min: 0 },
     couponId: { type: Schema.Types.ObjectId, ref: 'Coupon', default: null },
     homeSampling: { type: BookingHomeSamplingSchema, required: true },
     googleCalendar: { type: BookingGoogleCalendarSchema, default: () => ({}) },

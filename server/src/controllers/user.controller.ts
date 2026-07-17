@@ -55,7 +55,7 @@ export const getUserById = asyncHandler(async (req: Request, res: Response): Pro
 });
 
 export const updateUser = asyncHandler(async (req: Request, res: Response): Promise<void> => {
-  const user = await User.findByIdAndUpdate(req.params.id, req.body, { new: true }).select('-passwordHash');
+  const user = await User.findByIdAndUpdate(req.params.id, req.body, { returnDocument: 'after' }).select('-passwordHash');
   if (!user) {
     res.status(404).json({ success: false, message: 'User not found' });
     return;
@@ -68,7 +68,7 @@ export const updateUser = asyncHandler(async (req: Request, res: Response): Prom
 });
 
 export const deactivateUser = asyncHandler(async (req: Request, res: Response): Promise<void> => {
-  const user = await User.findByIdAndUpdate(req.params.id, { isActive: false }, { new: true }).select('-passwordHash');
+  const user = await User.findByIdAndUpdate(req.params.id, { isActive: false }, { returnDocument: 'after' }).select('-passwordHash');
   if (!user) {
     res.status(404).json({ success: false, message: 'User not found' });
     return;
@@ -88,7 +88,7 @@ export const updateProfile = asyncHandler(async (req: Request, res: Response): P
   }
 
   const { name, phone } = req.body;
-  const user = await User.findByIdAndUpdate(req.user.id, { name, phone }, { new: true }).select('-passwordHash');
+  const user = await User.findByIdAndUpdate(req.user.id, { name, phone }, { returnDocument: 'after' }).select('-passwordHash');
   if (!user) {
     res.status(404).json({ success: false, message: 'User not found' });
     return;

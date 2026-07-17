@@ -23,11 +23,12 @@ import aiRoutes from './routes/ai.routes.js';
 import analyticsRoutes from './routes/analytics.routes.js';
 import auditLogRoutes from './routes/auditLog.routes.js';
 import webhookRoutes from './routes/webhook.routes.js';
+import walletRoutes from './routes/wallet.routes.js';
 
 const app = express();
 
 // Global Middlewares
-app.use(rateLimiter);
+//app.use(rateLimiter);
 app.use(cors({
   origin: true, // Allow all origins for development, adjust as needed
   credentials: true
@@ -69,6 +70,7 @@ app.use('/api/v1/coupons', couponRoutes);
 app.use('/api/v1/ai', aiRoutes);
 app.use('/api/v1/analytics', analyticsRoutes);
 app.use('/api/v1/audit-logs', auditLogRoutes);
+app.use('/api/v1/wallet', walletRoutes);
 
 // 404 handler for unknown routes
 app.use((req: Request, res: Response, next: NextFunction) => {

@@ -3,6 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import useAuthStore from '../../store/useAuthStore';
 import useCartStore from '../../store/useCartStore';
 import { bookingService } from '../../services/booking.service';
+import { walletService } from '../../services/wallet.service';
 import { familyService } from '../../services/family.service';
 import type { FamilyMember } from '../../services/family.service';
 import { loadStripe } from '@stripe/stripe-js';
@@ -20,6 +21,7 @@ import {
   Loader,
   Home,
   FileText,
+  Wallet,
 } from 'lucide-react';
 
 // Initialize Stripe Promise
@@ -41,6 +43,10 @@ const CheckoutForm: React.FC = () => {
   const [scheduledAt, setScheduledAt] = useState('');
   const [notes, setNotes] = useState('');
 
+  // Wallet state
+  const [walletBalance, setWalletBalance] = useState<number>(0);
+  const [walletLoading, setWalletLoading] = useState(true);
+
   // Coupon states
   const [couponCode, setCouponCode] = useState('');
   const [appliedCoupon, setAppliedCoupon] = useState<any>(null);
@@ -52,6 +58,8 @@ const CheckoutForm: React.FC = () => {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [createdBooking, setCreatedBooking] = useState<any>(null);
   const [paymentSecret, setPaymentSecret] = useState<string | null>(null);
+  const [walletAmountUsed, setWalletAmountUsed] = useState<number>(0);
+  const [stripeChargeAmount, setStripeChargeAmount] = useState<number>(0);
 
   // Credit Card states
   const [cardName, setCardName] = useState('');
@@ -59,7 +67,10 @@ const CheckoutForm: React.FC = () => {
   // Calculate pricing
   const subtotal = items.reduce((sum, item) => sum + item.price, 0);
   const discount = appliedCoupon ? appliedCoupon.discountAmount : 0;
-  const finalTotal = Math.max(0, subtotal - discount);
+  const afterCoupon = Math.max(0, subtotal - discount);
+  // Wallet covers up to afterCoupon amount
+  const walletApplied = Math.min(walletBalance, afterCoupon);
+  const finalTotal = Math.max(0, afterCoupon - walletApplied);
 
   useEffect(() => {
     // Redirect if cart is empty and not on success step
@@ -67,6 +78,12 @@ const CheckoutForm: React.FC = () => {
       navigate('/tests');
     }
   }, [items, navigate, step]);
+
+  useEffect(() => {
+    if (errorMessage) {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  }, [errorMessage]);
 
   useEffect(() => {
     // Fetch family members
@@ -77,6 +94,21 @@ const CheckoutForm: React.FC = () => {
       }
     };
     fetchFamily();
+
+    // Fetch wallet balance
+    const fetchWallet = async () => {
+      try {
+        const res = await walletService.getWalletBalance();
+        if (res.success) {
+          setWalletBalance(res.data.walletBalance);
+        }
+      } catch {
+        // Wallet fetch is non-critical — fail silently
+      } finally {
+        setWalletLoading(false);
+      }
+    };
+    fetchWallet();
   }, []);
 
   const handleApplyCoupon = async () => {
@@ -113,8 +145,14 @@ const CheckoutForm: React.FC = () => {
       return;
     }
 
-    // Validate home collection address (only required for home sampling)
+    // Validate home collection eligibility
     if (requestHomeSampling) {
+      const unavailableTest = items.find((item) => !item.isHomeCollectionAvailable);
+      if (unavailableTest) {
+        setErrorMessage(`Home collection is not available for test: "${unavailableTest.name}"`);
+        return;
+      }
+
       if (!address.trim()) {
         setErrorMessage('Please enter an address for home sampling collection.');
         return;
@@ -140,15 +178,20 @@ const CheckoutForm: React.FC = () => {
         const booking = bookingRes.data.booking;
         setCreatedBooking(booking);
 
-        // 2. Handle Zero-Value Checkout Bypass
-        if (booking.finalAmount === 0) {
-          clearCart();
-          setStep('success');
-        } else {
-          // 3. Create Payment Intent
-          const intentRes = await bookingService.createPaymentIntent(booking._id);
-          if (intentRes.success) {
-            setPaymentSecret(intentRes.data.clientSecret);
+        // 2. Create Payment Intent (also triggers wallet deduction server-side)
+        const intentRes = await bookingService.createPaymentIntent(booking._id);
+        if (intentRes.success) {
+          const { clientSecret, walletAmountUsed: wUsed, stripeAmount } = intentRes.data;
+          setWalletAmountUsed(wUsed);
+          setStripeChargeAmount(stripeAmount);
+
+          // 3. Handle Zero-Value / Wallet-Covered Checkout Bypass
+          if (!clientSecret || stripeAmount === 0) {
+            clearCart();
+            setCreatedBooking((prev: any) => prev ? { ...prev, status: 'scheduled' } : prev);
+            setStep('success');
+          } else {
+            setPaymentSecret(clientSecret);
             setStep('payment');
           }
         }
@@ -249,6 +292,21 @@ const CheckoutForm: React.FC = () => {
                 {createdBooking?.status}
               </span>
             </div>
+            {walletAmountUsed > 0 && (
+              <div className="flex justify-between text-xs text-zinc-500 border-t border-zinc-800 pt-2">
+                <span className="text-teal-600 flex items-center gap-1">
+                  <Wallet size={11} />
+                  Wallet Credit Used
+                </span>
+                <span className="text-teal-600 font-semibold">${walletAmountUsed.toFixed(2)}</span>
+              </div>
+            )}
+            {stripeChargeAmount > 0 && (
+              <div className="flex justify-between text-xs text-zinc-500">
+                <span>Charged via Stripe</span>
+                <span className="text-zinc-300 font-semibold">${stripeChargeAmount.toFixed(2)}</span>
+              </div>
+            )}
             {createdBooking?.homeSampling?.requested && (
               <div className="pt-2 border-t border-zinc-800 space-y-1">
                 <span className="text-xs text-emerald-400 font-semibold flex items-center gap-1">
@@ -490,7 +548,7 @@ const CheckoutForm: React.FC = () => {
                   </>
                 ) : (
                   <>
-                    <span>Confirm & Pay ${finalTotal.toFixed(2)}</span>
+                    <span>Confirm & Pay ${stripeChargeAmount.toFixed(2)}</span>
                   </>
                 )}
               </button>
@@ -505,6 +563,17 @@ const CheckoutForm: React.FC = () => {
               <FileText size={16} className="text-emerald-400" />
               <span>Cart Summary</span>
             </h3>
+
+            {/* Wallet balance pill */}
+            {!walletLoading && walletBalance > 0 && (
+              <div className="flex items-center justify-between bg-teal-500/10 border border-teal-500/20 rounded-xl px-3 py-2">
+                <span className="text-xs text-teal-600 flex items-center gap-1.5 font-semibold">
+                  <Wallet size={13} />
+                  Wallet Balance
+                </span>
+                <span className="text-xs font-extrabold text-teal-600">${walletBalance.toFixed(2)}</span>
+              </div>
+            )}
 
             {/* Test items list */}
             <div className="space-y-3 max-h-60 overflow-y-auto pr-1">
@@ -593,8 +662,19 @@ const CheckoutForm: React.FC = () => {
                   <span className="text-emerald-400 font-semibold">Included</span>
                 </div>
               )}
+              {/* Wallet balance row */}
+              {!walletLoading && walletBalance > 0 && (
+                <div className="flex justify-between text-xs text-zinc-500 border-t border-zinc-900/50 pt-2">
+                  <span className="text-teal-600 flex items-center gap-1">
+                    <Wallet size={11} />
+                    Wallet Credit
+                    <span className="text-zinc-600">(bal: ${walletBalance.toFixed(2)})</span>
+                  </span>
+                  <span className="text-teal-600 font-semibold">-${walletApplied.toFixed(2)}</span>
+                </div>
+              )}
               <div className="flex justify-between items-center pt-2.5 border-t border-zinc-900">
-                <span className="text-sm font-bold text-zinc-200">Total Price</span>
+                <span className="text-sm font-bold text-zinc-200">You Pay</span>
                 <strong className="text-xl font-extrabold text-emerald-400">
                   ${finalTotal.toFixed(2)}
                 </strong>

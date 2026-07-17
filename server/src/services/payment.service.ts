@@ -2,6 +2,8 @@ import mongoose from 'mongoose';
 import Payment from '../models/Payment.model.js';
 import Booking, { IBooking } from '../models/Booking.model.js';
 import Coupon from '../models/Coupon.model.js';
+import User from '../models/User.model.js';
+import WalletTransaction from '../models/WalletTransaction.model.js';
 import { stripeService } from './stripe.service.js';
 import { calendarService } from './calendar.service.js';
 
@@ -9,7 +11,7 @@ export const paymentService = {
   async createPaymentIntent(
     patientId: string,
     bookingId: string
-  ): Promise<{ clientSecret: string | null; paymentId: string }> {
+  ): Promise<{ clientSecret: string | null; paymentId: string; walletAmountUsed: number; stripeAmount: number }> {
     const booking = await Booking.findById(bookingId);
     if (!booking) {
       const error = new Error('Booking not found') as any;
@@ -29,15 +31,44 @@ export const paymentService = {
       throw error;
     }
 
-    // 1. Zero-value check
-    if (booking.finalAmount === 0) {
+    // --- Fetch patient wallet balance ---
+    const patient = await User.findById(patientId);
+    if (!patient) {
+      const error = new Error('Patient not found') as any;
+      error.statusCode = 404;
+      throw error;
+    }
+
+    // If wallet already applied for this booking (retry scenario), respect existing walletAmountUsed
+    const alreadyAppliedWallet = booking.walletAmountUsed > 0;
+
+    // Determine how much wallet can cover (capped at finalAmount)
+    const walletCover = alreadyAppliedWallet
+      ? booking.walletAmountUsed
+      : Math.min(patient.walletBalance, booking.finalAmount);
+    const stripeAmount = booking.finalAmount - walletCover;
+
+    // 1. Zero-value check (after wallet deduction)
+    if (stripeAmount === 0 || booking.finalAmount === 0) {
+      // Check if we already processed this
       const existingBypassPayment = await Payment.findOne({
         bookingId,
         stripePaymentIntentId: 'bypass_zero_amount',
       });
       if (existingBypassPayment) {
-        return { clientSecret: null, paymentId: existingBypassPayment._id.toString() };
+        return {
+          clientSecret: null,
+          paymentId: existingBypassPayment._id.toString(),
+          walletAmountUsed: booking.walletAmountUsed,
+          stripeAmount: 0,
+        };
       }
+
+      // Deduct wallet if covering full amount
+      if (!alreadyAppliedWallet && walletCover > 0) {
+        await paymentService.deductWallet(patient, walletCover, booking);
+      }
+
       const payment = new Payment({
         bookingId: booking._id,
         patientId: booking.patientId,
@@ -49,10 +80,34 @@ export const paymentService = {
         paidAt: new Date(),
       });
       await payment.save();
-      return { clientSecret: null, paymentId: payment._id.toString() };
+
+      // Transition booking to scheduled
+      if (booking.status === 'pending_payment') {
+        booking.status = 'scheduled';
+        await booking.save();
+      }
+
+      // Increment coupon usedCount if applied
+      if (booking.couponId) {
+        const coupon = await Coupon.findById(booking.couponId);
+        if (coupon) {
+          coupon.usedCount += 1;
+          await coupon.save();
+        }
+      }
+
+      // Sync to Google Calendar
+      try {
+        const { bookingService: bService } = await import('./booking.service.js');
+        await bService.syncBookingToCalendar(booking);
+      } catch (err) {
+        console.error('Failed to sync to Google Calendar on zero payment:', err);
+      }
+
+      return { clientSecret: null, paymentId: payment._id.toString(), walletAmountUsed: walletCover, stripeAmount: 0 };
     }
 
-    // 2. Check for existing payment record
+    // 2. Check for existing payment record (retry flow)
     const existingPayment = await Payment.findOne({ bookingId });
     if (existingPayment) {
       if (existingPayment.status === 'succeeded') {
@@ -69,14 +124,21 @@ export const paymentService = {
         return {
           clientSecret: stripeIntent.client_secret,
           paymentId: existingPayment._id.toString(),
+          walletAmountUsed: booking.walletAmountUsed,
+          stripeAmount,
         };
       } catch (err) {
         console.warn('Failed to retrieve existing Stripe PaymentIntent. Creating new one...');
       }
     }
 
-    // 3. Create Stripe PaymentIntent
-    const amountInCents = Math.round(booking.finalAmount * 100);
+    // 3. Deduct wallet balance before creating Stripe intent (if wallet covers partial amount)
+    if (!alreadyAppliedWallet && walletCover > 0) {
+      await paymentService.deductWallet(patient, walletCover, booking);
+    }
+
+    // 4. Create Stripe PaymentIntent for the remaining amount
+    const amountInCents = Math.round(stripeAmount * 100);
     const intent = await stripeService.createPaymentIntent(
       amountInCents,
       'usd',
@@ -92,7 +154,7 @@ export const paymentService = {
       paymentDoc = new Payment({
         bookingId: booking._id,
         patientId: booking.patientId,
-        amount: booking.finalAmount,
+        amount: stripeAmount,
         currency: 'usd',
         method: 'stripe',
         stripePaymentIntentId: intent.id,
@@ -104,7 +166,71 @@ export const paymentService = {
     return {
       clientSecret: intent.client_secret,
       paymentId: paymentDoc._id.toString(),
+      walletAmountUsed: alreadyAppliedWallet ? booking.walletAmountUsed : walletCover,
+      stripeAmount,
     };
+  },
+
+  /**
+   * Deducts walletCover from patient's wallet balance, updates booking.walletAmountUsed,
+   * and writes a 'debit' WalletTransaction record. All within a single atomic-ish sequence
+   * (no distributed transaction — acceptable for v1 since these are idempotency-safe).
+   */
+  async deductWallet(patient: any, amount: number, booking: IBooking): Promise<void> {
+    if (amount <= 0) return;
+
+    // Atomic: decrement wallet balance using $inc to avoid race conditions
+    await User.findByIdAndUpdate(
+      patient._id,
+      { $inc: { walletBalance: -amount } },
+      { returnDocument: 'after' }
+    );
+
+    // Update booking to record how much wallet contributed
+    booking.walletAmountUsed = amount;
+    await booking.save();
+
+    // Write debit ledger entry
+    const txn = new WalletTransaction({
+      userId: patient._id,
+      type: 'debit',
+      amount,
+      reason: 'booking_payment',
+      bookingId: booking._id,
+      note: `Wallet deducted for booking ${booking._id.toString()}`,
+    });
+    await txn.save();
+  },
+
+  /**
+   * Credits refund amount back to the patient's wallet when a booking is cancelled.
+   * Called from booking.controller.ts after setting booking.status = 'cancelled'.
+   */
+  async creditWalletOnCancellation(booking: IBooking): Promise<void> {
+    // Only credit if booking was paid (finalAmount > 0)
+    if (booking.finalAmount <= 0) return;
+
+    // Only credit if booking had reached 'scheduled' or beyond (i.e., payment was taken)
+    // The caller (cancelBooking controller) is responsible for checking this precondition.
+    const refundAmount = booking.finalAmount;
+
+    // Credit patient wallet using $inc for atomicity
+    await User.findByIdAndUpdate(
+      booking.patientId,
+      { $inc: { walletBalance: refundAmount } },
+      { returnDocument: 'after' }
+    );
+
+    // Write credit ledger entry
+    const txn = new WalletTransaction({
+      userId: booking.patientId,
+      type: 'credit',
+      amount: refundAmount,
+      reason: 'cancellation_refund',
+      bookingId: booking._id,
+      note: `Wallet credited for cancellation of booking ${booking._id.toString()}`,
+    });
+    await txn.save();
   },
 
   async confirmPayment(patientId: string, paymentIntentId: string): Promise<IBooking> {
