@@ -63,13 +63,40 @@ async function seed() {
       isActive: true,
     });
 
-    const staffUser = await User.create({
+    const staffUser1 = await User.create({
       name: 'Staff Worker',
       email: 'staff@lablink.com',
       passwordHash,
       phone: '+15550200',
       role: 'staff',
       isActive: true,
+    });
+
+    const staffUser2 = await User.create({
+      name: 'Alice Smith (Nurse)',
+      email: 'alice.smith@lablink.com',
+      passwordHash,
+      phone: '+15550201',
+      role: 'staff',
+      isActive: true,
+    });
+
+    const staffUser3 = await User.create({
+      name: 'Bob Johnson (Phlebotomist)',
+      email: 'bob.johnson@lablink.com',
+      passwordHash,
+      phone: '+15550202',
+      role: 'staff',
+      isActive: true,
+    });
+
+    const staffUser4 = await User.create({
+      name: 'Carol Williams (Inactive Tech)',
+      email: 'carol.williams@lablink.com',
+      passwordHash,
+      phone: '+15550203',
+      role: 'staff',
+      isActive: false,
     });
 
     const patientUser = await User.create({
@@ -82,7 +109,7 @@ async function seed() {
       isActive: true,
     });
 
-    console.log(`Created Users:\n- Admin: ${adminUser.email}\n- Staff: ${staffUser.email}\n- Patient: ${patientUser.email}`);
+    console.log(`Created Users:\n- Admin: ${adminUser.email}\n- Staff (Active): ${staffUser1.email}, ${staffUser2.email}, ${staffUser3.email}\n- Staff (Inactive): ${staffUser4.email}\n- Patient: ${patientUser.email}`);
 
     // 3. Create Subscription Plans
     console.log('Creating subscription plans...');

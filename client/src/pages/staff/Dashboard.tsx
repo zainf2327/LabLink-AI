@@ -24,6 +24,7 @@ import {
 import { authService } from '../../services/auth.service';
 import { bookingService } from '../../services/booking.service';
 import type { Booking } from '../../services/booking.service';
+import { reportService } from '../../services/report.service';
 
 export const StaffDashboard: React.FC = () => {
   const { user, logout } = useAuthStore();
@@ -148,6 +149,23 @@ export const StaffDashboard: React.FC = () => {
       }
     } catch (err: any) {
       alert(err.response?.data?.message || 'Failed to update booking status.');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleUploadReport = async (bookingId: string, file: File) => {
+    if (!file) return;
+    setActionLoading(bookingId);
+    try {
+      const res = await reportService.uploadReport(bookingId, file);
+      if (res.success) {
+        alert('Report uploaded successfully! Booking status updated to Report Ready.');
+        fetchBookings();
+      }
+    } catch (err: any) {
+      console.error(err);
+      alert(err.response?.data?.message || 'Failed to upload report.');
     } finally {
       setActionLoading(null);
     }
@@ -278,12 +296,21 @@ export const StaffDashboard: React.FC = () => {
         );
       case 'in_lab':
         return (
-          <button
-            onClick={() => handleUpdateStatus(booking._id, 'report_ready')}
-            className="px-3.5 py-1.5 rounded-lg bg-teal-500 hover:bg-teal-400 text-black text-xs font-extrabold transition-all cursor-pointer transform active:scale-95"
-          >
-            Set Report Ready
-          </button>
+          <label className="px-3.5 py-1.5 rounded-lg bg-teal-500 hover:bg-teal-400 text-black text-xs font-extrabold transition-all cursor-pointer transform active:scale-95 flex items-center justify-center gap-1">
+            <FileCheck size={12} />
+            <span>Upload Report</span>
+            <input
+              type="file"
+              accept="application/pdf"
+              className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) {
+                  handleUploadReport(booking._id, file);
+                }
+              }}
+            />
+          </label>
         );
       case 'report_ready':
         return (

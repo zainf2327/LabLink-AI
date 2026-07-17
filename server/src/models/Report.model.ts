@@ -4,7 +4,7 @@ export interface IReport extends Document {
   bookingId: mongoose.Types.ObjectId;
   patientId: mongoose.Types.ObjectId;
   fileUrl: string;
-  filePublicId: string;
+  fileKey: string;
   mimeType: string;
   uploadedBy: mongoose.Types.ObjectId;
   tags: string[];
@@ -24,7 +24,7 @@ const ReportSchema: Schema = new Schema(
     },
     patientId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
     fileUrl: { type: String, required: true },
-    filePublicId: { type: String, required: true },
+    fileKey: { type: String, required: true },
     mimeType: { type: String, required: true },
     uploadedBy: { type: Schema.Types.ObjectId, ref: 'User', required: true },
     tags: [{ type: String, trim: true }],
@@ -37,7 +37,6 @@ const ReportSchema: Schema = new Schema(
 );
 
 // Indexes
-ReportSchema.index({ bookingId: 1 });
 ReportSchema.index({ patientId: 1 });
 
 const Report = mongoose.model<IReport>('Report', ReportSchema);

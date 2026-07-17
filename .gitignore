@@ -28,3 +28,7 @@ npm-debug.log*
 #Docs
 docs/*
 AGENTS.md
+
+reports/*
+CBC_Test_Report.pdf
+

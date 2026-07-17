@@ -5,7 +5,8 @@ import useCartStore from '../../store/useCartStore';
 import { bookingService } from '../../services/booking.service';
 import { walletService } from '../../services/wallet.service';
 import { familyService } from '../../services/family.service';
-import type { FamilyMember } from '../../services/family.service';
+import type { FamilyMember } from '../../services/family.service'
+''
 import { loadStripe } from '@stripe/stripe-js';
 import { Elements, CardElement, useStripe, useElements } from '@stripe/react-stripe-js';
 import {
