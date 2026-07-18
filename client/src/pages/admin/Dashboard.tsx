@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import useAuthStore from '../../store/useAuthStore';
 import { catalogService } from '../../services/catalog.service';
 import type { Category, Test } from '../../services/catalog.service';
 import { analyticsService } from '../../services/analytics.service';
@@ -17,12 +16,8 @@ import {
   BarChart,
   Bar
 } from 'recharts';
+import AppLayout from '../../components/layout/AppLayout';
 import {
-  LogOut,
-  User,
-  Phone,
-  Mail,
-  Shield,
   ShieldCheck,
   Settings,
   LayoutGrid,
@@ -48,9 +43,14 @@ import {
   TrendingUp
 } from 'lucide-react';
 
-export const AdminDashboard: React.FC = () => {
-  const { user, logout } = useAuthStore();
-  const [activeTab, setActiveTab] = useState<'overview' | 'bookings' | 'tests' | 'categories'>('overview');
+export const AdminDashboard: React.FC<{ defaultTab?: 'overview' | 'bookings' | 'tests' | 'categories' }> = ({
+  defaultTab = 'overview',
+}) => {
+  const [activeTab, setActiveTab] = useState<'overview' | 'bookings' | 'tests' | 'categories'>(defaultTab);
+
+  useEffect(() => {
+    setActiveTab(defaultTab);
+  }, [defaultTab]);
 
   // API States
   const [categories, setCategories] = useState<Category[]>([]);
@@ -460,38 +460,7 @@ export const AdminDashboard: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-zinc-950 bg-grid-pattern text-zinc-100 flex flex-col">
-      {/* Navbar */}
-      <nav className="border-b border-zinc-800/80 bg-zinc-900/50 backdrop-blur-md sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-purple-600 to-pink-400 flex items-center justify-center shadow-lg shadow-purple-500/20">
-                <span className="font-extrabold text-black text-lg">LL</span>
-              </div>
-              <div>
-                <span className="font-bold text-lg tracking-tight bg-gradient-to-r from-purple-400 to-pink-300 bg-clip-text text-transparent">
-                  LabLink AI
-                </span>
-                <span className="text-zinc-500 text-xs block -mt-1">Administration Control</span>
-              </div>
-            </div>
-            <div className="flex items-center gap-4">
-              <span className="text-sm text-zinc-400 hidden md:inline">
-                Welcome back, <strong className="text-zinc-200">{user?.name}</strong>
-              </span>
-              <button
-                onClick={() => logout()}
-                className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-zinc-800 hover:border-zinc-700 bg-zinc-900 hover:bg-zinc-800 text-sm font-medium text-zinc-300 hover:text-purple-455 transition-all duration-200 cursor-pointer animate-pulse-subtle"
-              >
-                <LogOut size={16} />
-                <span>Log out</span>
-              </button>
-            </div>
-          </div>
-        </div>
-      </nav>
-
+    <AppLayout pageTitle="Admin Dashboard">
       {/* Alert Banners */}
       {success && (
         <div className="fixed top-20 right-8 z-50 max-w-sm w-full bg-zinc-900/90 border border-emerald-500/30 backdrop-blur p-4 rounded-xl shadow-2xl flex gap-3 items-center animate-fadeIn">
@@ -507,7 +476,7 @@ export const AdminDashboard: React.FC = () => {
       )}
 
       {/* Main Content */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 flex flex-col gap-8">
+      <div className="p-6 flex flex-col gap-8">
         
         {/* Navigation Tabs */}
         <div className="flex border-b border-zinc-850 gap-2 pb-px overflow-x-auto">
@@ -558,41 +527,7 @@ export const AdminDashboard: React.FC = () => {
         </div>
 
         {/* Tab Contents */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
-          
-          {/* Left Profile details (shown always) */}
-          <div className="lg:col-span-1 glassmorphic-card rounded-2xl p-6 relative overflow-hidden group shrink-0">
-            <div className="absolute top-0 right-0 w-32 h-32 bg-purple-500/5 rounded-full blur-3xl group-hover:bg-purple-500/10 transition-all duration-500"></div>
-            
-            <div className="flex flex-col items-center text-center pb-6 border-b border-zinc-800/80">
-              <div className="w-20 h-20 rounded-full bg-zinc-800/60 border border-zinc-700 flex items-center justify-center mb-4 relative">
-                <User size={36} className="text-purple-400" />
-                <span className="absolute bottom-0 right-0 bg-purple-500 text-black text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">
-                  {user?.role}
-                </span>
-              </div>
-              <h2 className="text-xl font-bold text-zinc-100">{user?.name}</h2>
-              <span className="text-zinc-500 text-sm mt-1">{user?.email}</span>
-            </div>
-
-            <div className="mt-6 space-y-4">
-              <div className="flex items-center gap-3 text-sm text-zinc-400">
-                <Mail size={16} className="text-zinc-500" />
-                <span>{user?.email}</span>
-              </div>
-              <div className="flex items-center gap-3 text-sm text-zinc-400">
-                <Phone size={16} className="text-zinc-500" />
-                <span>{user?.phone || 'No phone provided'}</span>
-              </div>
-              <div className="flex items-center gap-3 text-sm text-zinc-400">
-                <Shield size={16} className="text-zinc-500" />
-                <span className="capitalize">Role: {user?.role}</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Tab Pages (dynamic span cols) */}
-          <div className="lg:col-span-2 space-y-8">
+        <div className="space-y-8">
             
             {/* Analytics Tab (Feature 11) */}
             {activeTab === 'overview' && (
@@ -1118,10 +1053,8 @@ export const AdminDashboard: React.FC = () => {
                   </div>
                 )}
               </div>
-            )}
-          </div>
-        </div>
-      </main>
+             )}
+           </div>
 
       {/* Category Creation / Edit Modal */}
       {isCategoryModalOpen && (
@@ -1340,7 +1273,8 @@ export const AdminDashboard: React.FC = () => {
           </div>
         </div>
       )}
-    </div>
+      </div>
+    </AppLayout>
   );
 };
 

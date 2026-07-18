@@ -1,11 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import useAuthStore from '../../store/useAuthStore';
 import {
-  LogOut,
   User,
-  Phone,
-  Mail,
-  Shield,
   ClipboardList,
   Calendar,
   Search,
@@ -21,13 +17,16 @@ import {
   ChevronLeft,
   ChevronRight
 } from 'lucide-react';
+import AppLayout from '../../components/layout/AppLayout';
 import { authService } from '../../services/auth.service';
 import { bookingService } from '../../services/booking.service';
 import type { Booking } from '../../services/booking.service';
 import { reportService } from '../../services/report.service';
 
-export const StaffDashboard: React.FC = () => {
-  const { user, logout } = useAuthStore();
+export const StaffDashboard: React.FC<{ defaultTab?: 'my_assignments' | 'all_bookings' }> = ({
+  defaultTab = 'my_assignments',
+}) => {
+  const { user } = useAuthStore();
   
   // Google sync states
   const [syncingCalendar, setSyncingCalendar] = useState(false);
@@ -38,7 +37,11 @@ export const StaffDashboard: React.FC = () => {
   const [loading, setLoading] = useState(true);
   
   // Tabs & filters
-  const [activeTab, setActiveTab] = useState<'my_assignments' | 'all_bookings'>('my_assignments');
+  const [activeTab, setActiveTab] = useState<'my_assignments' | 'all_bookings'>(defaultTab);
+
+  useEffect(() => {
+    setActiveTab(defaultTab);
+  }, [defaultTab]);
   const [statusFilter, setStatusFilter] = useState<string>('');
   const [typeFilter, setTypeFilter] = useState<string>('');
   const [dateFilter, setDateFilter] = useState<string>('all');
@@ -332,117 +335,16 @@ export const StaffDashboard: React.FC = () => {
   const totalCompletedCount = bookings.filter((b) => b.status === 'completed').length;
 
   return (
-    <div className="min-h-screen bg-zinc-950 bg-grid-pattern text-zinc-100 flex flex-col">
-      {/* Navbar */}
-      <nav className="border-b border-zinc-800/80 bg-zinc-900/50 backdrop-blur-md sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-600 to-cyan-400 flex items-center justify-center shadow-lg shadow-blue-500/20">
-                <span className="font-extrabold text-black text-lg">LL</span>
-              </div>
-              <div>
-                <span className="font-bold text-lg tracking-tight bg-gradient-to-r from-blue-400 to-cyan-300 bg-clip-text text-transparent">
-                  LabLink AI
-                </span>
-                <span className="text-zinc-500 text-xs block -mt-1">Staff Console</span>
-              </div>
-            </div>
-            <div className="flex items-center gap-4">
-              <span className="text-sm text-zinc-400 hidden md:inline">
-                Welcome back, <strong className="text-zinc-200">{user?.name}</strong>
-              </span>
-              <button
-                onClick={() => logout()}
-                className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-zinc-800 hover:border-zinc-700 bg-zinc-900 hover:bg-zinc-800 text-sm font-medium text-zinc-300 hover:text-blue-400 transition-all duration-200"
-              >
-                <LogOut size={16} />
-                <span>Log out</span>
-              </button>
-            </div>
-          </div>
-        </div>
-      </nav>
+    <AppLayout
+      pageTitle="Staff Dashboard"
+      syncingCalendar={syncingCalendar}
+      onConnectCalendar={handleConnectCalendar}
+      onDisconnectCalendar={handleDisconnectCalendar}
+    >
+      <div className="p-6 space-y-6">
 
-      {/* Main Content */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Profile Card */}
-          <div className="lg:col-span-1 glassmorphic-card rounded-2xl p-6 relative overflow-hidden group self-start">
-            <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/5 rounded-full blur-3xl group-hover:bg-blue-500/10 transition-all duration-500"></div>
-            
-            <div className="flex flex-col items-center text-center pb-6 border-b border-zinc-800/80">
-              <div className="w-20 h-20 rounded-full bg-zinc-800/60 border border-zinc-700 flex items-center justify-center mb-4 relative">
-                <User size={36} className="text-blue-400" />
-                <span className="absolute bottom-0 right-0 bg-blue-500 text-black text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">
-                  {user?.role}
-                </span>
-              </div>
-              <h2 className="text-xl font-bold text-zinc-100">{user?.name}</h2>
-              <span className="text-zinc-500 text-sm mt-1">{user?.email}</span>
-            </div>
-
-            <div className="mt-6 space-y-4">
-              <div className="flex items-center gap-3 text-sm text-zinc-400">
-                <Mail size={16} className="text-zinc-500" />
-                <span>{user?.email}</span>
-              </div>
-              <div className="flex items-center gap-3 text-sm text-zinc-400">
-                <Phone size={16} className="text-zinc-500" />
-                <span>{user?.phone || 'No phone provided'}</span>
-              </div>
-              <div className="flex items-center gap-3 text-sm text-zinc-400">
-                <Shield size={16} className="text-zinc-500" />
-                <span className="capitalize">Role: {user?.role}</span>
-              </div>
-            </div>
-
-            {/* Google Calendar Section */}
-            <div className="mt-6 pt-6 border-t border-zinc-800/80">
-              <h4 className="text-xs font-semibold uppercase tracking-wider text-zinc-400 mb-3 flex items-center gap-2">
-                <Calendar size={14} className="text-blue-400" />
-                <span>Google Integration</span>
-              </h4>
-              
-              {user?.googleCalendarConnected ? (
-                <div className="space-y-3">
-                  <div className="p-3 rounded-xl bg-blue-500/5 border border-blue-500/10 flex flex-col gap-1">
-                    <span className="text-[10px] text-blue-400 font-extrabold uppercase tracking-wide flex items-center gap-1">
-                      <span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-ping animate-duration-1000"></span>
-                      Calendar Synced
-                    </span>
-                    <span className="text-xs text-zinc-300 truncate">{user.googleEmail}</span>
-                  </div>
-                  <button
-                    onClick={handleDisconnectCalendar}
-                    disabled={syncingCalendar}
-                    className="w-full py-2 rounded-lg border border-red-900/20 hover:border-red-900/40 bg-red-950/10 hover:bg-red-950/20 text-xs font-semibold text-red-400 hover:text-red-300 transition-all duration-200 cursor-pointer disabled:opacity-50"
-                  >
-                    Disconnect Google Calendar
-                  </button>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  <p className="text-xs text-zinc-500 leading-relaxed">
-                    Link your Google Calendar so home sampling collection appointments are automatically synced to your Google schedule.
-                  </p>
-                  <button
-                    onClick={handleConnectCalendar}
-                    disabled={syncingCalendar}
-                    className="w-full py-2.5 rounded-xl border border-zinc-800 hover:border-zinc-700 bg-zinc-900 hover:bg-zinc-800 text-xs font-semibold text-zinc-300 hover:text-blue-400 transition-all duration-200 cursor-pointer flex items-center justify-center gap-2 disabled:opacity-50"
-                  >
-                    <span>Connect Google Calendar</span>
-                  </button>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Activity / Operations Dashboard */}
-          <div className="lg:col-span-2 space-y-6">
-            
-            {/* Quick Metrics */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        {/* Quick Metrics */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div className="glassmorphic-card p-4 rounded-2xl relative overflow-hidden">
                 <div className="flex justify-between items-start mb-2">
                   <span className="text-zinc-500 text-[10px] font-bold uppercase tracking-wider">
@@ -738,11 +640,9 @@ export const StaffDashboard: React.FC = () => {
                   </button>
                 </div>
               )}
-            </div>
-          </div>
-        </div>
-      </main>
+      </div>
     </div>
+  </AppLayout>
   );
 };
 

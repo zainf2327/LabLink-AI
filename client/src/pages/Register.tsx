@@ -69,13 +69,14 @@ export const Register: React.FC = () => {
       });
 
       if (response.success) {
-        setSuccess('Registration successful! Redirecting you to login...');
+        setSuccess('Registration successful! A verification code has been sent to your email. Redirecting to verify...');
+        const registeredEmail = email;
         setName('');
         setEmail('');
         setPassword('');
         setPhone('');
         setTimeout(() => {
-          navigate('/login');
+          navigate('/verify-email', { state: { email: registeredEmail } });
         }, 2000);
       }
     } catch (err: any) {

@@ -1,18 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import useAuthStore from '../../store/useAuthStore';
 import { bookingService } from '../../services/booking.service';
 import { walletService } from '../../services/wallet.service';
 import { authService } from '../../services/auth.service';
 import { reportService } from '../../services/report.service';
 import type { Report } from '../../services/report.service';
 import type { Booking } from '../../services/booking.service';
+import AppLayout from '../../components/layout/AppLayout';
 import {
-  LogOut,
-  User,
-  Phone,
-  Mail,
-  Shield,
   Calendar,
   Activity,
   ClipboardList,
@@ -27,7 +22,6 @@ import {
 } from 'lucide-react';
 
 export const PatientDashboard: React.FC = () => {
-  const { user, logout } = useAuthStore();
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [reports, setReports] = useState<Report[]>([]);
   const [loading, setLoading] = useState(true);
@@ -243,191 +237,67 @@ export const PatientDashboard: React.FC = () => {
   ).length;
 
   return (
-    <div className="min-h-screen bg-zinc-950 bg-grid-pattern text-zinc-100 flex flex-col">
-      {/* Navbar */}
-      <nav className="border-b border-zinc-800/80 bg-zinc-900/50 backdrop-blur-md sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-emerald-600 to-teal-400 flex items-center justify-center shadow-lg shadow-emerald-500/20">
-                <span className="font-extrabold text-black text-lg">LL</span>
-              </div>
-              <div>
-                <span className="font-bold text-lg tracking-tight bg-gradient-to-r from-emerald-400 to-teal-300 bg-clip-text text-transparent">
-                  LabLink AI
-                </span>
-                <span className="text-zinc-500 text-xs block -mt-1">Patient Portal</span>
-              </div>
-            </div>
-            <div className="flex items-center gap-4">
-              <span className="text-sm text-zinc-400 hidden md:inline">
-                Welcome back, <strong className="text-zinc-200">{user?.name}</strong>
-              </span>
-              <button
-                onClick={() => logout()}
-                className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-zinc-800 hover:border-zinc-700 bg-zinc-900 hover:bg-zinc-800 text-sm font-medium text-zinc-300 hover:text-emerald-400 transition-all duration-200"
-              >
-                <LogOut size={16} />
-                <span>Log out</span>
-              </button>
-            </div>
-          </div>
-        </div>
-      </nav>
-
-      {/* Main Content */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
-
+    <AppLayout
+      pageTitle="Dashboard"
+      syncingCalendar={syncingCalendar}
+      onConnectCalendar={handleConnectCalendar}
+      onDisconnectCalendar={handleDisconnectCalendar}
+    >
+      <div className="p-6 space-y-6">
         {/* Cancel Refund Toast */}
         {cancelMessage && (
-          <div className="mb-6 p-4 bg-teal-500/10 border border-teal-500/20 rounded-2xl text-teal-600 text-sm flex items-center gap-3 animate-fadeIn">
+          <div className="p-4 bg-teal-50 border border-teal-200 rounded-2xl text-teal-700 text-sm flex items-center gap-3">
             <Wallet size={18} className="shrink-0 text-teal-500" />
             <span>{cancelMessage}</span>
-            <Link to="/patient/wallet" className="ml-auto text-xs underline underline-offset-2 hover:text-teal-700 whitespace-nowrap">
+            <Link to="/patient/wallet" className="ml-auto text-xs underline underline-offset-2 hover:text-teal-900 whitespace-nowrap">
               View Wallet
             </Link>
           </div>
         )}
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Profile Card */}
-          <div className="lg:col-span-1 glassmorphic-card rounded-2xl p-6 relative overflow-hidden group self-start">
-            <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/5 rounded-full blur-3xl group-hover:bg-emerald-500/10 transition-all duration-500"></div>
+        <div className="space-y-6">
 
-            <div className="flex flex-col items-center text-center pb-6 border-b border-zinc-800/80">
-              <div className="w-20 h-20 rounded-full bg-zinc-800/60 border border-zinc-700 flex items-center justify-center mb-4 relative">
-                <User size={36} className="text-emerald-400" />
-                <span className="absolute bottom-0 right-0 bg-emerald-500 text-black text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">
-                  {user?.role}
-                </span>
-              </div>
-              <h2 className="text-xl font-bold text-zinc-100">{user?.name}</h2>
-              <span className="text-zinc-500 text-sm mt-1">{user?.email}</span>
-            </div>
-
-            <div className="mt-6 space-y-4">
-              <div className="flex items-center gap-3 text-sm text-zinc-400">
-                <Mail size={16} className="text-zinc-500" />
-                <span>{user?.email}</span>
-              </div>
-              <div className="flex items-center gap-3 text-sm text-zinc-400">
-                <Phone size={16} className="text-zinc-500" />
-                <span>{user?.phone || 'No phone provided'}</span>
-              </div>
-              <div className="flex items-center gap-3 text-sm text-zinc-400">
-                <Shield size={16} className="text-zinc-500" />
-                <span className="capitalize">Role: {user?.role}</span>
-              </div>
-            </div>
-
-            {/* Google Calendar Section */}
-            <div className="mt-6 pt-6 border-t border-zinc-800/80">
-              <h4 className="text-xs font-semibold uppercase tracking-wider text-zinc-400 mb-3 flex items-center gap-2">
-                <Calendar size={14} className="text-emerald-400" />
-                <span>Google Integration</span>
-              </h4>
-              
-              {user?.googleCalendarConnected ? (
-                <div className="space-y-3">
-                  <div className="p-3 rounded-xl bg-emerald-500/5 border border-emerald-500/10 flex flex-col gap-1">
-                    <span className="text-[10px] text-emerald-400 font-extrabold uppercase tracking-wide flex items-center gap-1">
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping animate-duration-1000"></span>
-                      Calendar Synced
-                    </span>
-                    <span className="text-xs text-zinc-300 truncate">{user.googleEmail}</span>
-                  </div>
-                  <button
-                    onClick={handleDisconnectCalendar}
-                    disabled={syncingCalendar}
-                    className="w-full py-2 rounded-lg border border-red-900/20 hover:border-red-900/40 bg-red-950/10 hover:bg-red-950/20 text-xs font-semibold text-red-400 hover:text-red-300 transition-all duration-200 cursor-pointer disabled:opacity-50"
-                  >
-                    Disconnect Google Calendar
-                  </button>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  <p className="text-xs text-zinc-500 leading-relaxed">
-                    Link your Google Calendar to automatically receive calendar events for your scheduled lab test appointments.
-                  </p>
-                  <button
-                    onClick={handleConnectCalendar}
-                    disabled={syncingCalendar}
-                    className="w-full py-2.5 rounded-xl border border-zinc-800 hover:border-zinc-700 bg-zinc-900 hover:bg-zinc-800 text-xs font-semibold text-zinc-300 hover:text-emerald-400 transition-all duration-200 cursor-pointer flex items-center justify-center gap-2 disabled:opacity-50"
-                  >
-                    <span>Connect Google Calendar</span>
-                  </button>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Activity / Overview Area */}
-          <div className="lg:col-span-2 space-y-8">
+          {/* Stats Row */}
             <div className="glassmorphic-card rounded-2xl p-6">
-              <h3 className="text-lg font-bold text-zinc-100 mb-6 flex items-center gap-2">
-                <Activity className="text-emerald-400" size={20} />
-                <span>Quick Health Summary</span>
+              <h3 className="text-base font-bold text-zinc-100 mb-5 flex items-center gap-2">
+                <Activity className="text-emerald-400" size={18} />
+                <span>Health Summary</span>
               </h3>
-
-              <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                 <div className="bg-zinc-900/60 border border-zinc-800/80 p-4 rounded-xl">
                   <div className="flex justify-between items-start mb-2">
-                    <span className="text-zinc-500 text-xs font-semibold uppercase tracking-wider">
-                      Upcoming Bookings
-                    </span>
-                    <Calendar className="text-emerald-400" size={16} />
+                    <span className="text-zinc-500 text-xs font-semibold uppercase tracking-wider">Upcoming</span>
+                    <Calendar className="text-emerald-400" size={15} />
                   </div>
-                  <p className="text-2xl font-bold text-zinc-100">
-                    {loading ? '...' : upcomingBookingsCount}
-                  </p>
-                  <span className="text-[10px] text-zinc-500 block mt-1">
-                    Scheduled or unpaid bookings
-                  </span>
+                  <p className="text-2xl font-bold text-zinc-100">{loading ? '…' : upcomingBookingsCount}</p>
+                  <span className="text-[10px] text-zinc-500 block mt-1">Scheduled / unpaid</span>
                 </div>
                 <div className="bg-zinc-900/60 border border-zinc-800/80 p-4 rounded-xl">
                   <div className="flex justify-between items-start mb-2">
-                    <span className="text-zinc-500 text-xs font-semibold uppercase tracking-wider">
-                      Completed tests
-                    </span>
-                    <ClipboardList className="text-emerald-400" size={16} />
+                    <span className="text-zinc-500 text-xs font-semibold uppercase tracking-wider">Completed</span>
+                    <ClipboardList className="text-emerald-400" size={15} />
                   </div>
-                  <p className="text-2xl font-bold text-zinc-100">
-                    {loading ? '...' : bookings.filter((b) => b.status === 'completed').length}
-                  </p>
-                  <span className="text-[10px] text-zinc-500 block mt-1">
-                    Completed diagnostic runs
-                  </span>
+                  <p className="text-2xl font-bold text-zinc-100">{loading ? '…' : bookings.filter((b) => b.status === 'completed').length}</p>
+                  <span className="text-[10px] text-zinc-500 block mt-1">Diagnostic runs</span>
                 </div>
                 <button
                   onClick={() => setActiveTab('reports')}
-                  className="bg-zinc-900/60 border border-zinc-800/80 p-4 rounded-xl hover:border-emerald-500/40 transition-all group text-left cursor-pointer"
+                  className="bg-zinc-900/60 border border-zinc-800/80 p-4 rounded-xl hover:border-emerald-500/40 transition-all text-left cursor-pointer group"
                 >
                   <div className="flex justify-between items-start mb-2">
-                    <span className="text-zinc-500 text-xs font-semibold uppercase tracking-wider">
-                      Active Reports
-                    </span>
-                    <ClipboardList className="text-emerald-400 group-hover:scale-110 transition-transform" size={16} />
+                    <span className="text-zinc-500 text-xs font-semibold uppercase tracking-wider">Reports</span>
+                    <ClipboardList className="text-emerald-400 group-hover:scale-110 transition-transform" size={15} />
                   </div>
-                  <p className="text-2xl font-bold text-zinc-100">
-                    {reportsLoading ? '...' : reports.length}
-                  </p>
-                  <span className="text-[10px] text-zinc-500 block mt-1">Click to view reports</span>
+                  <p className="text-2xl font-bold text-zinc-100">{reportsLoading ? '…' : reports.length}</p>
+                  <span className="text-[10px] text-zinc-500 block mt-1">Click to view</span>
                 </button>
-                {/* Wallet Balance Card */}
-                <Link
-                  to="/patient/wallet"
-                  className="bg-zinc-900/60 border border-zinc-800/80 p-4 rounded-xl hover:border-teal-500/40 transition-all group"
-                >
+                <Link to="/patient/wallet" className="bg-zinc-900/60 border border-zinc-800/80 p-4 rounded-xl hover:border-teal-500/40 transition-all group">
                   <div className="flex justify-between items-start mb-2">
-                    <span className="text-zinc-500 text-xs font-semibold uppercase tracking-wider">
-                      Wallet Balance
-                    </span>
-                    <Wallet className="text-teal-500 group-hover:scale-110 transition-transform" size={16} />
+                    <span className="text-zinc-500 text-xs font-semibold uppercase tracking-wider">Wallet</span>
+                    <Wallet className="text-teal-500 group-hover:scale-110 transition-transform" size={15} />
                   </div>
-                  <p className="text-2xl font-bold text-zinc-100">
-                    ${walletBalance.toFixed(2)}
-                  </p>
-                  <span className="text-[10px] text-zinc-500 block mt-1">Tap to view history</span>
+                  <p className="text-2xl font-bold text-zinc-100">${walletBalance.toFixed(2)}</p>
+                  <span className="text-[10px] text-zinc-500 block mt-1">Tap for history</span>
                 </Link>
               </div>
             </div>
@@ -614,10 +484,9 @@ export const PatientDashboard: React.FC = () => {
                 )}
               </div>
             )}
-          </div>
         </div>
-      </main>
-    </div>
+      </div>
+    </AppLayout>
   );
 };
 

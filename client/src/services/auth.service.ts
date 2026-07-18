@@ -41,4 +41,29 @@ export const authService = {
     const response = await api.get('/users/staff');
     return response.data;
   },
+
+  async verifyEmail(email: string, code: string): Promise<{ success: boolean; message: string }> {
+    const response = await api.post('/auth/verify-email', { email, code });
+    return response.data;
+  },
+
+  async resendVerificationCode(email: string): Promise<{ success: boolean; message: string }> {
+    const response = await api.post('/auth/resend-verification', { email });
+    return response.data;
+  },
+
+  async forgotPassword(email: string): Promise<{ success: boolean; message: string }> {
+    const response = await api.post('/auth/forgot-password', { email });
+    return response.data;
+  },
+
+  async resetPassword(data: { token: string; password?: string }): Promise<{ success: boolean; message: string }> {
+    const response = await api.post('/auth/reset-password', data);
+    return response.data;
+  },
+
+  async setPassword(data: { password?: string }): Promise<{ success: boolean; message: string }> {
+    const response = await api.post('/auth/set-password', data);
+    return response.data;
+  },
 };

@@ -52,10 +52,10 @@ export const Login: React.FC = () => {
       // Redirect happens in useEffect
     } catch (err: any) {
       console.error('Login error caught in frontend:', err);
-      console.log('err.response is:', err.response);
-      console.log('err.response?.data is:', err.response?.data);
       if (!err.response) {
         setError('Cannot connect to the server. Please verify that the backend server is running on port 5001.');
+      } else if (err.response?.data?.isUnverified) {
+        navigate('/verify-email', { state: { email } });
       } else {
         setError(err.response?.data?.message || 'Invalid email or password. Please try again.');
       }
@@ -134,6 +134,12 @@ export const Login: React.FC = () => {
                 <label htmlFor="password" className="block text-xs font-semibold uppercase tracking-wider text-zinc-400">
                   Password
                 </label>
+                <Link
+                  to="/forgot-password"
+                  className="text-xs text-emerald-400 hover:text-emerald-300 transition-colors font-medium animate-pulse-subtle"
+                >
+                  Forgot password?
+                </Link>
               </div>
               <div className="relative">
                 <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-500">

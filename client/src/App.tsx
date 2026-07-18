@@ -3,12 +3,16 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import useAuthStore from './store/useAuthStore';
 import Login from './pages/Login';
 import Register from './pages/Register';
+import { VerifyEmail } from './pages/VerifyEmail';
+import { ForgotPassword } from './pages/ForgotPassword';
+import { ResetPassword } from './pages/ResetPassword';
 import Tests from './pages/Tests';
 import PatientDashboard from './pages/patient/Dashboard';
 import Checkout from './pages/patient/Checkout';
 import WalletPage from './pages/patient/WalletPage';
 import StaffDashboard from './pages/staff/Dashboard';
 import AdminDashboard from './pages/admin/Dashboard';
+import ProfileSettings from './pages/ProfileSettings';
 import ProtectedRoute from './components/ProtectedRoute';
 
 export const App: React.FC = () => {
@@ -48,6 +52,9 @@ export const App: React.FC = () => {
         {/* Public Routes */}
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
+        <Route path="/verify-email" element={<VerifyEmail />} />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="/tests" element={<Tests />} />
 
         {/* Protected Patient Routes */}
@@ -81,7 +88,15 @@ export const App: React.FC = () => {
           path="/staff/dashboard"
           element={
             <ProtectedRoute allowedRoles={['staff']}>
-              <StaffDashboard />
+              <StaffDashboard defaultTab="my_assignments" />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/staff/queue"
+          element={
+            <ProtectedRoute allowedRoles={['staff']}>
+              <StaffDashboard defaultTab="all_bookings" />
             </ProtectedRoute>
           }
         />
@@ -91,7 +106,41 @@ export const App: React.FC = () => {
           path="/admin/dashboard"
           element={
             <ProtectedRoute allowedRoles={['admin']}>
-              <AdminDashboard />
+              <AdminDashboard defaultTab="overview" />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/bookings"
+          element={
+            <ProtectedRoute allowedRoles={['admin']}>
+              <AdminDashboard defaultTab="bookings" />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/tests"
+          element={
+            <ProtectedRoute allowedRoles={['admin']}>
+              <AdminDashboard defaultTab="tests" />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/categories"
+          element={
+            <ProtectedRoute allowedRoles={['admin']}>
+              <AdminDashboard defaultTab="categories" />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Protected Shared Routes */}
+        <Route
+          path="/settings"
+          element={
+            <ProtectedRoute allowedRoles={['patient', 'staff', 'admin']}>
+              <ProfileSettings />
             </ProtectedRoute>
           }
         />

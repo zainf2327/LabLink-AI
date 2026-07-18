@@ -7,6 +7,8 @@ export interface User {
   isActive: boolean;
   googleCalendarConnected?: boolean;
   googleEmail?: string;
+  isVerified?: boolean;
+  hasPassword?: boolean;
 }
 
 export interface AuthResponse {
