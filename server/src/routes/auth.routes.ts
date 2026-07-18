@@ -10,6 +10,11 @@ import {
   initiateGoogleCalendarConnect,
   handleGoogleCalendarCallback,
   disconnectGoogleCalendar,
+  verifyEmail,
+  resendVerificationCode,
+  forgotPassword,
+  resetPassword,
+  setPassword,
 } from '../controllers/auth.controller.js';
 import { authenticate } from '../middleware/auth.middleware.js';
 
@@ -20,6 +25,13 @@ router.post('/login', login);
 router.post('/refresh', refresh);
 router.post('/logout', logout);
 router.get('/me', authenticate, me);
+
+// Email Verification & Password Recovery
+router.post('/verify-email', verifyEmail);
+router.post('/resend-verification', resendVerificationCode);
+router.post('/forgot-password', forgotPassword);
+router.post('/reset-password', resetPassword);
+router.post('/set-password', authenticate, setPassword);
 
 // Google OAuth Authentication
 router.get('/google', initiateGoogleLogin);

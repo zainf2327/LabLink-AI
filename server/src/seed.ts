@@ -61,6 +61,7 @@ async function seed() {
       phone: '+15550100',
       role: 'admin',
       isActive: true,
+      isVerified: true,
     });
 
     const staffUser1 = await User.create({
@@ -70,6 +71,7 @@ async function seed() {
       phone: '+15550200',
       role: 'staff',
       isActive: true,
+      isVerified: true,
     });
 
     const staffUser2 = await User.create({
@@ -79,6 +81,7 @@ async function seed() {
       phone: '+15550201',
       role: 'staff',
       isActive: true,
+      isVerified: true,
     });
 
     const staffUser3 = await User.create({
@@ -88,6 +91,7 @@ async function seed() {
       phone: '+15550202',
       role: 'staff',
       isActive: true,
+      isVerified: true,
     });
 
     const staffUser4 = await User.create({
@@ -97,6 +101,7 @@ async function seed() {
       phone: '+15550203',
       role: 'staff',
       isActive: false,
+      isVerified: true,
     });
 
     const patientUser = await User.create({
@@ -107,6 +112,7 @@ async function seed() {
       role: 'patient',
       walletBalance: 150, // Seeding patient with initial $150 credit for wallet flow testing
       isActive: true,
+      isVerified: true,
     });
 
     console.log(`Created Users:\n- Admin: ${adminUser.email}\n- Staff (Active): ${staffUser1.email}, ${staffUser2.email}, ${staffUser3.email}\n- Staff (Inactive): ${staffUser4.email}\n- Patient: ${patientUser.email}`);

@@ -29,6 +29,7 @@ const envSchema = z.object({
   AWS_SECRET_ACCESS_KEY: z.string().optional(),
   AWS_REGION: z.string().optional(),
   AWS_S3_BUCKET_NAME: z.string().optional(),
+  AWS_SES_FROM_EMAIL: z.string().optional(),
 });
 
 const parsed = envSchema.safeParse(process.env);

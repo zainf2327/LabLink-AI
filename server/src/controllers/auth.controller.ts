@@ -4,8 +4,17 @@ import jwt from 'jsonwebtoken';
 import { env } from '../config/env.js';
 import User from '../models/User.model.js';
 import asyncHandler from '../utils/asyncHandler.js';
-import { registerSchema, loginSchema } from '../utils/validators.js';
+import {
+  registerSchema,
+  loginSchema,
+  verifyEmailSchema,
+  resendVerificationSchema,
+  forgotPasswordSchema,
+  resetPasswordSchema,
+  setPasswordSchema,
+} from '../utils/validators.js';
 import { calendarService } from '../services/calendar.service.js';
+import { emailService } from '../services/email.service.js';
 import crypto from 'crypto';
 
 const generateAccessToken = (userId: string, role: string): string => {
@@ -42,6 +51,10 @@ export const register = asyncHandler(async (req: Request, res: Response): Promis
   const salt = await bcrypt.genSalt(10);
   const passwordHash = await bcrypt.hash(validated.password, salt);
 
+  // Generate 6-digit verification code
+  const verificationCode = Math.floor(100000 + Math.random() * 900000).toString();
+  const verificationCodeExpires = new Date(Date.now() + 15 * 60 * 1000); // 15 mins
+
   // Create new user (role is strictly 'patient' by default)
   const newUser = await User.create({
     name: validated.name,
@@ -49,16 +62,23 @@ export const register = asyncHandler(async (req: Request, res: Response): Promis
     passwordHash,
     phone: validated.phone,
     role: 'patient',
+    isVerified: false,
+    verificationCode,
+    verificationCodeExpires,
   });
+
+  // Send verification email
+  await emailService.sendVerificationEmail(newUser.email, verificationCode);
 
   res.status(201).json({
     success: true,
-    message: 'Registration successful',
+    message: 'Registration successful. A verification code has been sent to your email.',
     user: {
       id: newUser.id,
       name: newUser.name,
       email: newUser.email,
       role: newUser.role,
+      isVerified: newUser.isVerified,
     },
   });
 });
@@ -79,6 +99,16 @@ export const login = asyncHandler(async (req: Request, res: Response): Promise<v
     res.status(401).json({
       success: false,
       message: 'User account is deactivated',
+    });
+    return;
+  }
+
+  // Block unverified users
+  if (!user.isVerified) {
+    res.status(401).json({
+      success: false,
+      message: 'Please verify your email address to log in.',
+      isUnverified: true,
     });
     return;
   }
@@ -116,6 +146,8 @@ export const login = asyncHandler(async (req: Request, res: Response): Promise<v
       role: user.role,
       googleCalendarConnected: user.googleCalendarConnected,
       googleEmail: user.googleEmail,
+      isVerified: user.isVerified,
+      hasPassword: !!user.passwordHash,
     },
   });
 });
@@ -201,6 +233,8 @@ export const me = asyncHandler(async (req: Request, res: Response): Promise<void
       role: user.role,
       googleCalendarConnected: user.googleCalendarConnected,
       googleEmail: user.googleEmail,
+      isVerified: user.isVerified,
+      hasPassword: !!user.passwordHash,
     },
   });
 });
@@ -233,12 +267,15 @@ export const handleGoogleLoginCallback = asyncHandler(async (req: Request, res: 
         googleEmail: profile.email,
         role: 'patient',
         isActive: true,
+        isVerified: true, // Google accounts are pre-verified
       });
     } else {
       // User exists, update Google fields if not set
       if (!user.googleId) {
         user.googleId = profile.id;
         user.googleEmail = profile.email;
+        // If a user registers with password and then logs in with Google, we link them and ensure verified
+        user.isVerified = true;
         await user.save();
       }
       if (!user.isActive) {
@@ -342,5 +379,167 @@ export const disconnectGoogleCalendar = asyncHandler(async (req: Request, res: R
   res.status(200).json({
     success: true,
     message: 'Google Calendar disconnected successfully',
+  });
+});
+
+export const verifyEmail = asyncHandler(async (req: Request, res: Response): Promise<void> => {
+  const validated = verifyEmailSchema.parse(req.body);
+
+  const user = await User.findOne({ email: validated.email.toLowerCase() });
+  if (!user) {
+    res.status(404).json({
+      success: false,
+      message: 'User not found',
+    });
+    return;
+  }
+
+  if (user.isVerified) {
+    res.status(400).json({
+      success: false,
+      message: 'Email is already verified.',
+    });
+    return;
+  }
+
+  if (
+    user.verificationCode !== validated.code ||
+    !user.verificationCodeExpires ||
+    user.verificationCodeExpires < new Date()
+  ) {
+    res.status(400).json({
+      success: false,
+      message: 'Invalid or expired verification code',
+    });
+    return;
+  }
+
+  user.isVerified = true;
+  user.verificationCode = undefined;
+  user.verificationCodeExpires = undefined;
+  await user.save();
+
+  res.status(200).json({
+    success: true,
+    message: 'Email verified successfully.',
+  });
+});
+
+export const resendVerificationCode = asyncHandler(async (req: Request, res: Response): Promise<void> => {
+  const validated = resendVerificationSchema.parse(req.body);
+
+  const user = await User.findOne({ email: validated.email.toLowerCase() });
+  if (!user) {
+    res.status(404).json({
+      success: false,
+      message: 'User not found',
+    });
+    return;
+  }
+
+  if (user.isVerified) {
+    res.status(400).json({
+      success: false,
+      message: 'Email is already verified.',
+    });
+    return;
+  }
+
+  // Generate new 6-digit code
+  const verificationCode = Math.floor(100000 + Math.random() * 900000).toString();
+  const verificationCodeExpires = new Date(Date.now() + 15 * 60 * 1000); // 15 mins
+
+  user.verificationCode = verificationCode;
+  user.verificationCodeExpires = verificationCodeExpires;
+  await user.save();
+
+  // Send verification email
+  await emailService.sendVerificationEmail(user.email, verificationCode);
+
+  res.status(200).json({
+    success: true,
+    message: 'A new verification code has been sent to your email.',
+  });
+});
+
+export const forgotPassword = asyncHandler(async (req: Request, res: Response): Promise<void> => {
+  const validated = forgotPasswordSchema.parse(req.body);
+
+  const user = await User.findOne({ email: validated.email.toLowerCase() });
+  if (user) {
+    // Generate secure reset token
+    const token = crypto.randomBytes(20).toString('hex');
+    const expires = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+
+    user.resetPasswordToken = token;
+    user.resetPasswordExpires = expires;
+    await user.save();
+
+    // Send email
+    await emailService.sendPasswordResetEmail(user.email, token);
+  }
+
+  // Always return 200/success to prevent user enumeration
+  res.status(200).json({
+    success: true,
+    message: 'If the email address exists, a password reset link has been sent.',
+  });
+});
+
+export const resetPassword = asyncHandler(async (req: Request, res: Response): Promise<void> => {
+  const validated = resetPasswordSchema.parse(req.body);
+
+  const user = await User.findOne({
+    resetPasswordToken: validated.token,
+    resetPasswordExpires: { $gt: new Date() },
+  });
+
+  if (!user) {
+    res.status(400).json({
+      success: false,
+      message: 'Invalid or expired reset token',
+    });
+    return;
+  }
+
+  // Hash new password
+  const salt = await bcrypt.genSalt(10);
+  const passwordHash = await bcrypt.hash(validated.password, salt);
+
+  user.passwordHash = passwordHash;
+  user.resetPasswordToken = undefined;
+  user.resetPasswordExpires = undefined;
+  await user.save();
+
+  res.status(200).json({
+    success: true,
+    message: 'Password has been reset successfully.',
+  });
+});
+
+export const setPassword = asyncHandler(async (req: Request, res: Response): Promise<void> => {
+  if (!req.user) {
+    res.status(401).json({ success: false, message: 'Unauthorized' });
+    return;
+  }
+
+  const validated = setPasswordSchema.parse(req.body);
+
+  const user = await User.findById(req.user.id);
+  if (!user) {
+    res.status(404).json({ success: false, message: 'User not found' });
+    return;
+  }
+
+  // Hash new password
+  const salt = await bcrypt.genSalt(10);
+  const passwordHash = await bcrypt.hash(validated.password, salt);
+
+  user.passwordHash = passwordHash;
+  await user.save();
+
+  res.status(200).json({
+    success: true,
+    message: 'Password set successfully.',
   });
 });

@@ -1,0 +1,17 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: lablink-backend
+    restart: unless-stopped
+    ports:
+      # Bind port 5001 to 127.0.0.1 (localhost) on the host machine.
+      # This prevents direct external requests from bypassing Nginx.
+      - "127.0.0.1:5001:5001"
+    env_file:
+      - .env
+    volumes:
+      - ./logs:/usr/src/app/logs
