@@ -16,8 +16,8 @@ const generateRefreshToken = (userId) => {
 const setRefreshTokenCookie = (res, token) => {
     res.cookie('refreshToken', token, {
         httpOnly: true,
-        secure: env.NODE_ENV === 'production', // true in production
-        sameSite: 'lax',
+        secure: env.NODE_ENV === 'production',
+        sameSite: env.NODE_ENV === 'production' ? 'none' : 'lax',
         maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days in milliseconds
     });
 };
@@ -161,7 +161,7 @@ export const logout = asyncHandler(async (req, res) => {
     res.clearCookie('refreshToken', {
         httpOnly: true,
         secure: env.NODE_ENV === 'production',
-        sameSite: 'lax',
+        sameSite: env.NODE_ENV === 'production' ? 'none' : 'lax',
     });
     res.status(200).json({
         success: true,
