@@ -1,0 +1,40 @@
+import logger from '../utils/logger.js';
+import { env } from '../config/env.js';
+export const errorHandler = (err, req, res, next) => {
+    const statusCode = err.statusCode || 500;
+    const message = err.message || 'Internal Server Error';
+    // Log error using Wininston logger
+    logger.error(`${statusCode} - ${message} - ${req.originalUrl} - ${req.method} - ${req.ip} - Stack: ${err.stack}`);
+    // Handle Zod validation errors
+    if (err.name === 'ZodError') {
+        const zodError = err;
+        const firstErrorMessage = zodError.errors?.[0]?.message || 'Validation failed';
+        res.status(400).json({
+            success: false,
+            message: firstErrorMessage,
+            errors: zodError.errors,
+        });
+        return;
+    }
+    // Handle Mongoose duplicate key error (11000)
+    if (err.code === 11000) {
+        res.status(409).json({
+            success: false,
+            message: 'Duplicate key error: A record with this value already exists.',
+        });
+        return;
+    }
+    // Handle Mongoose validation errors
+    if (err.name === 'ValidationError') {
+        res.status(400).json({
+            success: false,
+            message: err.message,
+        });
+        return;
+    }
+    res.status(statusCode).json({
+        success: false,
+        message,
+        ...(env.NODE_ENV !== 'production' ? { stack: err.stack } : {}),
+    });
+};
