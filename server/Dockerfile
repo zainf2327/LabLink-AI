@@ -1,22 +1,4 @@
-# Stage 1: Build stage
-FROM node:20-alpine AS builder
-
-WORKDIR /usr/src/app
-
-# Copy dependency manifests
-COPY package*.json tsconfig.json ./
-
-# Install all dependencies (including devDependencies)
-RUN npm ci
-
-# Copy source code
-COPY src ./src
-
-# Compile TypeScript to JavaScript
-RUN npm run build
-
-# Stage 2: Production runner stage
-FROM node:20-alpine AS runner
+FROM node:20-alpine
 
 WORKDIR /usr/src/app
 
@@ -28,8 +10,8 @@ COPY package*.json ./
 # Install only production dependencies
 RUN npm ci --omit=dev
 
-# Copy compiled JavaScript from builder stage
-COPY --from=builder /usr/src/app/dist ./dist
+# Copy compiled JavaScript from local build
+COPY dist ./dist
 
 # Create logs directory
 RUN mkdir -p logs
