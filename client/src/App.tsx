@@ -10,6 +10,8 @@ import Tests from './pages/Tests';
 import PatientDashboard from './pages/patient/Dashboard';
 import Checkout from './pages/patient/Checkout';
 import WalletPage from './pages/patient/WalletPage';
+import { MembershipPage } from './pages/patient/MembershipPage';
+import AiAssistant from './pages/patient/AiAssistant';
 import StaffDashboard from './pages/staff/Dashboard';
 import AdminDashboard from './pages/admin/Dashboard';
 import ProfileSettings from './pages/ProfileSettings';
@@ -82,6 +84,22 @@ export const App: React.FC = () => {
             </ProtectedRoute>
           }
         />
+        <Route
+          path="/patient/membership"
+          element={
+            <ProtectedRoute allowedRoles={['patient']}>
+              <MembershipPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/patient/reports/:reportId/ai-assistant"
+          element={
+            <ProtectedRoute allowedRoles={['patient']}>
+              <AiAssistant />
+            </ProtectedRoute>
+          }
+        />
 
         {/* Protected Staff Routes */}
         <Route
@@ -131,6 +149,14 @@ export const App: React.FC = () => {
           element={
             <ProtectedRoute allowedRoles={['admin']}>
               <AdminDashboard defaultTab="categories" />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/subscriptions"
+          element={
+            <ProtectedRoute allowedRoles={['admin']}>
+              <AdminDashboard defaultTab="subscriptions" />
             </ProtectedRoute>
           }
         />

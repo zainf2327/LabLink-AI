@@ -10,3 +10,14 @@ export const rateLimiter = rateLimit({
     message: 'Too many requests from this IP, please try again after 15 minutes',
   },
 });
+
+export const aiChatRateLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 20, // Limit each IP to 20 requests per minute
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    success: false,
+    message: 'Too many messages. Please wait before sending another.',
+  },
+});

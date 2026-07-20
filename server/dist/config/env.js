@@ -1,7 +1,7 @@
 import dotenv from 'dotenv';
 import { z } from 'zod';
 // Load environment variables from .env file
-dotenv.config({ quiet: true });
+dotenv.config({ override: true });
 const envSchema = z.object({
     NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
     PORT: z.coerce.number().default(5001),
@@ -15,13 +15,14 @@ const envSchema = z.object({
     CLOUDINARY_API_SECRET: z.string().optional(),
     STRIPE_SECRET_KEY: z.string().min(1, 'STRIPE_SECRET_KEY is required'),
     STRIPE_WEBHOOK_SECRET: z.string().optional(),
-    PINECONE_API_KEY: z.string().optional(),
-    PINECONE_INDEX_NAME: z.string().optional(),
+    PINECONE_API_KEY: z.string().min(1, 'PINECONE_API_KEY is required'),
+    PINECONE_INDEX_NAME: z.string().min(1, 'PINECONE_INDEX_NAME is required'),
     GOOGLE_CLIENT_ID: z.string().min(1, 'GOOGLE_CLIENT_ID is required'),
     GOOGLE_CLIENT_SECRET: z.string().min(1, 'GOOGLE_CLIENT_SECRET is required'),
     GOOGLE_REDIRECT_URI: z.string().url('GOOGLE_REDIRECT_URI must be a valid URL'),
     ENCRYPTION_KEY: z.string().min(32, 'ENCRYPTION_KEY must be at least 32 characters').optional(),
-    GROQ_API_KEY: z.string().optional(),
+    GROQ_API_KEY: z.string().min(1, 'GROQ_API_KEY is required'),
+    GEMINI_API_KEY: z.string().min(1, 'GEMINI_API_KEY is required'),
     FRONTEND_URL: z.string().url('FRONTEND_URL must be a valid URL'),
     AWS_ACCESS_KEY_ID: z.string().optional(),
     AWS_SECRET_ACCESS_KEY: z.string().optional(),

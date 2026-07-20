@@ -30,6 +30,7 @@ export const PatientDashboard: React.FC = () => {
   const [walletBalance, setWalletBalance] = useState<number>(0);
   const [cancelMessage, setCancelMessage] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'bookings' | 'reports'>('bookings');
+  const [expandedReportId, setExpandedReportId] = useState<string | null>(null);
 
   const handleConnectCalendar = async () => {
     setSyncingCalendar(true);
@@ -445,41 +446,91 @@ export const PatientDashboard: React.FC = () => {
                   </div>
                 ) : (
                   <div className="space-y-4">
-                    {reports.map((report) => (
-                      <div
-                        key={report._id}
-                        className="border border-zinc-850 bg-zinc-900/30 p-5 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:border-zinc-800/80 transition-all"
-                      >
-                        <div className="space-y-1.5">
-                          <div className="flex items-center gap-2">
-                            <FileCheck className="text-teal-400" size={16} />
-                            <span className="text-sm font-bold text-zinc-200">
-                              {getReportTitle(report)}
-                            </span>
-                          </div>
-                          <div className="flex flex-wrap gap-x-4 text-xs text-zinc-500">
-                            <span>
-                              Uploaded: {new Date(report.createdAt).toLocaleDateString()} at{' '}
-                              {new Date(report.createdAt).toLocaleTimeString([], {
-                                hour: '2-digit',
-                                minute: '2-digit',
-                              })}
-                            </span>
-                            <span>Format: PDF</span>
-                          </div>
-                        </div>
-
-                        <a
-                          href={report.fileUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black text-xs font-bold transition-all shadow-md shadow-emerald-500/5 hover:scale-[1.02] flex items-center gap-1.5 cursor-pointer whitespace-nowrap self-end sm:self-center"
+                    {reports.map((report) => {
+                      const isExpanded = expandedReportId === report._id;
+                      return (
+                        <div
+                          key={report._id}
+                          className="border border-zinc-850 bg-zinc-900/30 p-5 rounded-2xl flex flex-col hover:border-zinc-800/80 transition-all"
                         >
-                          <FileDown size={14} />
-                          <span>Download Report</span>
-                        </a>
-                      </div>
-                    ))}
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                            <div className="space-y-1.5 flex-1">
+                              <div className="flex items-center gap-2">
+                                <FileCheck className="text-teal-400" size={16} />
+                                <span className="text-sm font-bold text-zinc-200">
+                                  {getReportTitle(report)}
+                                </span>
+                              </div>
+                              <div className="flex flex-wrap gap-x-4 text-xs text-zinc-500">
+                                <span>
+                                  Uploaded: {new Date(report.createdAt).toLocaleDateString()} at{' '}
+                                  {new Date(report.createdAt).toLocaleTimeString([], {
+                                    hour: '2-digit',
+                                    minute: '2-digit',
+                                  })}
+                                </span>
+                                <span>Format: PDF</span>
+                              </div>
+                            </div>
+
+                            <div className="flex items-center gap-3 self-end sm:self-center">
+                              <button
+                                onClick={() => setExpandedReportId(isExpanded ? null : report._id)}
+                                className="px-3.5 py-1.5 rounded-xl border border-zinc-800 hover:border-purple-500/30 bg-zinc-950 text-xs font-semibold text-zinc-400 hover:text-purple-400 transition-all cursor-pointer flex items-center gap-1.5"
+                              >
+                                <span>AI Summary</span>
+                                <span className="text-[10px]">{isExpanded ? '▲' : '▼'}</span>
+                              </button>
+
+                              <a
+                                href={report.fileUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="px-4 py-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black text-xs font-bold transition-all shadow-md shadow-emerald-500/5 hover:scale-[1.02] flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
+                              >
+                                <FileDown size={14} />
+                                <span>Download</span>
+                              </a>
+                            </div>
+                          </div>
+
+                          {isExpanded && (
+                            <>
+                              {!report.summary && !report.vectorized ? (
+                                <div className="mt-4 p-4 rounded-xl bg-zinc-950 border border-zinc-850/60 animate-pulse space-y-2">
+                                  <div className="h-3.5 bg-zinc-800 rounded w-1/4"></div>
+                                  <div className="h-3 bg-zinc-900 rounded w-full"></div>
+                                  <div className="h-3 bg-zinc-900 rounded w-5/6"></div>
+                                  <span className="text-[10px] text-zinc-500 font-medium tracking-wide block pt-1">
+                                    🧬 AI Summary generating, please wait...
+                                  </span>
+                                </div>
+                              ) : (
+                                <div className="mt-4 p-4 rounded-xl bg-zinc-950/80 border border-zinc-850/60 space-y-3">
+                                  <div className="space-y-1.5">
+                                    <span className="text-[10px] uppercase font-bold tracking-wider text-purple-400 block">
+                                      AI Plain-Language Summary
+                                    </span>
+                                    <p className="text-zinc-300 text-xs leading-relaxed whitespace-pre-line">
+                                      {report.summary || 'Summary generation in progress...'}
+                                    </p>
+                                  </div>
+                                  <div className="pt-1 flex gap-2">
+                                    <Link
+                                      to={`/patient/reports/${report._id}/ai-assistant`}
+                                      className="px-3.5 py-1.5 rounded-xl bg-purple-500/10 hover:bg-purple-500 border border-purple-500/20 text-purple-400 hover:text-black text-xs font-bold transition-all shadow-md shadow-purple-500/5 hover:scale-[1.02] flex items-center gap-1.5 cursor-pointer"
+                                    >
+                                      <Activity size={12} />
+                                      <span>🧬 Ask AI about this report</span>
+                                    </Link>
+                                  </div>
+                                </div>
+                              )}
+                            </>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
               </div>

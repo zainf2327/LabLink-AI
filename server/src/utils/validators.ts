@@ -111,3 +111,28 @@ export const setPasswordSchema = z.object({
   password: z.string().min(6, 'Password must be at least 6 characters long'),
 });
 
+export const createSubscriptionPlanSchema = z.object({
+  name: z.string().min(2, 'Plan name must be at least 2 characters long').max(50, 'Plan name must not exceed 50 characters'),
+  price: z.number().min(0, 'Price must be a positive number'),
+  maxFamilyMembers: z.number().int().min(0, 'maxFamilyMembers must be a non-negative integer'),
+  features: z.array(z.string().min(1)).min(1, 'At least one feature is required'),
+});
+
+export const updateSubscriptionPlanSchema = createSubscriptionPlanSchema.partial().extend({
+  isActive: z.boolean().optional(),
+});
+
+export const createSubscriptionSchema = z.object({
+  planId: z.string().regex(/^[0-9a-fA-F]{24}$/, 'Invalid Plan ID'),
+});
+
+export const createFamilyMemberSchema = z.object({
+  name: z.string().min(2, 'Name must be at least 2 characters long').max(50, 'Name must not exceed 50 characters'),
+  dateOfBirth: z.coerce.date(),
+  relationship: z.string().min(2, 'Relationship is required'),
+  gender: z.enum(['male', 'female', 'other']),
+});
+
+export const updateFamilyMemberSchema = createFamilyMemberSchema.partial();
+
+

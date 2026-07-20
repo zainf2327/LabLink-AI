@@ -2,6 +2,8 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { env } from '../config/env.js';
 import User from '../models/User.model.js';
+import Subscription from '../models/Subscription.model.js';
+import SubscriptionPlan from '../models/SubscriptionPlan.model.js';
 import asyncHandler from '../utils/asyncHandler.js';
 import { registerSchema, loginSchema, verifyEmailSchema, resendVerificationSchema, forgotPasswordSchema, resetPasswordSchema, setPasswordSchema, } from '../utils/validators.js';
 import { calendarService } from '../services/calendar.service.js';
@@ -20,6 +22,25 @@ const setRefreshTokenCookie = (res, token) => {
         sameSite: env.NODE_ENV === 'production' ? 'none' : 'lax',
         maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days in milliseconds
     });
+};
+const ensureDefaultSubscription = async (userId) => {
+    // Check if user already has any subscription (active, cancelled, or expired)
+    const existing = await Subscription.findOne({ userId });
+    if (existing)
+        return;
+    // Find the free plan (price = 0, isActive = true)
+    const basicPlan = await SubscriptionPlan.findOne({ price: 0, isActive: true });
+    if (basicPlan) {
+        const renewalDate = new Date();
+        renewalDate.setDate(renewalDate.getDate() + 30);
+        await Subscription.create({
+            userId,
+            planId: basicPlan._id,
+            status: 'active',
+            startDate: new Date(),
+            renewalDate,
+        });
+    }
 };
 export const register = asyncHandler(async (req, res) => {
     const validated = registerSchema.parse(req.body);
@@ -103,6 +124,9 @@ export const login = asyncHandler(async (req, res) => {
             message: 'Invalid email or password',
         });
         return;
+    }
+    if (user.role === 'patient') {
+        await ensureDefaultSubscription(user._id);
     }
     // Generate tokens
     const accessToken = generateAccessToken(user.id, user.role);
@@ -240,6 +264,9 @@ export const handleGoogleLoginCallback = asyncHandler(async (req, res) => {
                 return;
             }
         }
+        if (user.role === 'patient') {
+            await ensureDefaultSubscription(user._id);
+        }
         // Generate tokens
         const accessToken = generateAccessToken(user.id, user.role);
         const refreshToken = generateRefreshToken(user.id);
@@ -354,6 +381,9 @@ export const verifyEmail = asyncHandler(async (req, res) => {
     user.verificationCode = undefined;
     user.verificationCodeExpires = undefined;
     await user.save();
+    if (user.role === 'patient') {
+        await ensureDefaultSubscription(user._id);
+    }
     res.status(200).json({
         success: true,
         message: 'Email verified successfully.',

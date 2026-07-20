@@ -1,9 +1,6 @@
+import { Pinecone } from '@pinecone-database/pinecone';
 import { env } from './env.js';
 
-// Stub Pinecone configuration
-export const pineconeConfig = {
-  apiKey: env.PINECONE_API_KEY || '',
-  indexName: env.PINECONE_INDEX_NAME || '',
-};
+export const pineconeClient = new Pinecone({ apiKey: env.PINECONE_API_KEY });
+export const pineconeIndex = pineconeClient.index(env.PINECONE_INDEX_NAME);
 
-console.log('Pinecone Config initialized (Stub)');

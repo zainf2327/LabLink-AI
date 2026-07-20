@@ -5,6 +5,7 @@ import { analyticsService } from '../../services/analytics.service';
 import { bookingService } from '../../services/booking.service';
 import type { Booking } from '../../services/booking.service';
 import { authService } from '../../services/auth.service';
+import { subscriptionService } from '../../services/subscription.service';
 import {
   ResponsiveContainer,
   AreaChart,
@@ -19,6 +20,7 @@ import {
 import AppLayout from '../../components/layout/AppLayout';
 import {
   ShieldCheck,
+  Shield,
   Settings,
   LayoutGrid,
   Plus,
@@ -40,13 +42,14 @@ import {
   Activity,
   FileCheck,
   XCircle,
+  X,
   TrendingUp
 } from 'lucide-react';
 
-export const AdminDashboard: React.FC<{ defaultTab?: 'overview' | 'bookings' | 'tests' | 'categories' }> = ({
+export const AdminDashboard: React.FC<{ defaultTab?: 'overview' | 'bookings' | 'tests' | 'categories' | 'subscriptions' }> = ({
   defaultTab = 'overview',
 }) => {
-  const [activeTab, setActiveTab] = useState<'overview' | 'bookings' | 'tests' | 'categories'>(defaultTab);
+  const [activeTab, setActiveTab] = useState<'overview' | 'bookings' | 'tests' | 'categories' | 'subscriptions'>(defaultTab);
 
   useEffect(() => {
     setActiveTab(defaultTab);
@@ -107,6 +110,23 @@ export const AdminDashboard: React.FC<{ defaultTab?: 'overview' | 'bookings' | '
   const [assigningBookingId, setAssigningBookingId] = useState<string | null>(null);
   const [selectedStaffId, setSelectedStaffId] = useState<string>('');
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+
+  // Subscriptions management states
+  const [subPlans, setSubPlans] = useState<any[]>([]);
+  const [adminSubscriptions, setAdminSubscriptions] = useState<any[]>([]);
+  const [adminSubPage, setAdminSubPage] = useState(1);
+  const [adminSubPages, setAdminSubPages] = useState(1);
+  const [adminSubCount, setAdminSubCount] = useState(0);
+  const [adminSubLoading, setAdminSubLoading] = useState(false);
+
+  const [isSubPlanModalOpen, setIsSubPlanModalOpen] = useState(false);
+  const [editingSubPlan, setEditingSubPlan] = useState<any | null>(null);
+  const [subPlanForm, setSubPlanForm] = useState({
+    name: '',
+    price: 0,
+    maxFamilyMembers: 0,
+    features: [''],
+  });
 
   // Display Alerts
   const displaySuccess = (msg: string) => {
@@ -225,6 +245,95 @@ export const AdminDashboard: React.FC<{ defaultTab?: 'overview' | 'bookings' | '
     }
   };
 
+  // Fetch subscription plans
+  const fetchSubPlans = useCallback(async () => {
+    try {
+      const res = await subscriptionService.getAllPlans();
+      if (res.success) {
+        setSubPlans(res.plans);
+      }
+    } catch (err) {
+      console.error('Error fetching sub plans:', err);
+    }
+  }, []);
+
+  // Fetch patient subscriptions log
+  const fetchAdminSubscriptions = useCallback(async () => {
+    setAdminSubLoading(true);
+    try {
+      const res = await subscriptionService.getAllSubscriptions(adminSubPage, 5);
+      if (res.success && res.data) {
+        setAdminSubscriptions(res.data.subscriptions || []);
+        if (res.data.pagination) {
+          setAdminSubPages(Math.ceil(res.data.pagination.total / res.data.pagination.limit) || 1);
+          setAdminSubCount(res.data.pagination.total || 0);
+        }
+      }
+    } catch (err) {
+      console.error('Error fetching subscriptions queue:', err);
+    } finally {
+      setAdminSubLoading(false);
+    }
+  }, [adminSubPage]);
+
+  // Create or Update Subscription Plan
+  const handleSubPlanSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!subPlanForm.name.trim()) {
+      displayError('Plan name is required');
+      return;
+    }
+    const cleanFeatures = subPlanForm.features.map(f => f.trim()).filter(f => f.length > 0);
+    if (cleanFeatures.length === 0) {
+      displayError('At least one feature is required');
+      return;
+    }
+
+    try {
+      if (editingSubPlan) {
+        const res = await subscriptionService.updatePlan(editingSubPlan._id, {
+          name: subPlanForm.name,
+          price: subPlanForm.price,
+          maxFamilyMembers: subPlanForm.maxFamilyMembers,
+          features: cleanFeatures,
+        });
+        if (res.success) {
+          displaySuccess('Subscription plan updated successfully');
+          setIsSubPlanModalOpen(false);
+          setEditingSubPlan(null);
+          fetchSubPlans();
+        }
+      } else {
+        const res = await subscriptionService.createPlan({
+          name: subPlanForm.name,
+          price: subPlanForm.price,
+          maxFamilyMembers: subPlanForm.maxFamilyMembers,
+          features: cleanFeatures,
+        });
+        if (res.success) {
+          displaySuccess('Subscription plan created successfully');
+          setIsSubPlanModalOpen(false);
+          fetchSubPlans();
+        }
+      }
+    } catch (err: any) {
+      displayError(err.response?.data?.message || 'Failed to save plan');
+    }
+  };
+
+  const handleSubPlanDeactivate = async (planId: string) => {
+    if (!window.confirm('Are you sure you want to deactivate this subscription plan?')) return;
+    try {
+      const res = await subscriptionService.deactivatePlan(planId);
+      if (res.success) {
+        displaySuccess('Plan deactivated successfully');
+        fetchSubPlans();
+      }
+    } catch (err: any) {
+      displayError(err.response?.data?.message || 'Failed to deactivate plan');
+    }
+  };
+
   // Load initial catalog data
   useEffect(() => {
     fetchCategories();
@@ -238,8 +347,11 @@ export const AdminDashboard: React.FC<{ defaultTab?: 'overview' | 'bookings' | '
     } else if (activeTab === 'bookings') {
       fetchBookingsQueue();
       fetchStaffList();
+    } else if (activeTab === 'subscriptions') {
+      fetchSubPlans();
+      fetchAdminSubscriptions();
     }
-  }, [activeTab, testPage, dateRangePreset, bookingPage, bookingStatusFilter, bookingTypeFilter, bookingDateFilter, bookingSearchQuery, fetchTests]);
+  }, [activeTab, testPage, dateRangePreset, bookingPage, bookingStatusFilter, bookingTypeFilter, bookingDateFilter, bookingSearchQuery, adminSubPage, fetchTests, fetchSubPlans, fetchAdminSubscriptions]);
 
   // Create or Update Category
   const handleCategorySubmit = async (e: React.FormEvent) => {
@@ -523,6 +635,17 @@ export const AdminDashboard: React.FC<{ defaultTab?: 'overview' | 'bookings' | '
           >
             <Settings size={18} />
             <span>Test Categories</span>
+          </button>
+          <button
+            onClick={() => setActiveTab('subscriptions')}
+            className={`px-5 py-3 text-sm font-semibold border-b-2 transition-all flex items-center gap-2 cursor-pointer shrink-0 ${
+              activeTab === 'subscriptions'
+                ? 'border-purple-500 text-purple-400'
+                : 'border-transparent text-zinc-400 hover:text-zinc-200'
+            }`}
+          >
+            <Shield size={18} />
+            <span>Subscriptions</span>
           </button>
         </div>
 
@@ -1054,6 +1177,190 @@ export const AdminDashboard: React.FC<{ defaultTab?: 'overview' | 'bookings' | '
                 )}
               </div>
              )}
+
+            {/* Subscriptions Tab */}
+            {activeTab === 'subscriptions' && (
+              <div className="space-y-8">
+                {/* 1. Subscription Plans Section */}
+                <div className="glassmorphic-card rounded-2xl p-6 space-y-6">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-lg font-bold text-zinc-100 font-sans tracking-wide">Subscription Plans</h3>
+                    <button
+                      onClick={() => {
+                        setEditingSubPlan(null);
+                        setSubPlanForm({ name: '', price: 0, maxFamilyMembers: 0, features: [''] });
+                        setIsSubPlanModalOpen(true);
+                      }}
+                      className="px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold transition-all flex items-center gap-1 cursor-pointer"
+                    >
+                      <Plus size={16} />
+                      <span>Add Subscription Plan</span>
+                    </button>
+                  </div>
+
+                  {subPlans.length === 0 ? (
+                    <div className="py-12 text-center text-zinc-550 text-sm">
+                      No subscription plans found in the database.
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left text-sm border-collapse">
+                        <thead>
+                          <tr className="border-b border-zinc-800 text-zinc-450 text-xs uppercase tracking-wider font-semibold">
+                            <th className="py-3 px-4">Name</th>
+                            <th className="py-3 px-4">Price</th>
+                            <th className="py-3 px-4">Max Family Members</th>
+                            <th className="py-3 px-4">Features</th>
+                            <th className="py-3 px-4">Status</th>
+                            <th className="py-3 px-4 text-right">Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {subPlans.map((plan) => (
+                            <tr key={plan._id} className="border-b border-zinc-850/50 hover:bg-zinc-900/30 transition-colors">
+                              <td className="py-3.5 px-4 font-semibold text-zinc-200">{plan.name}</td>
+                              <td className="py-3.5 px-4 font-bold text-emerald-400">${plan.price.toFixed(2)}/mo</td>
+                              <td className="py-3.5 px-4 text-zinc-350 text-xs font-semibold">{plan.maxFamilyMembers}</td>
+                              <td className="py-3.5 px-4 text-zinc-450 text-xs">
+                                <div className="flex flex-wrap gap-1">
+                                  {plan.features.map((feat: string, i: number) => (
+                                    <span key={i} className="px-1.5 py-0.5 bg-zinc-850 border border-zinc-800 text-[10px] text-zinc-400 rounded">
+                                      {feat}
+                                    </span>
+                                  ))}
+                                </div>
+                              </td>
+                              <td className="py-3.5 px-4">
+                                <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${
+                                  plan.isActive
+                                    ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                                    : 'bg-red-500/10 text-red-400 border-red-500/20'
+                                }`}>
+                                  {plan.isActive ? 'Active' : 'Inactive'}
+                                </span>
+                              </td>
+                              <td className="py-3.5 px-4 text-right space-x-1">
+                                <button
+                                  onClick={() => {
+                                    setEditingSubPlan(plan);
+                                    setSubPlanForm({
+                                      name: plan.name,
+                                      price: plan.price,
+                                      maxFamilyMembers: plan.maxFamilyMembers,
+                                      features: plan.features.length > 0 ? plan.features : [''],
+                                    });
+                                    setIsSubPlanModalOpen(true);
+                                  }}
+                                  className="p-1.5 rounded-lg border border-zinc-800 hover:border-zinc-700 bg-zinc-900 text-zinc-400 hover:text-white transition-colors cursor-pointer"
+                                  title="Edit"
+                                >
+                                  <Pencil size={12} />
+                                </button>
+                                {plan.isActive && (
+                                  <button
+                                    onClick={() => handleSubPlanDeactivate(plan._id)}
+                                    className="p-1.5 rounded-lg border border-zinc-800 hover:border-red-900/40 bg-zinc-900 text-zinc-400 hover:text-red-400 transition-colors cursor-pointer"
+                                    title="Deactivate"
+                                  >
+                                    <ShieldX size={12} />
+                                  </button>
+                                )}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+
+                {/* 2. Patient Subscriptions Log */}
+                <div className="glassmorphic-card rounded-2xl p-6 space-y-6">
+                  <h3 className="text-lg font-bold text-zinc-100 font-sans tracking-wide">Patient Memberships History</h3>
+                  
+                  {adminSubLoading ? (
+                    <div className="py-12 flex justify-center items-center">
+                      <div className="w-8 h-8 rounded-full border-4 border-purple-500/20 border-t-purple-450 animate-spin"></div>
+                    </div>
+                  ) : adminSubscriptions.length === 0 ? (
+                    <div className="py-12 text-center text-zinc-550 text-sm">
+                      No patient subscription agreements found in the database.
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left text-sm border-collapse">
+                        <thead>
+                          <tr className="border-b border-zinc-800 text-zinc-450 text-xs uppercase tracking-wider font-semibold">
+                            <th className="py-3 px-4">Sub ID</th>
+                            <th className="py-3 px-4">Patient</th>
+                            <th className="py-3 px-4">Plan Name</th>
+                            <th className="py-3 px-4">Status</th>
+                            <th className="py-3 px-4">Start Date</th>
+                            <th className="py-3 px-4">Renewal Date</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {adminSubscriptions.map((sub) => (
+                            <tr key={sub._id} className="border-b border-zinc-850/50 hover:bg-zinc-900/30 transition-colors">
+                              <td className="py-3.5 px-4 font-mono text-zinc-400 text-xs">{sub._id.substring(18).toUpperCase()}</td>
+                              <td className="py-3.5 px-4">
+                                <div className="text-zinc-200 font-semibold">{sub.userId?.name || 'N/A'}</div>
+                                <div className="text-zinc-550 text-[10px]">{sub.userId?.email || 'N/A'}</div>
+                              </td>
+                              <td className="py-3.5 px-4 font-bold text-zinc-350 text-xs">
+                                {sub.planId?.name || 'Unknown'}
+                              </td>
+                              <td className="py-3.5 px-4">
+                                <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${
+                                  sub.status === 'active'
+                                    ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                                    : sub.status === 'cancelled'
+                                    ? 'bg-amber-500/10 text-amber-400 border-amber-500/20'
+                                    : 'bg-red-500/10 text-red-400 border-red-500/20'
+                                }`}>
+                                  {sub.status}
+                                </span>
+                              </td>
+                              <td className="py-3.5 px-4 text-zinc-450 text-xs">
+                                {new Date(sub.startDate).toLocaleDateString()}
+                              </td>
+                              <td className="py-3.5 px-4 text-zinc-450 text-xs">
+                                {new Date(sub.renewalDate).toLocaleDateString()}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+
+                  {/* Pagination */}
+                  {adminSubPages > 1 && (
+                    <div className="flex items-center justify-between border-t border-zinc-850 pt-4 mt-2">
+                      <button
+                        onClick={() => setAdminSubPage((prev) => Math.max(prev - 1, 1))}
+                        disabled={adminSubPage === 1 || adminSubLoading}
+                        className="flex items-center gap-1 px-3 py-1.5 rounded-lg border border-zinc-800 bg-zinc-900 hover:bg-zinc-850 text-xs font-semibold text-zinc-400 hover:text-zinc-200 transition-all cursor-pointer disabled:opacity-40"
+                      >
+                        <ChevronLeft size={14} />
+                        <span>Previous</span>
+                      </button>
+                      <span className="text-zinc-550 text-xs font-extrabold uppercase">
+                        Page {adminSubPage} of {adminSubPages} (Total {adminSubCount})
+                      </span>
+                      <button
+                        onClick={() => setAdminSubPage((prev) => Math.min(prev + 1, adminSubPages))}
+                        disabled={adminSubPage === adminSubPages || adminSubLoading}
+                        className="flex items-center gap-1 px-3 py-1.5 rounded-lg border border-zinc-800 bg-zinc-900 hover:bg-zinc-850 text-xs font-semibold text-zinc-400 hover:text-zinc-200 transition-all cursor-pointer disabled:opacity-40"
+                      >
+                        <span>Next</span>
+                        <ChevronRight size={14} />
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
            </div>
 
       {/* Category Creation / Edit Modal */}
@@ -1267,6 +1574,131 @@ export const AdminDashboard: React.FC<{ defaultTab?: 'overview' | 'bookings' | '
                   className="px-5 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold transition-colors cursor-pointer"
                 >
                   {editingTest ? 'Save Changes' : 'Add Test'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Subscription Plan Creation / Edit Modal */}
+      {isSubPlanModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm overflow-y-auto">
+          <div className="w-full max-w-md glassmorphic-card rounded-3xl p-6 relative my-8">
+            <h3 className="text-lg font-bold text-zinc-100 mb-6 font-sans">
+              {editingSubPlan ? 'Edit Subscription Plan' : 'Create Subscription Plan'}
+            </h3>
+            
+            <form onSubmit={handleSubPlanSubmit} className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-400 mb-1.5">
+                  Plan Name
+                </label>
+                <input
+                  type="text"
+                  value={subPlanForm.name}
+                  onChange={(e) => setSubPlanForm({ ...subPlanForm, name: e.target.value })}
+                  placeholder="e.g. Basic Family, Premium Care"
+                  className="w-full px-4 py-2.5 rounded-xl glassmorphic-input text-zinc-200 text-sm placeholder:text-zinc-650 focus:outline-none"
+                  required
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-400 mb-1.5">
+                    Monthly Price ($)
+                  </label>
+                  <input
+                    type="number"
+                    value={subPlanForm.price}
+                    onChange={(e) => setSubPlanForm({ ...subPlanForm, price: parseFloat(e.target.value) || 0 })}
+                    placeholder="29.99"
+                    min="0"
+                    step="0.01"
+                    className="w-full px-4 py-2.5 rounded-xl glassmorphic-input text-zinc-200 text-sm placeholder:text-zinc-650 focus:outline-none"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-400 mb-1.5">
+                    Max Family Members
+                  </label>
+                  <input
+                    type="number"
+                    value={subPlanForm.maxFamilyMembers}
+                    onChange={(e) => setSubPlanForm({ ...subPlanForm, maxFamilyMembers: parseInt(e.target.value, 10) || 0 })}
+                    placeholder="3"
+                    min="0"
+                    className="w-full px-4 py-2.5 rounded-xl glassmorphic-input text-zinc-200 text-sm placeholder:text-zinc-650 focus:outline-none"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-400">
+                    Features List
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setSubPlanForm({ ...subPlanForm, features: [...subPlanForm.features, ''] })}
+                    className="text-xs text-purple-400 hover:text-purple-300 font-bold transition-all"
+                  >
+                    + Add Feature
+                  </button>
+                </div>
+
+                <div className="space-y-2 max-h-40 overflow-y-auto pr-1">
+                  {subPlanForm.features.map((feature, index) => (
+                    <div key={index} className="flex items-center gap-2">
+                      <input
+                        type="text"
+                        value={feature}
+                        onChange={(e) => {
+                          const updated = [...subPlanForm.features];
+                          updated[index] = e.target.value;
+                          setSubPlanForm({ ...subPlanForm, features: updated });
+                        }}
+                        placeholder={`Feature #${index + 1}`}
+                        className="flex-1 px-3 py-2 rounded-lg bg-zinc-950 border border-zinc-800 text-zinc-200 text-xs placeholder:text-zinc-600 focus:border-purple-500 focus:outline-none"
+                        required
+                      />
+                      {subPlanForm.features.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const updated = subPlanForm.features.filter((_, i) => i !== index);
+                            setSubPlanForm({ ...subPlanForm, features: updated });
+                          }}
+                          className="p-1 rounded bg-zinc-950 border border-zinc-800 text-zinc-450 hover:text-red-400 cursor-pointer"
+                        >
+                          <X size={14} />
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex gap-3 justify-end pt-4 border-t border-zinc-900 mt-6">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsSubPlanModalOpen(false);
+                    setEditingSubPlan(null);
+                  }}
+                  className="px-4 py-2 rounded-xl border border-zinc-800 bg-zinc-900 text-xs font-bold text-zinc-400 hover:text-zinc-200 transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold transition-colors cursor-pointer"
+                >
+                  {editingSubPlan ? 'Save Changes' : 'Create Plan'}
                 </button>
               </div>
             </form>

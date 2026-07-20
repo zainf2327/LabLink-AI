@@ -28,6 +28,13 @@ import {
 // Initialize Stripe Promise
 const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY || '');
 
+const parseLocalDateTime = (localDateTimeStr: string): Date => {
+  const [datePart, timePart] = localDateTimeStr.split('T');
+  const [year, month, day] = datePart.split('-').map(Number);
+  const [hour, minute] = timePart.split(':').map(Number);
+  return new Date(year, month - 1, day, hour, minute);
+};
+
 const CheckoutForm: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuthStore();
@@ -141,7 +148,7 @@ const CheckoutForm: React.FC = () => {
       setErrorMessage('Please select a scheduled date and time.');
       return;
     }
-    if (new Date(scheduledAt) <= new Date()) {
+    if (parseLocalDateTime(scheduledAt) <= new Date()) {
       setErrorMessage('Appointment slot must be in the future.');
       return;
     }
@@ -170,7 +177,7 @@ const CheckoutForm: React.FC = () => {
         homeSampling: {
           requested: requestHomeSampling,
           address: requestHomeSampling ? address : undefined,
-          scheduledAt,
+          scheduledAt: parseLocalDateTime(scheduledAt).toISOString(),
         },
         notes,
       });

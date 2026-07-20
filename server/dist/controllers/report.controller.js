@@ -4,6 +4,7 @@ import Booking from '../models/Booking.model.js';
 import Report from '../models/Report.model.js';
 import { s3Service } from '../services/s3.service.js';
 import { pdfExtractService } from '../services/pdfExtract.service.js';
+import { aiAssistantService } from '../services/aiAssistant.service.js';
 import { logAudit } from '../utils/auditLogger.js';
 export const uploadReport = asyncHandler(async (req, res) => {
     if (!req.user) {
@@ -83,6 +84,25 @@ export const uploadReport = asyncHandler(async (req, res) => {
         textContent,
         vectorized: false,
     });
+    // 6b. Vectorize and upsert report chunks to Pinecone (non-fatal)
+    try {
+        await aiAssistantService.upsertReportVectors(booking.patientId.toString(), report._id.toString(), textContent);
+        report.vectorized = true;
+        await report.save();
+    }
+    catch (err) {
+        console.error('Pinecone vector upsert failed:', err);
+    }
+    // 6c. Generate AI plain-language summary (non-fatal)
+    try {
+        const summary = await aiAssistantService.generateSummary(textContent);
+        report.summary = summary;
+        report.summaryGeneratedAt = new Date();
+        await report.save();
+    }
+    catch (err) {
+        console.error('AI summary generation failed:', err);
+    }
     // 7. Update booking status to 'report_ready'
     booking.status = 'report_ready';
     await booking.save();

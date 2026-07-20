@@ -11,6 +11,8 @@ export interface Report {
   tags: string[];
   textContent: string;
   vectorized: boolean;
+  summary?: string;
+  summaryGeneratedAt?: string | null;
   createdAt: string;
   updatedAt: string;
 }

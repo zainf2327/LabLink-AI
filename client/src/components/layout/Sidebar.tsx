@@ -13,6 +13,7 @@ import {
   AlertCircle,
   CheckCircle2,
   LogOut,
+  Shield,
 } from 'lucide-react';
 import useAuthStore from '../../store/useAuthStore';
 import { authService } from '../../services/auth.service';
@@ -23,6 +24,7 @@ const NAV_ITEMS = {
     { label: 'Dashboard', icon: LayoutDashboard, to: '/patient/dashboard' },
     { label: 'Book a Test', icon: FlaskConical, to: '/tests' },
     { label: 'Wallet', icon: Wallet, to: '/patient/wallet' },
+    { label: 'Membership', icon: Shield, to: '/patient/membership' },
   ],
   staff: [
     { label: 'Dashboard', icon: LayoutDashboard, to: '/staff/dashboard' },
@@ -33,6 +35,7 @@ const NAV_ITEMS = {
     { label: 'Bookings', icon: ClipboardList, to: '/admin/bookings' },
     { label: 'Test Catalog', icon: FlaskConical, to: '/admin/tests' },
     { label: 'Test Categories', icon: Settings, to: '/admin/categories' },
+    { label: 'Subscriptions', icon: Shield, to: '/admin/subscriptions' },
   ],
 };
 

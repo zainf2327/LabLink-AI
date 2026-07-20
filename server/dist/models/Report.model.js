@@ -14,6 +14,8 @@ const ReportSchema = new Schema({
     tags: [{ type: String, trim: true }],
     textContent: { type: String, default: '' },
     vectorized: { type: Boolean, default: false, required: true },
+    summary: { type: String, default: '' },
+    summaryGeneratedAt: { type: Date, default: null },
 }, {
     timestamps: true,
 });
