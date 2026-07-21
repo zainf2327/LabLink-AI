@@ -86,7 +86,7 @@ export const getTestById = asyncHandler(async (req: Request, res: Response): Pro
 });
 
 export const createTest = asyncHandler(async (req: Request, res: Response): Promise<void> => {
-  const validated = createTestSchema.parse(req.body);
+  const validated = req.body;
 
   // Validate Category ID exists
   const categoryExists = await TestCategory.exists({ _id: validated.categoryId });
@@ -129,7 +129,7 @@ export const createTest = asyncHandler(async (req: Request, res: Response): Prom
 
 export const updateTest = asyncHandler(async (req: Request, res: Response): Promise<void> => {
   const { id } = req.params;
-  const validated = updateTestSchema.parse(req.body);
+  const validated = req.body;
 
   const test = await Test.findById(id);
   if (!test) {

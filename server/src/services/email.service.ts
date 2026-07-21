@@ -67,7 +67,10 @@ export const emailService = {
       console.log(`Verification email sent to ${email} via AWS SES.`);
     } catch (err) {
       console.error(`Failed to send verification email to ${email} via AWS SES:`, err);
-      throw err;
+      if (env.NODE_ENV === 'production') {
+        throw err;
+      }
+      console.warn('⚠️ Proceeding in non-production environment despite email send failure.');
     }
   },
 
@@ -124,7 +127,10 @@ export const emailService = {
       console.log(`Password reset email sent to ${email} via AWS SES.`);
     } catch (err) {
       console.error(`Failed to send password reset email to ${email} via AWS SES:`, err);
-      throw err;
+      if (env.NODE_ENV === 'production') {
+        throw err;
+      }
+      console.warn('⚠️ Proceeding in non-production environment despite email send failure.');
     }
   },
 };

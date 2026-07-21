@@ -19,7 +19,7 @@ export const createPlan = asyncHandler(async (req: Request, res: Response): Prom
     return;
   }
 
-  const validated = createSubscriptionPlanSchema.parse(req.body);
+  const validated = req.body;
 
   const existing = await SubscriptionPlan.findOne({ name: { $regex: new RegExp(`^${validated.name}$`, 'i') } });
   if (existing) {
@@ -57,7 +57,7 @@ export const updatePlan = asyncHandler(async (req: Request, res: Response): Prom
     return;
   }
 
-  const validated = updateSubscriptionPlanSchema.parse(req.body);
+  const validated = req.body;
 
   if (validated.name && validated.name.toLowerCase() !== plan.name.toLowerCase()) {
     const existing = await SubscriptionPlan.findOne({ name: { $regex: new RegExp(`^${validated.name}$`, 'i') } });

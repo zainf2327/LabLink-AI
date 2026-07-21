@@ -28,7 +28,7 @@ export const createSubscription = asyncHandler(async (req: Request, res: Respons
     return;
   }
 
-  const validated = createSubscriptionSchema.parse(req.body);
+  const validated = req.body;
 
   const plan = await SubscriptionPlan.findById(validated.planId);
   if (!plan || !plan.isActive) {

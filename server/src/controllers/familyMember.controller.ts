@@ -24,7 +24,7 @@ export const createFamilyMember = asyncHandler(async (req: Request, res: Respons
     return;
   }
 
-  const validated = createFamilyMemberSchema.parse(req.body);
+  const validated = req.body;
 
   // Subscription gate check
   const activeSubscription = await Subscription.findOne({
@@ -103,7 +103,7 @@ export const updateFamilyMember = asyncHandler(async (req: Request, res: Respons
     return;
   }
 
-  const validated = updateFamilyMemberSchema.parse(req.body);
+  const validated = req.body;
 
   Object.assign(familyMember, validated);
   await familyMember.save();

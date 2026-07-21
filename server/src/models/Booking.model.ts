@@ -91,6 +91,8 @@ const BookingSchema: Schema = new Schema(
 BookingSchema.index({ patientId: 1 });
 BookingSchema.index({ status: 1 });
 BookingSchema.index({ 'homeSampling.assignedStaffId': 1 });
+BookingSchema.index({ status: 1, 'homeSampling.scheduledAt': 1 });
+BookingSchema.index({ patientId: 1, status: 1 });
 
 const Booking = mongoose.model<IBooking>('Booking', BookingSchema);
 export default Booking;

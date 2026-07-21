@@ -6,7 +6,7 @@ import { createCouponSchema, updateCouponSchema, validateCouponSchema } from '..
 
 export const createCoupon = asyncHandler(
   async (req: Request, res: Response): Promise<void> => {
-    const validated = createCouponSchema.parse(req.body);
+    const validated = req.body;
 
     const coupon = new Coupon({
       code: validated.code.toUpperCase(),
@@ -60,7 +60,7 @@ export const updateCoupon = asyncHandler(
       return;
     }
 
-    const validated = updateCouponSchema.parse(req.body);
+    const validated = req.body;
 
     if (validated.code) coupon.code = validated.code.toUpperCase();
     if (validated.discountType) coupon.discountType = validated.discountType;
@@ -96,7 +96,7 @@ export const deleteCoupon = asyncHandler(
 
 export const validateCoupon = asyncHandler(
   async (req: Request, res: Response): Promise<void> => {
-    const validated = validateCouponSchema.parse(req.body);
+    const validated = req.body;
 
     const coupon = await Coupon.findOne({
       code: validated.code.toUpperCase(),

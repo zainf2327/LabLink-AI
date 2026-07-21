@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import logger from '../utils/logger.js';
 import { env } from '../config/env.js';
+import { AppError } from '../utils/AppError.js';
 
 interface CustomError extends Error {
   statusCode?: number;

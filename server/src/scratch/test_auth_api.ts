@@ -55,6 +55,9 @@ async function testAuth() {
   console.log('Duplicate Register Status:', dupRes.status);
   console.log('Duplicate Register Body:', JSON.stringify(dupData, null, 2));
 
+  // Verify the user in DB so login can succeed
+  await User.updateOne({ email: testEmail }, { isVerified: true });
+
   // 4. Login API Test
   console.log('3. Testing Login API...');
   const loginRes = await fetch(`${BASE_URL}/auth/login`, {

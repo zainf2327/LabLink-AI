@@ -10,7 +10,8 @@ export const stripeService = {
   async createPaymentIntent(
     amountInCents: number,
     currency: string,
-    bookingId: string
+    bookingId: string,
+    idempotencyKey?: string
   ): Promise<{ id: string; client_secret: string | null }> {
     try {
       const intent = await stripe.paymentIntents.create({
@@ -20,6 +21,8 @@ export const stripeService = {
         automatic_payment_methods: {
           enabled: true,
         },
+      }, {
+        idempotencyKey,
       });
       return {
         id: intent.id,

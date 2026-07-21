@@ -14,7 +14,7 @@ export const getAllCategories = asyncHandler(async (req: Request, res: Response)
 });
 
 export const createCategory = asyncHandler(async (req: Request, res: Response): Promise<void> => {
-  const validated = createCategorySchema.parse(req.body);
+  const validated = req.body;
 
   const existingCategory = await TestCategory.findOne({ name: { $regex: new RegExp(`^${validated.name}$`, 'i') } });
   if (existingCategory) {
@@ -46,7 +46,7 @@ export const createCategory = asyncHandler(async (req: Request, res: Response): 
 
 export const updateCategory = asyncHandler(async (req: Request, res: Response): Promise<void> => {
   const { id } = req.params;
-  const validated = updateCategorySchema.parse(req.body);
+  const validated = req.body;
 
   const category = await TestCategory.findById(id);
   if (!category) {

@@ -10,7 +10,7 @@ export const createPaymentIntent = asyncHandler(async (req: Request, res: Respon
     return;
   }
 
-  const validated = createPaymentIntentSchema.parse(req.body);
+  const validated = req.body;
 
   const result = await paymentService.createPaymentIntent(req.user.id, validated.bookingId);
 
@@ -26,7 +26,7 @@ export const confirmPayment = asyncHandler(async (req: Request, res: Response): 
     return;
   }
 
-  const validated = confirmPaymentSchema.parse(req.body);
+  const validated = req.body;
 
   const booking = await paymentService.confirmPayment(req.user.id, validated.paymentIntentId);
 

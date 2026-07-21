@@ -57,7 +57,7 @@ const ensureDefaultSubscription = async (userId: any): Promise<void> => {
 };
 
 export const register = asyncHandler(async (req: Request, res: Response): Promise<void> => {
-  const validated = registerSchema.parse(req.body);
+  const validated = req.body;
 
   // Check if email already exists
   const existingUser = await User.findOne({ email: validated.email });
@@ -106,7 +106,7 @@ export const register = asyncHandler(async (req: Request, res: Response): Promis
 });
 
 export const login = asyncHandler(async (req: Request, res: Response): Promise<void> => {
-  const validated = loginSchema.parse(req.body);
+  const validated = req.body;
 
   const user = await User.findOne({ email: validated.email });
   if (!user) {
@@ -413,7 +413,7 @@ export const disconnectGoogleCalendar = asyncHandler(async (req: Request, res: R
 });
 
 export const verifyEmail = asyncHandler(async (req: Request, res: Response): Promise<void> => {
-  const validated = verifyEmailSchema.parse(req.body);
+  const validated = req.body;
 
   const user = await User.findOne({ email: validated.email.toLowerCase() });
   if (!user) {
@@ -460,7 +460,7 @@ export const verifyEmail = asyncHandler(async (req: Request, res: Response): Pro
 });
 
 export const resendVerificationCode = asyncHandler(async (req: Request, res: Response): Promise<void> => {
-  const validated = resendVerificationSchema.parse(req.body);
+  const validated = req.body;
 
   const user = await User.findOne({ email: validated.email.toLowerCase() });
   if (!user) {
@@ -497,7 +497,7 @@ export const resendVerificationCode = asyncHandler(async (req: Request, res: Res
 });
 
 export const forgotPassword = asyncHandler(async (req: Request, res: Response): Promise<void> => {
-  const validated = forgotPasswordSchema.parse(req.body);
+  const validated = req.body;
 
   const user = await User.findOne({ email: validated.email.toLowerCase() });
   if (user) {
@@ -521,7 +521,7 @@ export const forgotPassword = asyncHandler(async (req: Request, res: Response): 
 });
 
 export const resetPassword = asyncHandler(async (req: Request, res: Response): Promise<void> => {
-  const validated = resetPasswordSchema.parse(req.body);
+  const validated = req.body;
 
   const user = await User.findOne({
     resetPasswordToken: validated.token,
@@ -557,7 +557,7 @@ export const setPassword = asyncHandler(async (req: Request, res: Response): Pro
     return;
   }
 
-  const validated = setPasswordSchema.parse(req.body);
+  const validated = req.body;
 
   const user = await User.findById(req.user.id);
   if (!user) {

@@ -39,6 +39,7 @@ const TestSchema: Schema = new Schema(
 TestSchema.index({ type: 1 });
 TestSchema.index({ categoryId: 1 });
 TestSchema.index({ isActive: 1 });
+TestSchema.index({ name: 'text' });
 
 const Test = mongoose.model<ITest>('Test', TestSchema);
 export default Test;

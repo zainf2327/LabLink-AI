@@ -2,6 +2,7 @@ import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import mongoose from 'mongoose';
+import { env } from './config/env.js';
 
 // Middlewares
 import { rateLimiter } from './middleware/rateLimiter.middleware.js';
@@ -28,7 +29,9 @@ import walletRoutes from './routes/wallet.routes.js';
 const app = express();
 
 // Global Middlewares
-//app.use(rateLimiter);
+if (env.NODE_ENV === 'production') {
+  app.use(rateLimiter);
+}
 app.use(cors({
   origin: true, // Allow all origins for development, adjust as needed
   credentials: true
@@ -46,12 +49,103 @@ app.get('/api/health', (req: Request, res: Response) => {
 });
 
 // Versioned Health Check Route
-app.get('/api/v1/health', (req: Request, res: Response) => {
-  const dbStatus = mongoose.connection.readyState === 1 ? 'connected' : 'disconnected';
-  res.json({
-    status: 'ok',
+app.get('/api/v1/health', async (req: Request, res: Response) => {
+  // 1. MongoDB Status
+  let dbStatus = 'disconnected';
+  try {
+    if (mongoose.connection.readyState === 1) {
+      await mongoose.connection.db!.admin().ping();
+      dbStatus = 'connected';
+    }
+  } catch (err) {
+    dbStatus = 'error';
+  }
+
+  // 2. Stripe Status
+  let stripeStatus = 'unconfigured';
+  if (env.STRIPE_SECRET_KEY) {
+    try {
+      const Stripe = (await import('stripe')).default;
+      const stripe = new Stripe(env.STRIPE_SECRET_KEY);
+      await stripe.balance.retrieve();
+      stripeStatus = 'connected';
+    } catch (err) {
+      stripeStatus = 'error';
+    }
+  }
+
+  // 3. Pinecone Status
+  let pineconeStatus = 'unconfigured';
+  if (env.PINECONE_API_KEY) {
+    try {
+      const { pineconeIndex } = await import('./config/pinecone.js');
+      await pineconeIndex.describeIndexStats();
+      pineconeStatus = 'connected';
+    } catch (err) {
+      pineconeStatus = 'error';
+    }
+  }
+
+  // 4. AWS S3 Status
+  let s3Status = 'unconfigured';
+  if (env.AWS_ACCESS_KEY_ID && env.AWS_SECRET_ACCESS_KEY && env.AWS_S3_BUCKET_NAME) {
+    try {
+      const { S3Client, ListObjectsV2Command } = await import('@aws-sdk/client-s3');
+      const s3Client = new S3Client({
+        region: env.AWS_REGION || 'us-east-1',
+        credentials: {
+          accessKeyId: env.AWS_ACCESS_KEY_ID!,
+          secretAccessKey: env.AWS_SECRET_ACCESS_KEY!,
+        },
+      });
+      await s3Client.send(new ListObjectsV2Command({
+        Bucket: env.AWS_S3_BUCKET_NAME,
+        MaxKeys: 1
+      }));
+      s3Status = 'connected';
+    } catch (err: any) {
+      if (err.name === 'AccessDenied') {
+        // AccessDenied means credentials are valid and authenticated, but IAM policy restricts listing the bucket
+        s3Status = 'connected';
+      } else {
+        s3Status = 'error';
+      }
+    }
+  }
+
+  // 5. Google Calendar OAuth configurations check
+  let googleCalendarStatus = 'unconfigured';
+  if (env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET) {
+    googleCalendarStatus = 'configured';
+  }
+
+  const allConnected = dbStatus === 'connected' &&
+    stripeStatus === 'connected' &&
+    pineconeStatus === 'connected' &&
+    s3Status === 'connected';
+
+  const configurations = {
+    jwtAccessSecret: env.JWT_ACCESS_SECRET ? 'configured' : 'unconfigured',
+    jwtRefreshSecret: env.JWT_REFRESH_SECRET ? 'configured' : 'unconfigured',
+    groqApiKey: env.GROQ_API_KEY ? 'configured' : 'unconfigured',
+    geminiApiKey: env.GEMINI_API_KEY ? 'configured' : 'unconfigured',
+    encryptionKey: env.ENCRYPTION_KEY ? 'configured' : 'unconfigured',
+    stripeWebhookSecret: env.STRIPE_WEBHOOK_SECRET ? 'configured' : 'unconfigured',
+    awsSesFromEmail: env.AWS_SES_FROM_EMAIL ? 'configured' : 'unconfigured'
+  };
+
+  res.status(allConnected ? 200 : 207).json({
+    status: allConnected ? 'ok' : 'degraded',
     version: 'v1',
-    db: dbStatus
+    timestamp: new Date().toISOString(),
+    services: {
+      db: dbStatus,
+      stripe: stripeStatus,
+      pinecone: pineconeStatus,
+      s3: s3Status,
+      googleCalendar: googleCalendarStatus
+    },
+    configurations
   });
 });
 
