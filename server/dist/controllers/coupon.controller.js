@@ -1,8 +1,7 @@
 import asyncHandler from '../utils/asyncHandler.js';
 import Coupon from '../models/Coupon.model.js';
-import { createCouponSchema, updateCouponSchema, validateCouponSchema } from '../utils/validators.js';
 export const createCoupon = asyncHandler(async (req, res) => {
-    const validated = createCouponSchema.parse(req.body);
+    const validated = req.body;
     const coupon = new Coupon({
         code: validated.code.toUpperCase(),
         discountType: validated.discountType,
@@ -42,7 +41,7 @@ export const updateCoupon = asyncHandler(async (req, res) => {
         res.status(404).json({ success: false, message: 'Coupon not found' });
         return;
     }
-    const validated = updateCouponSchema.parse(req.body);
+    const validated = req.body;
     if (validated.code)
         coupon.code = validated.code.toUpperCase();
     if (validated.discountType)
@@ -75,7 +74,7 @@ export const deleteCoupon = asyncHandler(async (req, res) => {
     });
 });
 export const validateCoupon = asyncHandler(async (req, res) => {
-    const validated = validateCouponSchema.parse(req.body);
+    const validated = req.body;
     const coupon = await Coupon.findOne({
         code: validated.code.toUpperCase(),
         isActive: true,

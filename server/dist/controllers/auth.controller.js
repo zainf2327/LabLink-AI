@@ -5,7 +5,6 @@ import User from '../models/User.model.js';
 import Subscription from '../models/Subscription.model.js';
 import SubscriptionPlan from '../models/SubscriptionPlan.model.js';
 import asyncHandler from '../utils/asyncHandler.js';
-import { registerSchema, loginSchema, verifyEmailSchema, resendVerificationSchema, forgotPasswordSchema, resetPasswordSchema, setPasswordSchema, } from '../utils/validators.js';
 import { calendarService } from '../services/calendar.service.js';
 import { emailService } from '../services/email.service.js';
 import crypto from 'crypto';
@@ -43,7 +42,7 @@ const ensureDefaultSubscription = async (userId) => {
     }
 };
 export const register = asyncHandler(async (req, res) => {
-    const validated = registerSchema.parse(req.body);
+    const validated = req.body;
     // Check if email already exists
     const existingUser = await User.findOne({ email: validated.email });
     if (existingUser) {
@@ -85,7 +84,7 @@ export const register = asyncHandler(async (req, res) => {
     });
 });
 export const login = asyncHandler(async (req, res) => {
-    const validated = loginSchema.parse(req.body);
+    const validated = req.body;
     const user = await User.findOne({ email: validated.email });
     if (!user) {
         res.status(401).json({
@@ -200,7 +199,7 @@ export const me = asyncHandler(async (req, res) => {
         });
         return;
     }
-    const user = await User.findById(req.user.id).select('-passwordHash');
+    const user = await User.findById(req.user.id);
     if (!user) {
         res.status(404).json({
             success: false,
@@ -352,7 +351,7 @@ export const disconnectGoogleCalendar = asyncHandler(async (req, res) => {
     });
 });
 export const verifyEmail = asyncHandler(async (req, res) => {
-    const validated = verifyEmailSchema.parse(req.body);
+    const validated = req.body;
     const user = await User.findOne({ email: validated.email.toLowerCase() });
     if (!user) {
         res.status(404).json({
@@ -390,7 +389,7 @@ export const verifyEmail = asyncHandler(async (req, res) => {
     });
 });
 export const resendVerificationCode = asyncHandler(async (req, res) => {
-    const validated = resendVerificationSchema.parse(req.body);
+    const validated = req.body;
     const user = await User.findOne({ email: validated.email.toLowerCase() });
     if (!user) {
         res.status(404).json({
@@ -420,7 +419,7 @@ export const resendVerificationCode = asyncHandler(async (req, res) => {
     });
 });
 export const forgotPassword = asyncHandler(async (req, res) => {
-    const validated = forgotPasswordSchema.parse(req.body);
+    const validated = req.body;
     const user = await User.findOne({ email: validated.email.toLowerCase() });
     if (user) {
         // Generate secure reset token
@@ -439,7 +438,7 @@ export const forgotPassword = asyncHandler(async (req, res) => {
     });
 });
 export const resetPassword = asyncHandler(async (req, res) => {
-    const validated = resetPasswordSchema.parse(req.body);
+    const validated = req.body;
     const user = await User.findOne({
         resetPasswordToken: validated.token,
         resetPasswordExpires: { $gt: new Date() },
@@ -468,7 +467,7 @@ export const setPassword = asyncHandler(async (req, res) => {
         res.status(401).json({ success: false, message: 'Unauthorized' });
         return;
     }
-    const validated = setPasswordSchema.parse(req.body);
+    const validated = req.body;
     const user = await User.findById(req.user.id);
     if (!user) {
         res.status(404).json({ success: false, message: 'User not found' });

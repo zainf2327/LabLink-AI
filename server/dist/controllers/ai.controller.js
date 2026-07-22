@@ -18,7 +18,8 @@ export const chatWithAssistant = asyncHandler(async (req, res) => {
         res.status(404).json({ success: false, message: 'Report not found' });
         return;
     }
-    if (report.patientId.toString() !== req.user.id) {
+    const patientIdStr = (report.patientId._id || report.patientId).toString();
+    if (patientIdStr !== req.user.id) {
         res.status(403).json({ success: false, message: 'Forbidden: Access to another patient\'s report is denied' });
         return;
     }
@@ -106,7 +107,8 @@ export const getChatHistory = asyncHandler(async (req, res) => {
         res.status(404).json({ success: false, message: 'Report not found' });
         return;
     }
-    if (report.patientId.toString() !== req.user.id) {
+    const patientIdStr = (report.patientId._id || report.patientId).toString();
+    if (patientIdStr !== req.user.id) {
         res.status(403).json({ success: false, message: 'Forbidden: Access to another patient\'s report is denied' });
         return;
     }

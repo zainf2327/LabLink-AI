@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import asyncHandler from '../utils/asyncHandler.js';
 import Coupon from '../models/Coupon.model.js';
+import { logAudit } from '../utils/auditLogger.js';
 import { createCouponSchema, updateCouponSchema, validateCouponSchema } from '../utils/validators.js';
 
 
@@ -19,6 +20,17 @@ export const createCoupon = asyncHandler(
     });
 
     await coupon.save();
+
+    if (req.user) {
+      await logAudit({
+        actorId: req.user.id,
+        actorRole: req.user.role,
+        action: 'CREATE_COUPON',
+        targetModel: 'Coupon',
+        targetId: coupon.id,
+        metadata: { code: coupon.code, discountType: coupon.discountType, discountValue: coupon.discountValue },
+      });
+    }
 
     res.status(201).json({
       success: true,
@@ -72,6 +84,17 @@ export const updateCoupon = asyncHandler(
 
     await coupon.save();
 
+    if (req.user) {
+      await logAudit({
+        actorId: req.user.id,
+        actorRole: req.user.role,
+        action: 'UPDATE_COUPON',
+        targetModel: 'Coupon',
+        targetId: coupon.id,
+        metadata: validated,
+      });
+    }
+
     res.status(200).json({
       success: true,
       data: { coupon },
@@ -85,6 +108,17 @@ export const deleteCoupon = asyncHandler(
     if (!coupon) {
       res.status(404).json({ success: false, message: 'Coupon not found' });
       return;
+    }
+
+    if (req.user) {
+      await logAudit({
+        actorId: req.user.id,
+        actorRole: req.user.role,
+        action: 'DELETE_COUPON',
+        targetModel: 'Coupon',
+        targetId: coupon.id,
+        metadata: { code: coupon.code },
+      });
     }
 
     res.status(200).json({

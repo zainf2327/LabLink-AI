@@ -1,16 +1,16 @@
 import mongoose from 'mongoose';
 import asyncHandler from '../utils/asyncHandler.js';
 import Booking from '../models/Booking.model.js';
+import User from '../models/User.model.js';
 import { bookingService } from '../services/booking.service.js';
 import { paymentService } from '../services/payment.service.js';
 import { calendarService } from '../services/calendar.service.js';
-import { createBookingSchema, updateBookingStatusSchema, assignStaffSchema } from '../utils/validators.js';
 export const createBooking = asyncHandler(async (req, res) => {
     if (!req.user) {
         res.status(401).json({ success: false, message: 'Unauthorized' });
         return;
     }
-    const validated = createBookingSchema.parse(req.body);
+    const validated = req.body;
     const booking = await bookingService.createBooking(req.user.id, validated);
     res.status(201).json({
         success: true,
@@ -105,7 +105,6 @@ export const getAllBookings = asyncHandler(async (req, res) => {
     }
     // Patient name search query
     if (search) {
-        const User = (await import('../models/User.model.js')).default;
         const matchedPatients = await User.find({
             name: { $regex: search, $options: 'i' },
             role: 'patient'
@@ -133,7 +132,7 @@ export const getAllBookings = asyncHandler(async (req, res) => {
     });
 });
 export const updateBookingStatus = asyncHandler(async (req, res) => {
-    const { status } = updateBookingStatusSchema.parse(req.body);
+    const { status } = req.body;
     const booking = await Booking.findById(req.params.id);
     if (!booking) {
         res.status(404).json({ success: false, message: 'Booking not found' });
@@ -228,7 +227,7 @@ export const cancelBooking = asyncHandler(async (req, res) => {
     });
 });
 export const assignStaff = asyncHandler(async (req, res) => {
-    const { assignedStaffId } = assignStaffSchema.parse(req.body);
+    const { assignedStaffId } = req.body;
     const booking = await Booking.findById(req.params.id);
     if (!booking) {
         res.status(404).json({ success: false, message: 'Booking not found' });

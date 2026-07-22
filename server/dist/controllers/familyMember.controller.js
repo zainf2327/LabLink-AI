@@ -1,7 +1,6 @@
 import asyncHandler from '../utils/asyncHandler.js';
 import FamilyMember from '../models/FamilyMember.model.js';
 import Subscription from '../models/Subscription.model.js';
-import { createFamilyMemberSchema, updateFamilyMemberSchema } from '../utils/validators.js';
 export const getMyFamilyMembers = asyncHandler(async (req, res) => {
     if (!req.user) {
         res.status(401).json({ success: false, message: 'Unauthorized' });
@@ -18,7 +17,7 @@ export const createFamilyMember = asyncHandler(async (req, res) => {
         res.status(401).json({ success: false, message: 'Unauthorized' });
         return;
     }
-    const validated = createFamilyMemberSchema.parse(req.body);
+    const validated = req.body;
     // Subscription gate check
     const activeSubscription = await Subscription.findOne({
         userId: req.user.id,
@@ -83,7 +82,7 @@ export const updateFamilyMember = asyncHandler(async (req, res) => {
         res.status(403).json({ success: false, message: 'Forbidden: Access denied' });
         return;
     }
-    const validated = updateFamilyMemberSchema.parse(req.body);
+    const validated = req.body;
     Object.assign(familyMember, validated);
     await familyMember.save();
     res.status(200).json({

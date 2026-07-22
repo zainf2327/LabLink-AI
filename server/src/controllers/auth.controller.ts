@@ -239,7 +239,7 @@ export const me = asyncHandler(async (req: Request, res: Response): Promise<void
     return;
   }
 
-  const user = await User.findById(req.user.id).select('-passwordHash');
+  const user = await User.findById(req.user.id);
 
   if (!user) {
     res.status(404).json({

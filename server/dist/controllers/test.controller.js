@@ -4,7 +4,6 @@ import Test from '../models/Test.model.js';
 import TestCategory from '../models/TestCategory.model.js';
 import asyncHandler from '../utils/asyncHandler.js';
 import { logAudit } from '../utils/auditLogger.js';
-import { createTestSchema, updateTestSchema } from '../utils/validators.js';
 export const getAllTests = asyncHandler(async (req, res) => {
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 10;
@@ -72,7 +71,7 @@ export const getTestById = asyncHandler(async (req, res) => {
     });
 });
 export const createTest = asyncHandler(async (req, res) => {
-    const validated = createTestSchema.parse(req.body);
+    const validated = req.body;
     // Validate Category ID exists
     const categoryExists = await TestCategory.exists({ _id: validated.categoryId });
     if (!categoryExists) {
@@ -109,7 +108,7 @@ export const createTest = asyncHandler(async (req, res) => {
 });
 export const updateTest = asyncHandler(async (req, res) => {
     const { id } = req.params;
-    const validated = updateTestSchema.parse(req.body);
+    const validated = req.body;
     const test = await Test.findById(id);
     if (!test) {
         res.status(404).json({

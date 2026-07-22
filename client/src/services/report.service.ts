@@ -2,17 +2,31 @@ import { api } from './api';
 
 export interface Report {
   _id: string;
-  bookingId: string;
+  bookingId:
+    | string
+    | {
+        _id?: string;
+        tests?: Array<{ testId?: string; name: string; price?: number }>;
+      };
   patientId: string;
-  fileUrl: string;
+  fileUrl?: string;
   fileKey: string;
   mimeType: string;
   uploadedBy: string;
   tags: string[];
-  textContent: string;
+  textContent?: string;
   vectorized: boolean;
   summary?: string;
   summaryGeneratedAt?: string | null;
+  versionSuffix?: string;
+  lastViewedAt?: string | null;
+  accessLog?: Array<{
+    viewedBy?: {
+      name: string;
+    };
+    viewedAt: string;
+    role: string;
+  }>;
   createdAt: string;
   updatedAt: string;
 }
@@ -48,4 +62,36 @@ export const reportService = {
     const response = await api.delete(`/reports/${id}`);
     return response.data;
   },
+
+  async getReportBlob(
+    id: string,
+    mode: 'view' | 'download',
+    onProgress?: (percent: number) => void
+  ): Promise<Blob> {
+    try {
+      const response = await api.get(`/reports/${id}/${mode}`, {
+        responseType: 'blob',
+        onDownloadProgress: (progressEvent) => {
+          if (onProgress && progressEvent.total) {
+            const percent = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+            onProgress(percent);
+          }
+        },
+      });
+      return response.data;
+    } catch (err: any) {
+      if (err.response?.data instanceof Blob) {
+        try {
+          const text = await err.response.data.text();
+          const parsed = JSON.parse(text);
+          err.message = parsed.message || err.message;
+          err.response.data = parsed;
+        } catch {
+          // Fallback text
+        }
+      }
+      throw err;
+    }
+  },
 };
+

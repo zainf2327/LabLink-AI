@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import useAuthStore from '../../store/useAuthStore';
 import { bookingService } from '../../services/booking.service';
 import { walletService } from '../../services/wallet.service';
 import { authService } from '../../services/auth.service';
@@ -7,6 +8,8 @@ import { reportService } from '../../services/report.service';
 import type { Report } from '../../services/report.service';
 import type { Booking } from '../../services/booking.service';
 import AppLayout from '../../components/layout/AppLayout';
+import { ReportDisclosure } from '../../components/ReportDisclosure';
+import { buildReportFilename } from '../../utils/reportFilename';
 import {
   Calendar,
   Activity,
@@ -19,9 +22,12 @@ import {
   FileCheck,
   Wallet,
   FileDown,
+  X,
+  Printer,
 } from 'lucide-react';
 
 export const PatientDashboard: React.FC = () => {
+  const { user } = useAuthStore();
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [reports, setReports] = useState<Report[]>([]);
   const [loading, setLoading] = useState(true);
@@ -31,6 +37,13 @@ export const PatientDashboard: React.FC = () => {
   const [cancelMessage, setCancelMessage] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'bookings' | 'reports'>('bookings');
   const [expandedReportId, setExpandedReportId] = useState<string | null>(null);
+
+  // Secure report viewer states
+  const [viewingReport, setViewingReport] = useState<Report | null>(null);
+  const [viewingBlobUrl, setViewingBlobUrl] = useState<string | null>(null);
+  const [viewingLoading, setViewingLoading] = useState<boolean>(false);
+  const [downloadingReportId, setDownloadingReportId] = useState<string | null>(null);
+  const [downloadProgress, setDownloadProgress] = useState<number>(0);
 
   const handleConnectCalendar = async () => {
     setSyncingCalendar(true);
@@ -102,6 +115,55 @@ export const PatientDashboard: React.FC = () => {
     }
   };
 
+  // Accessibility and Escape Key logic
+  const modalRef = React.useRef<HTMLDivElement>(null);
+  
+  useEffect(() => {
+    if (!viewingReport) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        handleCloseViewer();
+      }
+
+      if (e.key === 'Tab' && modalRef.current) {
+        const focusableElements = modalRef.current.querySelectorAll(
+          'button, [href], input, select, textarea, [tabindex="0"], iframe'
+        );
+        const firstElement = focusableElements[0] as HTMLElement;
+        const lastElement = focusableElements[focusableElements.length - 1] as HTMLElement;
+
+        if (e.shiftKey) {
+          if (document.activeElement === firstElement) {
+            lastElement.focus();
+            e.preventDefault();
+          }
+        } else {
+          if (document.activeElement === lastElement) {
+            firstElement.focus();
+            e.preventDefault();
+          }
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    
+    // Store active element to return focus on close
+    const previousActiveElement = document.activeElement as HTMLElement;
+    
+    // Focus the first element in modal (like the close button or header)
+    setTimeout(() => {
+      const closeBtn = modalRef.current?.querySelector('.modal-close-btn') as HTMLElement;
+      closeBtn?.focus();
+    }, 50);
+
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      previousActiveElement?.focus();
+    };
+  }, [viewingReport, viewingBlobUrl]);
+
   useEffect(() => {
     fetchBookings();
     fetchWallet();
@@ -132,11 +194,120 @@ export const PatientDashboard: React.FC = () => {
         r.bookingId === bookingId ||
         (typeof r.bookingId === 'object' && (r.bookingId as any)?._id === bookingId)
     );
-    if (found && found.fileUrl) {
-      window.open(found.fileUrl, '_blank', 'noopener,noreferrer');
+    if (found) {
+      handleViewReport(found);
     } else {
       setActiveTab('reports');
-      alert('Report link is still loading. Please click "Download Report" in the Reports tab.');
+      alert('Report is still loading. Please check the Reports tab.');
+    }
+  };
+
+  const handleViewReport = async (report: Report) => {
+    setViewingReport(report);
+    setViewingLoading(true);
+    setDownloadProgress(0);
+    try {
+      // Refresh metadata to get updated accessLog
+      const metaRes = await reportService.getReportById(report._id);
+      if (metaRes.success && metaRes.data?.report) {
+        setViewingReport(metaRes.data.report);
+      }
+
+      const blob = await reportService.getReportBlob(report._id, 'view', (percent) => {
+        setDownloadProgress(percent);
+      });
+      const blobUrl = URL.createObjectURL(blob);
+      setViewingBlobUrl(blobUrl);
+    } catch (err) {
+      console.error('View report failed:', err);
+      alert('Failed to load report PDF for viewing.');
+      setViewingReport(null);
+    } finally {
+      setViewingLoading(false);
+      setDownloadProgress(0);
+    }
+  };
+
+  const handleCloseViewer = () => {
+    if (viewingBlobUrl) {
+      URL.revokeObjectURL(viewingBlobUrl);
+    }
+    setViewingReport(null);
+    setViewingBlobUrl(null);
+  };
+
+  const handleToggleExpand = async (reportId: string) => {
+    const isExpanded = expandedReportId === reportId;
+    if (isExpanded) {
+      setExpandedReportId(null);
+      return;
+    }
+    setExpandedReportId(reportId);
+
+    const reportObj = reports.find((r) => r._id === reportId);
+    if (reportObj && !reportObj.summary) {
+      try {
+        const res = await reportService.getReportById(reportId);
+        if (res.success && res.data?.report) {
+          setReports((prev) =>
+            prev.map((r) =>
+              r._id === reportId ? { ...r, summary: res.data.report.summary } : r
+            )
+          );
+        }
+      } catch (err) {
+        console.error('Failed to load report summary:', err);
+      }
+    }
+  };
+
+  const handleDownloadReport = async (report: Report) => {
+    setDownloadingReportId(report._id);
+    setDownloadProgress(0);
+    try {
+      const blob = await reportService.getReportBlob(report._id, 'download', (percent) => {
+        setDownloadProgress(percent);
+      });
+      const blobUrl = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      
+      const patientName = user?.name || 'Patient';
+      let testNames: string[] = [];
+      if (report.bookingId && typeof report.bookingId === 'object' && (report.bookingId as any).tests) {
+        testNames = (report.bookingId as any).tests.map((t: any) => t.name);
+      }
+      
+      const cleanFileName = buildReportFilename({
+        patientName,
+        testNames,
+        createdAt: report.createdAt,
+        versionSuffix: (report as any).versionSuffix,
+      }, {
+        includePatientName: true,
+      });
+      
+      link.download = cleanFileName;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(blobUrl);
+    } catch (err) {
+      console.error('Download failed:', err);
+      alert('Failed to download report PDF. Please try again.');
+    } finally {
+      setDownloadingReportId(null);
+      setDownloadProgress(0);
+    }
+  };
+
+  const handlePrintReport = () => {
+    const iframe = document.getElementById('secure-report-iframe') as HTMLIFrameElement;
+    if (iframe && iframe.contentWindow) {
+      iframe.contentWindow.focus();
+      iframe.contentWindow.print();
+    } else {
+      alert('Report viewer is still loading or printing is unsupported in this browser.');
     }
   };
 
@@ -430,113 +601,233 @@ export const PatientDashboard: React.FC = () => {
 
             {/* Reports List */}
             {activeTab === 'reports' && (
-              <div className="glassmorphic-card rounded-2xl p-6">
-                <h3 className="text-lg font-bold text-zinc-100 mb-6 flex items-center gap-2">
-                  <FileCheck className="text-emerald-400" size={20} />
-                  <span>My Diagnostic Reports</span>
-                </h3>
+              <div className="space-y-6">
+                <div className="glassmorphic-card rounded-2xl p-6">
+                  <h3 className="text-lg font-bold text-zinc-100 mb-6 flex items-center gap-2">
+                    <FileCheck className="text-emerald-400" size={20} />
+                    <span>My Diagnostic Reports</span>
+                  </h3>
 
-                {reportsLoading ? (
-                  <div className="py-12 flex justify-center items-center">
-                    <Loader className="animate-spin text-emerald-400" size={32} />
-                  </div>
-                ) : reports.length === 0 ? (
-                  <div className="py-12 text-center text-zinc-500 text-sm">
-                    No medical reports available yet. Once your samples are processed, your reports will appear here.
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    {reports.map((report) => {
-                      const isExpanded = expandedReportId === report._id;
-                      return (
-                        <div
-                          key={report._id}
-                          className="border border-zinc-850 bg-zinc-900/30 p-5 rounded-2xl flex flex-col hover:border-zinc-800/80 transition-all"
-                        >
-                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                            <div className="space-y-1.5 flex-1">
-                              <div className="flex items-center gap-2">
-                                <FileCheck className="text-teal-400" size={16} />
-                                <span className="text-sm font-bold text-zinc-200">
-                                  {getReportTitle(report)}
-                                </span>
-                              </div>
-                              <div className="flex flex-wrap gap-x-4 text-xs text-zinc-500">
-                                <span>
-                                  Uploaded: {new Date(report.createdAt).toLocaleDateString()} at{' '}
-                                  {new Date(report.createdAt).toLocaleTimeString([], {
-                                    hour: '2-digit',
-                                    minute: '2-digit',
-                                  })}
-                                </span>
-                                <span>Format: PDF</span>
-                              </div>
-                            </div>
-
-                            <div className="flex items-center gap-3 self-end sm:self-center">
-                              <button
-                                onClick={() => setExpandedReportId(isExpanded ? null : report._id)}
-                                className="px-3.5 py-1.5 rounded-xl border border-zinc-800 hover:border-purple-500/30 bg-zinc-950 text-xs font-semibold text-zinc-400 hover:text-purple-400 transition-all cursor-pointer flex items-center gap-1.5"
-                              >
-                                <span>AI Summary</span>
-                                <span className="text-[10px]">{isExpanded ? '▲' : '▼'}</span>
-                              </button>
-
-                              <a
-                                href={report.fileUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="px-4 py-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black text-xs font-bold transition-all shadow-md shadow-emerald-500/5 hover:scale-[1.02] flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
-                              >
-                                <FileDown size={14} />
-                                <span>Download</span>
-                              </a>
-                            </div>
-                          </div>
-
-                          {isExpanded && (
-                            <>
-                              {!report.summary && !report.vectorized ? (
-                                <div className="mt-4 p-4 rounded-xl bg-zinc-950 border border-zinc-850/60 animate-pulse space-y-2">
-                                  <div className="h-3.5 bg-zinc-800 rounded w-1/4"></div>
-                                  <div className="h-3 bg-zinc-900 rounded w-full"></div>
-                                  <div className="h-3 bg-zinc-900 rounded w-5/6"></div>
-                                  <span className="text-[10px] text-zinc-500 font-medium tracking-wide block pt-1">
-                                    🧬 AI Summary generating, please wait...
+                  {reportsLoading ? (
+                    <div className="py-12 flex justify-center items-center">
+                      <Loader size={32} />
+                    </div>
+                  ) : reports.length === 0 ? (
+                    <div className="py-12 text-center text-zinc-500 text-sm">
+                      No medical reports available yet. Once your samples are processed, your reports will appear here.
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      {reports.map((report) => {
+                        const isExpanded = expandedReportId === report._id;
+                        return (
+                          <div
+                            key={report._id}
+                            className="border border-zinc-850 bg-zinc-900/30 p-5 rounded-2xl flex flex-col hover:border-zinc-800/80 transition-all"
+                          >
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                              <div className="space-y-1.5 flex-1">
+                                <div className="flex items-center gap-2">
+                                  <FileCheck className="text-teal-400" size={16} />
+                                  <span className="text-sm font-bold text-zinc-200">
+                                    {getReportTitle(report)}
                                   </span>
                                 </div>
-                              ) : (
-                                <div className="mt-4 p-4 rounded-xl bg-zinc-950/80 border border-zinc-850/60 space-y-3">
-                                  <div className="space-y-1.5">
-                                    <span className="text-[10px] uppercase font-bold tracking-wider text-purple-400 block">
-                                      AI Plain-Language Summary
-                                    </span>
-                                    <p className="text-zinc-300 text-xs leading-relaxed whitespace-pre-line">
-                                      {report.summary || 'Summary generation in progress...'}
-                                    </p>
-                                  </div>
-                                  <div className="pt-1 flex gap-2">
-                                    <Link
-                                      to={`/patient/reports/${report._id}/ai-assistant`}
-                                      className="px-3.5 py-1.5 rounded-xl bg-purple-500/10 hover:bg-purple-500 border border-purple-500/20 text-purple-400 hover:text-black text-xs font-bold transition-all shadow-md shadow-purple-500/5 hover:scale-[1.02] flex items-center gap-1.5 cursor-pointer"
-                                    >
-                                      <Activity size={12} />
-                                      <span>🧬 Ask AI about this report</span>
-                                    </Link>
-                                  </div>
+                                <div className="flex flex-wrap gap-x-4 text-xs text-zinc-500">
+                                  <span>
+                                    Uploaded: {new Date(report.createdAt).toLocaleDateString()} at{' '}
+                                    {new Date(report.createdAt).toLocaleTimeString([], {
+                                      hour: '2-digit',
+                                      minute: '2-digit',
+                                    })}
+                                  </span>
+                                  <span>Format: PDF</span>
                                 </div>
-                              )}
-                            </>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
+                              </div>
+
+                              <div className="flex items-center gap-3 self-end sm:self-center">
+                                <button
+                                  onClick={() => handleToggleExpand(report._id)}
+                                  className="px-3.5 py-1.5 rounded-xl border border-zinc-800 hover:border-purple-500/30 bg-zinc-950 text-xs font-semibold text-zinc-400 hover:text-purple-400 transition-all cursor-pointer flex items-center gap-1.5"
+                                >
+                                  <span>AI Summary</span>
+                                  <span className="text-[10px]">{isExpanded ? '▲' : '▼'}</span>
+                                </button>
+
+                                <button
+                                  onClick={() => handleDownloadReport(report)}
+                                  disabled={downloadingReportId === report._id}
+                                  className="px-4 py-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black text-xs font-bold transition-all shadow-md shadow-emerald-500/5 hover:scale-[1.02] flex items-center gap-1.5 cursor-pointer whitespace-nowrap disabled:opacity-50"
+                                >
+                                  {downloadingReportId === report._id ? (
+                                    <Loader size={14} />
+                                  ) : (
+                                    <FileDown size={14} />
+                                  )}
+                                  <span>{downloadingReportId === report._id ? 'Downloading...' : 'Download'}</span>
+                                </button>
+                              </div>
+                            </div>
+
+                            {isExpanded && (
+                              <>
+                                {!report.summary && !report.vectorized ? (
+                                  <div className="mt-4 p-4 rounded-xl bg-zinc-950 border border-zinc-850/60 animate-pulse space-y-2">
+                                    <div className="h-3.5 bg-zinc-800 rounded w-1/4"></div>
+                                    <div className="h-3 bg-zinc-900 rounded w-full"></div>
+                                    <div className="h-3 bg-zinc-900 rounded w-5/6"></div>
+                                    <span className="text-[10px] text-zinc-550 font-medium tracking-wide block pt-1">
+                                      🧬 AI Summary generating, please wait...
+                                    </span>
+                                  </div>
+                                ) : (
+                                  <div className="mt-4 p-4 rounded-xl bg-zinc-950/80 border border-zinc-850/60 space-y-3">
+                                    <div className="space-y-1.5">
+                                      <span className="text-[10px] uppercase font-bold tracking-wider text-purple-400 block">
+                                        AI Plain-Language Summary
+                                      </span>
+                                      <p className="text-zinc-300 text-xs leading-relaxed whitespace-pre-line">
+                                        {report.summary || 'Summary generation in progress...'}
+                                      </p>
+                                    </div>
+                                    <div className="pt-1 flex gap-2">
+                                      <Link
+                                        to={`/patient/reports/${report._id}/ai-assistant`}
+                                        className="px-3.5 py-1.5 rounded-xl bg-purple-500/10 hover:bg-purple-500 border border-purple-500/20 text-purple-400 hover:text-black text-xs font-bold transition-all shadow-md shadow-purple-500/5 hover:scale-[1.02] flex items-center gap-1.5 cursor-pointer"
+                                      >
+                                        <Activity size={12} />
+                                        <span>🧬 Ask AI about this report</span>
+                                      </Link>
+                                    </div>
+                                  </div>
+                                )}
+                              </>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                {reports.length > 0 && (
+                  <ReportDisclosure
+                    variant="full"
+                    createdAt={reports[0].createdAt}
+                    lastViewedAt={reports[0].lastViewedAt}
+                    accessLog={reports[0].accessLog}
+                  />
                 )}
               </div>
             )}
         </div>
       </div>
+
+      {/* Secure Inline Glassmorphic Report Viewer Modal */}
+      {viewingReport && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-fade-in animate-duration-200">
+          <div
+            ref={modalRef}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="modal-report-title"
+            className="relative w-full max-w-5xl h-[85vh] bg-zinc-950/95 border border-zinc-800/80 rounded-3xl overflow-hidden shadow-2xl flex flex-col glassmorphic-card"
+          >
+            {/* Modal Header */}
+            <div className="flex items-center justify-between p-5 border-b border-zinc-850 bg-zinc-900/60 backdrop-blur-md">
+              <div className="space-y-1">
+                <h3 id="modal-report-title" className="text-sm font-bold text-zinc-100 flex items-center gap-2">
+                  <FileCheck size={16} className="text-teal-400 animate-pulse" />
+                  <span>{getReportTitle(viewingReport)}</span>
+                </h3>
+                <p className="text-[10px] text-zinc-550 font-semibold tracking-wider">
+                  Secure Report Vault &bull; {new Date(viewingReport.createdAt).toLocaleDateString()} at {new Date(viewingReport.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                </p>
+              </div>
+              <div className="flex items-center gap-3">
+                {/* Print Button */}
+                {!viewingLoading && viewingBlobUrl && (
+                  <button
+                    onClick={handlePrintReport}
+                    className="px-3.5 py-1.5 rounded-xl border border-zinc-800 hover:border-zinc-700 bg-zinc-900 hover:bg-zinc-850 transition-all text-zinc-400 hover:text-zinc-200 cursor-pointer flex items-center gap-1.5"
+                    title="Print report"
+                  >
+                    <Printer size={14} />
+                    <span>Print</span>
+                  </button>
+                )}
+
+                <button
+                  onClick={() => handleDownloadReport(viewingReport)}
+                  disabled={downloadingReportId === viewingReport._id}
+                  className="px-4 py-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 disabled:bg-zinc-800 text-black disabled:text-zinc-550 text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer active:scale-95 disabled:scale-100 shadow-md shadow-emerald-500/5"
+                >
+                  {downloadingReportId === viewingReport._id ? (
+                    <Loader size={14} />
+                  ) : (
+                    <FileDown size={14} />
+                  )}
+                  <span>{downloadingReportId === viewingReport._id ? 'Downloading...' : 'Download PDF'}</span>
+                </button>
+                <button
+                  onClick={handleCloseViewer}
+                  aria-label="Close report viewer"
+                  className="modal-close-btn p-2 rounded-xl border border-zinc-800 hover:border-zinc-700 bg-zinc-900 hover:bg-zinc-850 transition-all text-zinc-400 hover:text-zinc-200 cursor-pointer"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+            </div>
+
+            {/* Modal Body / Viewer */}
+            <div className="flex-1 bg-zinc-950/40 flex items-center justify-center p-4 relative animate-fade-in animate-duration-300">
+              {viewingLoading ? (
+                <div className="flex flex-col items-center gap-4">
+                  <div className="relative w-16 h-16 flex items-center justify-center">
+                    <div className="absolute inset-0 rounded-full border-4 border-teal-500/20 border-t-teal-400 animate-spin"></div>
+                    <div className="absolute inset-3 rounded-full bg-teal-500/20 blur-sm animate-pulse"></div>
+                    {downloadProgress > 0 && (
+                      <span className="text-[10px] font-bold text-teal-400 z-10">{downloadProgress}%</span>
+                    )}
+                  </div>
+                  <div className="text-center space-y-1">
+                    <span className="text-zinc-400 text-xs font-bold uppercase tracking-wider block animate-pulse animate-duration-1000">
+                      Streaming Secure PDF...
+                    </span>
+                    {downloadProgress > 0 && (
+                      <div className="w-48 bg-zinc-900 h-1.5 rounded-full overflow-hidden border border-zinc-800">
+                        <div
+                          className="bg-teal-400 h-full rounded-full transition-all duration-300"
+                          style={{ width: `${downloadProgress}%` }}
+                        />
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ) : viewingBlobUrl ? (
+                <iframe
+                  id="secure-report-iframe"
+                  src={`${viewingBlobUrl}#toolbar=0&navpanes=0`}
+                  className="w-full h-full rounded-2xl border border-zinc-850/60 bg-zinc-900/20 shadow-inner"
+                  title="Secure Report Viewer"
+                />
+              ) : (
+                <div className="text-zinc-500 text-sm">Failed to load report.</div>
+              )}
+            </div>
+
+            {/* Compact Disclosure Footer */}
+            <div className="p-4 border-t border-zinc-850 bg-zinc-900/20">
+              <ReportDisclosure
+                variant="compact"
+                createdAt={viewingReport.createdAt}
+                lastViewedAt={viewingReport.lastViewedAt}
+                accessLog={viewingReport.accessLog}
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </AppLayout>
   );
 };

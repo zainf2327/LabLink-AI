@@ -51,5 +51,23 @@ export const s3Service = {
     });
     // Expire in 15 minutes (900 seconds)
     return await getSignedUrl(s3Client!, command, { expiresIn: 900 });
+  },
+
+  async getFileStream(fileKey: string): Promise<{ stream: NodeJS.ReadableStream; mimeType?: string; contentLength?: number } | null> {
+    if (isMock) {
+      console.log(`[S3 MOCK] File streaming requested for key: ${fileKey}; no local mock PDF is configured.`);
+      return null;
+    }
+
+    const command = new GetObjectCommand({
+      Bucket: env.AWS_S3_BUCKET_NAME,
+      Key: fileKey,
+    });
+    const response = await s3Client!.send(command);
+    return {
+      stream: response.Body as NodeJS.ReadableStream,
+      mimeType: response.ContentType,
+      contentLength: response.ContentLength,
+    };
   }
 };

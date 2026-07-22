@@ -1,6 +1,5 @@
 import asyncHandler from '../utils/asyncHandler.js';
 import SubscriptionPlan from '../models/SubscriptionPlan.model.js';
-import { createSubscriptionPlanSchema, updateSubscriptionPlanSchema } from '../utils/validators.js';
 import { logAudit } from '../utils/auditLogger.js';
 export const getAllPlans = asyncHandler(async (req, res) => {
     // Publicly readable endpoint, list all active plans
@@ -15,7 +14,7 @@ export const createPlan = asyncHandler(async (req, res) => {
         res.status(401).json({ success: false, message: 'Unauthorized' });
         return;
     }
-    const validated = createSubscriptionPlanSchema.parse(req.body);
+    const validated = req.body;
     const existing = await SubscriptionPlan.findOne({ name: { $regex: new RegExp(`^${validated.name}$`, 'i') } });
     if (existing) {
         res.status(409).json({ success: false, message: 'Plan name already exists' });
@@ -46,7 +45,7 @@ export const updatePlan = asyncHandler(async (req, res) => {
         res.status(404).json({ success: false, message: 'Subscription plan not found' });
         return;
     }
-    const validated = updateSubscriptionPlanSchema.parse(req.body);
+    const validated = req.body;
     if (validated.name && validated.name.toLowerCase() !== plan.name.toLowerCase()) {
         const existing = await SubscriptionPlan.findOne({ name: { $regex: new RegExp(`^${validated.name}$`, 'i') } });
         if (existing) {

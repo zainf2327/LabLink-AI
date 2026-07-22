@@ -25,6 +25,8 @@ import analyticsRoutes from './routes/analytics.routes.js';
 import auditLogRoutes from './routes/auditLog.routes.js';
 import webhookRoutes from './routes/webhook.routes.js';
 import walletRoutes from './routes/wallet.routes.js';
+import swaggerUi from 'swagger-ui-express';
+import { swaggerSpec } from './config/swagger.js';
 
 const app = express();
 
@@ -150,6 +152,7 @@ app.get('/api/v1/health', async (req: Request, res: Response) => {
 });
 
 // Mount Routes
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/users', userRoutes);
 app.use('/api/v1/family-members', familyMemberRoutes);

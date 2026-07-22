@@ -4,30 +4,23 @@ import Coupon from '../models/Coupon.model.js';
 import User from '../models/User.model.js';
 import WalletTransaction from '../models/WalletTransaction.model.js';
 import { stripeService } from './stripe.service.js';
+import { AppError } from '../utils/AppError.js';
 export const paymentService = {
     async createPaymentIntent(patientId, bookingId) {
         const booking = await Booking.findById(bookingId);
         if (!booking) {
-            const error = new Error('Booking not found');
-            error.statusCode = 404;
-            throw error;
+            throw new AppError('Booking not found', 404);
         }
         if (booking.patientId.toString() !== patientId) {
-            const error = new Error('Forbidden: Booking does not belong to you');
-            error.statusCode = 403;
-            throw error;
+            throw new AppError('Forbidden: Booking does not belong to you', 403);
         }
         if (booking.status !== 'pending_payment') {
-            const error = new Error('Booking is not in pending_payment status');
-            error.statusCode = 400;
-            throw error;
+            throw new AppError('Booking is not in pending_payment status', 400);
         }
         // --- Fetch patient wallet balance ---
         const patient = await User.findById(patientId);
         if (!patient) {
-            const error = new Error('Patient not found');
-            error.statusCode = 404;
-            throw error;
+            throw new AppError('Patient not found', 404);
         }
         // If wallet already applied for this booking (retry scenario), respect existing walletAmountUsed
         const alreadyAppliedWallet = booking.walletAmountUsed > 0;
@@ -93,9 +86,7 @@ export const paymentService = {
         const existingPayment = await Payment.findOne({ bookingId });
         if (existingPayment) {
             if (existingPayment.status === 'succeeded') {
-                const error = new Error('Payment already completed for this booking');
-                error.statusCode = 400;
-                throw error;
+                throw new AppError('Payment already completed for this booking', 400);
             }
             // Retrieve existing PaymentIntent details from Stripe
             try {
@@ -117,7 +108,7 @@ export const paymentService = {
         }
         // 4. Create Stripe PaymentIntent for the remaining amount
         const amountInCents = Math.round(stripeAmount * 100);
-        const intent = await stripeService.createPaymentIntent(amountInCents, 'usd', booking._id.toString());
+        const intent = await stripeService.createPaymentIntent(amountInCents, 'usd', booking._id.toString(), `booking_${bookingId}`);
         let paymentDoc;
         if (existingPayment) {
             existingPayment.stripePaymentIntentId = intent.id;
@@ -194,36 +185,26 @@ export const paymentService = {
     async confirmPayment(patientId, paymentIntentId) {
         const payment = await Payment.findOne({ stripePaymentIntentId: paymentIntentId });
         if (!payment) {
-            const error = new Error('Payment record not found');
-            error.statusCode = 404;
-            throw error;
+            throw new AppError('Payment record not found', 404);
         }
         if (payment.patientId.toString() !== patientId) {
-            const error = new Error('Forbidden: Payment does not belong to you');
-            error.statusCode = 403;
-            throw error;
+            throw new AppError('Forbidden: Payment does not belong to you', 403);
         }
         const booking = await Booking.findById(payment.bookingId);
         if (!booking) {
-            const error = new Error('Booking not found');
-            error.statusCode = 404;
-            throw error;
+            throw new AppError('Booking not found', 404);
         }
         // Delegate to shared processor
         await paymentService.processSuccessfulPayment(paymentIntentId);
         // Fetch the updated booking to return
         const updatedBooking = await Booking.findById(payment.bookingId);
         if (!updatedBooking) {
-            const error = new Error('Booking not found');
-            error.statusCode = 404;
-            throw error;
+            throw new AppError('Booking not found', 404);
         }
         // Check if the payment actually succeeded
         const updatedPayment = await Payment.findById(payment._id);
         if (updatedPayment?.status !== 'succeeded') {
-            const error = new Error('Payment not succeeded or still processing');
-            error.statusCode = 400;
-            throw error;
+            throw new AppError('Payment not succeeded or still processing', 400);
         }
         return updatedBooking;
     },

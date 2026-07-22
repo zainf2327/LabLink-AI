@@ -1,7 +1,6 @@
 import asyncHandler from '../utils/asyncHandler.js';
 import Subscription from '../models/Subscription.model.js';
 import SubscriptionPlan from '../models/SubscriptionPlan.model.js';
-import { createSubscriptionSchema } from '../utils/validators.js';
 import { logAudit } from '../utils/auditLogger.js';
 export const getMySubscription = asyncHandler(async (req, res) => {
     if (!req.user) {
@@ -22,7 +21,7 @@ export const createSubscription = asyncHandler(async (req, res) => {
         res.status(401).json({ success: false, message: 'Unauthorized' });
         return;
     }
-    const validated = createSubscriptionSchema.parse(req.body);
+    const validated = req.body;
     const plan = await SubscriptionPlan.findById(validated.planId);
     if (!plan || !plan.isActive) {
         res.status(400).json({ success: false, message: 'Plan not found or inactive' });

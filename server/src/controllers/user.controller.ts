@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import asyncHandler from '../utils/asyncHandler.js';
 import User from '../models/User.model.js';
+import { logAudit } from '../utils/auditLogger.js';
 
 export const getAllUsers = asyncHandler(async (req: Request, res: Response): Promise<void> => {
   const page = parseInt(req.query.page as string) || 1;
@@ -55,10 +56,25 @@ export const getUserById = asyncHandler(async (req: Request, res: Response): Pro
 });
 
 export const updateUser = asyncHandler(async (req: Request, res: Response): Promise<void> => {
-  const user = await User.findByIdAndUpdate(req.params.id, req.body, { returnDocument: 'after' }).select('-passwordHash');
+  const updates: { role?: string; isActive?: boolean } = {};
+  if (req.body.role !== undefined) updates.role = req.body.role;
+  if (req.body.isActive !== undefined) updates.isActive = req.body.isActive;
+
+  const user = await User.findByIdAndUpdate(req.params.id, updates, { returnDocument: 'after' }).select('-passwordHash');
   if (!user) {
     res.status(404).json({ success: false, message: 'User not found' });
     return;
+  }
+
+  if (req.user) {
+    await logAudit({
+      actorId: req.user.id,
+      actorRole: req.user.role,
+      action: 'UPDATE_USER',
+      targetModel: 'User',
+      targetId: user.id,
+      metadata: updates,
+    });
   }
 
   res.status(200).json({
@@ -72,6 +88,17 @@ export const deactivateUser = asyncHandler(async (req: Request, res: Response): 
   if (!user) {
     res.status(404).json({ success: false, message: 'User not found' });
     return;
+  }
+
+  if (req.user) {
+    await logAudit({
+      actorId: req.user.id,
+      actorRole: req.user.role,
+      action: 'DEACTIVATE_USER',
+      targetModel: 'User',
+      targetId: user.id,
+      metadata: { isActive: false },
+    });
   }
 
   res.status(200).json({

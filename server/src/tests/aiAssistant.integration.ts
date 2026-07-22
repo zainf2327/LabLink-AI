@@ -108,7 +108,7 @@ async function runTests() {
 
   console.log('Created mock booking and report for Patient 1.');
 
-  // Test 1: Verify getMyReports returns the summary
+  // Test 1: Verify getReportById returns the summary
   const getReportsRes = await fetch(`${API_URL}/reports/me`, {
     method: 'GET',
     headers: { 'Authorization': `Bearer ${p1Token}` },
@@ -116,12 +116,23 @@ async function runTests() {
   const getReportsData = await getReportsRes.json() as any;
   if (!getReportsData.success) throw new Error('Failed to get reports: ' + getReportsData.message);
   
-  const foundReport = getReportsData.data.reports.find((r: any) => r._id === mockReport._id.toString());
-  if (!foundReport) throw new Error('Uploaded report not found in patient reports list');
-  if (foundReport.summary !== mockReport.summary) {
-    throw new Error(`Expected summary to match, got: ${foundReport.summary}`);
+  const foundReportInList = getReportsData.data.reports.find((r: any) => r._id === mockReport._id.toString());
+  if (!foundReportInList) throw new Error('Uploaded report not found in patient reports list');
+  if (foundReportInList.summary !== undefined || foundReportInList.textContent !== undefined) {
+    throw new Error('Summary and textContent should be excluded from reports list endpoint');
   }
-  console.log('✅ Test 1 Passed: Summary successfully returned in patient reports list.');
+
+  // Fetch details by ID to get the summary
+  const getDetailRes = await fetch(`${API_URL}/reports/${mockReport._id}`, {
+    method: 'GET',
+    headers: { 'Authorization': `Bearer ${p1Token}` },
+  });
+  const getDetailData = await getDetailRes.json() as any;
+  if (!getDetailData.success) throw new Error('Failed to get report details: ' + getDetailData.message);
+  if (getDetailData.data.report.summary !== mockReport.summary) {
+    throw new Error(`Expected summary to match, got: ${getDetailData.data.report.summary}`);
+  }
+  console.log('✅ Test 1 Passed: Summary and textContent properly excluded from list, and summary returned in detail view.');
 
   // Test 2: Verify Patient 1 can request chat history for own report (should be empty initially)
   const historyRes = await fetch(`${API_URL}/ai/chat/history?reportId=${mockReport._id}`, {

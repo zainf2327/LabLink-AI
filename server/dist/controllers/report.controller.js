@@ -6,6 +6,8 @@ import { s3Service } from '../services/s3.service.js';
 import { pdfExtractService } from '../services/pdfExtract.service.js';
 import { aiAssistantService } from '../services/aiAssistant.service.js';
 import { logAudit } from '../utils/auditLogger.js';
+import { buildReportFilename } from '../utils/reportFilename.js';
+import { env } from '../config/env.js';
 export const uploadReport = asyncHandler(async (req, res) => {
     if (!req.user) {
         res.status(401).json({ success: false, message: 'Unauthorized' });
@@ -76,7 +78,6 @@ export const uploadReport = asyncHandler(async (req, res) => {
     const report = await Report.create({
         bookingId: booking._id,
         patientId: booking.patientId,
-        fileUrl: s3Url,
         fileKey,
         mimeType: file.mimetype,
         uploadedBy: new mongoose.Types.ObjectId(req.user.id),
@@ -115,10 +116,7 @@ export const uploadReport = asyncHandler(async (req, res) => {
         targetId: report.id,
         metadata: { bookingId, fileKey },
     });
-    // Generate a pre-signed URL for the immediate response
-    const signedUrl = await s3Service.getPresignedDownloadUrl(fileKey);
     const reportObj = report.toObject();
-    reportObj.fileUrl = signedUrl;
     res.status(201).json({
         success: true,
         data: { report: reportObj },
@@ -129,21 +127,13 @@ export const getMyReports = asyncHandler(async (req, res) => {
         res.status(401).json({ success: false, message: 'Unauthorized' });
         return;
     }
-    const reports = await Report.find({ patientId: req.user.id }).populate('bookingId', 'tests').sort({ createdAt: -1 });
-    // Generate pre-signed download URLs on retrieval
-    const reportsWithPresignedUrls = await Promise.all(reports.map(async (report) => {
-        const reportObj = report.toObject();
-        try {
-            reportObj.fileUrl = await s3Service.getPresignedDownloadUrl(report.fileKey);
-        }
-        catch (err) {
-            console.error(`Failed to pre-sign download URL for report ${report._id}:`, err);
-        }
-        return reportObj;
-    }));
+    const reports = await Report.find({ patientId: req.user.id })
+        .select('-textContent -summary -fileUrl')
+        .populate('bookingId', 'tests')
+        .sort({ createdAt: -1 });
     res.status(200).json({
         success: true,
-        data: { reports: reportsWithPresignedUrls },
+        data: { reports },
     });
 });
 export const getReportById = asyncHandler(async (req, res) => {
@@ -151,24 +141,21 @@ export const getReportById = asyncHandler(async (req, res) => {
         res.status(401).json({ success: false, message: 'Unauthorized' });
         return;
     }
-    const report = await Report.findById(req.params.id).populate('bookingId', 'tests');
+    const report = await Report.findById(req.params.id)
+        .populate('bookingId', 'tests')
+        .populate('accessLog.viewedBy', 'name');
     if (!report) {
         res.status(404).json({ success: false, message: 'Report not found' });
         return;
     }
     // Access Control: Patient can only view their own reports
-    if (req.user.role === 'patient' && report.patientId.toString() !== req.user.id) {
+    const patientIdStr = (report.patientId._id || report.patientId).toString();
+    if (req.user.role === 'patient' && patientIdStr !== req.user.id) {
         res.status(403).json({ success: false, message: 'Forbidden: Access to another patient\'s report is denied' });
         return;
     }
-    // Sign retrieval URL
     const reportObj = report.toObject();
-    try {
-        reportObj.fileUrl = await s3Service.getPresignedDownloadUrl(report.fileKey);
-    }
-    catch (err) {
-        console.error(`Failed to sign download URL for report ${report._id}:`, err);
-    }
+    delete reportObj.fileUrl;
     res.status(200).json({
         success: true,
         data: { report: reportObj },
@@ -207,4 +194,113 @@ export const deleteReport = asyncHandler(async (req, res) => {
         success: true,
         message: 'Report deleted successfully',
     });
+});
+export const viewReportFile = asyncHandler(async (req, res) => {
+    if (!req.user) {
+        res.status(401).json({ success: false, message: 'Unauthorized' });
+        return;
+    }
+    const report = await Report.findById(req.params.id)
+        .populate('patientId', 'name')
+        .populate('bookingId', 'tests');
+    if (!report) {
+        res.status(404).json({ success: false, message: 'Report not found' });
+        return;
+    }
+    // Access Control: Patient can only view their own reports
+    const patientIdStr = (report.patientId._id || report.patientId).toString();
+    if (req.user.role === 'patient' && patientIdStr !== req.user.id) {
+        res.status(403).json({ success: false, message: 'Forbidden: Access to another patient\'s report is denied' });
+        return;
+    }
+    // Log staff/admin accesses to accessLog and update lastViewedAt
+    if (req.user.role === 'staff' || req.user.role === 'admin') {
+        if (!report.accessLog) {
+            report.accessLog = [];
+        }
+        report.accessLog.push({
+            viewedBy: new mongoose.Types.ObjectId(req.user.id),
+            viewedAt: new Date(),
+            role: req.user.role,
+        });
+        report.lastViewedAt = new Date();
+        await report.save();
+    }
+    const fileData = await s3Service.getFileStream(report.fileKey);
+    if (!fileData) {
+        res.status(404).json({ success: false, message: 'Report file not found' });
+        return;
+    }
+    // Generate dynamic clean filename
+    let patientName = 'Patient';
+    if (report.patientId && report.patientId.name) {
+        patientName = report.patientId.name;
+    }
+    let testNames = [];
+    const booking = report.bookingId;
+    if (booking && booking.tests && Array.isArray(booking.tests)) {
+        testNames = booking.tests.map((t) => t.name);
+    }
+    const filename = buildReportFilename({
+        patientName,
+        testNames,
+        createdAt: report.createdAt,
+        versionSuffix: report.versionSuffix,
+    }, {
+        includePatientName: env.INCLUDE_PATIENT_NAME_IN_FILENAME !== false,
+    });
+    res.setHeader('Content-Type', fileData.mimeType || 'application/pdf');
+    res.setHeader('Content-Disposition', `inline; filename="${filename}"`);
+    if (fileData.contentLength) {
+        res.setHeader('Content-Length', fileData.contentLength);
+    }
+    fileData.stream.pipe(res);
+});
+export const downloadReportFile = asyncHandler(async (req, res) => {
+    if (!req.user) {
+        res.status(401).json({ success: false, message: 'Unauthorized' });
+        return;
+    }
+    const report = await Report.findById(req.params.id)
+        .populate('patientId', 'name')
+        .populate('bookingId', 'tests');
+    if (!report) {
+        res.status(404).json({ success: false, message: 'Report not found' });
+        return;
+    }
+    // Access Control: Patient can only download their own reports
+    const patientIdStr = (report.patientId._id || report.patientId).toString();
+    if (req.user.role === 'patient' && patientIdStr !== req.user.id) {
+        res.status(403).json({ success: false, message: 'Forbidden: Access to another patient\'s report is denied' });
+        return;
+    }
+    const fileData = await s3Service.getFileStream(report.fileKey);
+    if (!fileData) {
+        res.status(404).json({ success: false, message: 'Report file not found' });
+        return;
+    }
+    // Generate dynamic clean filename
+    let patientName = 'Patient';
+    if (report.patientId && report.patientId.name) {
+        patientName = report.patientId.name;
+    }
+    let testNames = [];
+    const booking = report.bookingId;
+    if (booking && booking.tests && Array.isArray(booking.tests)) {
+        testNames = booking.tests.map((t) => t.name);
+    }
+    const filename = buildReportFilename({
+        patientName,
+        testNames,
+        createdAt: report.createdAt,
+        versionSuffix: report.versionSuffix,
+    }, {
+        includePatientName: env.INCLUDE_PATIENT_NAME_IN_FILENAME !== false,
+    });
+    res.setHeader('Content-Type', fileData.mimeType || 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    if (fileData.contentLength) {
+        res.setHeader('Content-Length', fileData.contentLength);
+    }
+    fileData.stream.pipe(res);
 });

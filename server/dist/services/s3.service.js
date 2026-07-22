@@ -1,3 +1,5 @@
+import fs from 'fs';
+import path from 'path';
 import { S3Client, PutObjectCommand, DeleteObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { env } from '../config/env.js';
@@ -46,5 +48,39 @@ export const s3Service = {
         });
         // Expire in 15 minutes (900 seconds)
         return await getSignedUrl(s3Client, command, { expiresIn: 900 });
+    },
+    async getFileStream(fileKey) {
+        if (isMock) {
+            console.log(`[S3 MOCK] Streaming file from key: ${fileKey} (Fallback to CBC_Test_Report.pdf)`);
+            // Fallback to local CBC_Test_Report.pdf in project root
+            const workspaceRoot = path.resolve(process.cwd(), '..');
+            const rootPdfPath = path.join(workspaceRoot, 'CBC_Test_Report.pdf');
+            const localPdfPath = path.resolve(process.cwd(), 'CBC_Test_Report.pdf');
+            let finalPath = '';
+            if (fs.existsSync(rootPdfPath)) {
+                finalPath = rootPdfPath;
+            }
+            else if (fs.existsSync(localPdfPath)) {
+                finalPath = localPdfPath;
+            }
+            if (finalPath && fs.existsSync(finalPath)) {
+                return {
+                    stream: fs.createReadStream(finalPath),
+                    mimeType: 'application/pdf',
+                    contentLength: fs.statSync(finalPath).size,
+                };
+            }
+            return null;
+        }
+        const command = new GetObjectCommand({
+            Bucket: env.AWS_S3_BUCKET_NAME,
+            Key: fileKey,
+        });
+        const response = await s3Client.send(command);
+        return {
+            stream: response.Body,
+            mimeType: response.ContentType,
+            contentLength: response.ContentLength,
+        };
     }
 };

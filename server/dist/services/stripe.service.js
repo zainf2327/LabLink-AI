@@ -5,7 +5,7 @@ if (!stripeConfig.secretKey) {
 }
 const stripe = new Stripe(stripeConfig.secretKey);
 export const stripeService = {
-    async createPaymentIntent(amountInCents, currency, bookingId) {
+    async createPaymentIntent(amountInCents, currency, bookingId, idempotencyKey) {
         try {
             const intent = await stripe.paymentIntents.create({
                 amount: amountInCents,
@@ -14,6 +14,8 @@ export const stripeService = {
                 automatic_payment_methods: {
                     enabled: true,
                 },
+            }, {
+                idempotencyKey,
             });
             return {
                 id: intent.id,

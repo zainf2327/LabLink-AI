@@ -3,6 +3,7 @@ import { GoogleGenerativeAIEmbeddings } from '@langchain/google-genai';
 import { RecursiveCharacterTextSplitter } from '@langchain/textsplitters';
 import { pineconeIndex } from '../config/pinecone.js';
 import { env } from '../config/env.js';
+import { appendMedicalDisclaimer } from '../utils/medicalDisclaimer.js';
 
 export const aiAssistantService = {
   /**
@@ -82,9 +83,7 @@ export const aiAssistantService = {
       ]);
 
       const summary = String(response.content).trim();
-      const disclaimer = `\n\n⚕️ *Medical Disclaimer: This AI-generated summary provides informational context of your lab report only and is not a substitute for professional medical advice. Please consult your doctor.*`;
-      
-      return summary + disclaimer;
+      return appendMedicalDisclaimer(summary);
     } catch (err: any) {
       console.error('Error in generateSummary:', err);
       throw new Error(`Failed to generate summary: ${err.message}`);

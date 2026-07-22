@@ -1,6 +1,8 @@
 import mongoose from 'mongoose';
 import { env } from './env.js';
 import dns from 'dns';
+// Override DNS servers to Google and Cloudflare public DNS.
+// This prevents MongoDB Atlas connection issues caused by DNS resolution failures in some local ISP/network or docker environments.
 dns.setServers(['8.8.8.8', '1.1.1.1']);
 const connectDB = async () => {
     try {

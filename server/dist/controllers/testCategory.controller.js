@@ -2,7 +2,6 @@ import TestCategory from '../models/TestCategory.model.js';
 import Test from '../models/Test.model.js';
 import asyncHandler from '../utils/asyncHandler.js';
 import { logAudit } from '../utils/auditLogger.js';
-import { createCategorySchema, updateCategorySchema } from '../utils/validators.js';
 export const getAllCategories = asyncHandler(async (req, res) => {
     const categories = await TestCategory.find().sort({ name: 1 });
     res.status(200).json({
@@ -11,7 +10,7 @@ export const getAllCategories = asyncHandler(async (req, res) => {
     });
 });
 export const createCategory = asyncHandler(async (req, res) => {
-    const validated = createCategorySchema.parse(req.body);
+    const validated = req.body;
     const existingCategory = await TestCategory.findOne({ name: { $regex: new RegExp(`^${validated.name}$`, 'i') } });
     if (existingCategory) {
         res.status(409).json({
@@ -38,7 +37,7 @@ export const createCategory = asyncHandler(async (req, res) => {
 });
 export const updateCategory = asyncHandler(async (req, res) => {
     const { id } = req.params;
-    const validated = updateCategorySchema.parse(req.body);
+    const validated = req.body;
     const category = await TestCategory.findById(id);
     if (!category) {
         res.status(404).json({

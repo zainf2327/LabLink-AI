@@ -29,6 +29,7 @@ const envSchema = z.object({
   AWS_REGION: z.string().optional(),
   AWS_S3_BUCKET_NAME: z.string().optional(),
   AWS_SES_FROM_EMAIL: z.string().optional(),
+  INCLUDE_PATIENT_NAME_IN_FILENAME: z.preprocess((val) => val === 'true' || val === true, z.boolean()).default(true),
 });
 
 const parsed = envSchema.safeParse(process.env);

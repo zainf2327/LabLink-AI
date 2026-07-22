@@ -3,6 +3,7 @@ import asyncHandler from '../utils/asyncHandler.js';
 import Report from '../models/Report.model.js';
 import ChatMessage from '../models/ChatMessage.model.js';
 import { aiAssistantService } from '../services/aiAssistant.service.js';
+import { appendMedicalDisclaimer, MEDICAL_DISCLAIMER } from '../utils/medicalDisclaimer.js';
 
 export const chatWithAssistant = asyncHandler(async (req: Request, res: Response): Promise<void> => {
   if (!req.user) {
@@ -24,7 +25,8 @@ export const chatWithAssistant = asyncHandler(async (req: Request, res: Response
     return;
   }
 
-  if (report.patientId.toString() !== req.user.id) {
+  const patientIdStr = (report.patientId._id || report.patientId).toString();
+  if (patientIdStr !== req.user.id) {
     res.status(403).json({ success: false, message: 'Forbidden: Access to another patient\'s report is denied' });
     return;
   }
@@ -65,15 +67,17 @@ export const chatWithAssistant = asyncHandler(async (req: Request, res: Response
   res.setHeader('Connection', 'keep-alive');
 
   if (result.fallback) {
-    // Send standard fallback message and close stream
-    res.write(`data: ${JSON.stringify({ token: result.fallbackMessage })}\n\n`);
+    const fallbackWithDisclaimer = appendMedicalDisclaimer(
+      result.fallbackMessage || 'I do not have enough report context to answer that yet.'
+    );
+
+    res.write(`data: ${JSON.stringify({ token: fallbackWithDisclaimer })}\n\n`);
     
-    // Save assistant fallback message to database
     await ChatMessage.create({
       patientId: req.user.id,
       reportId,
       role: 'assistant',
-      content: result.fallbackMessage || '',
+      content: fallbackWithDisclaimer,
     });
 
     res.write('data: [DONE]\n\n');
@@ -90,8 +94,7 @@ export const chatWithAssistant = asyncHandler(async (req: Request, res: Response
       res.write(`data: ${JSON.stringify({ token })}\n\n`);
     }
 
-    // Append medical disclaimer
-    const disclaimer = `\n\n---\n⚕️ *Medical Disclaimer: This AI provides informational summaries of your lab reports only. It is not a substitute for professional medical advice. Please consult your doctor.*`;
+    const disclaimer = `\n\n---\n${MEDICAL_DISCLAIMER}`;
     res.write(`data: ${JSON.stringify({ token: disclaimer })}\n\n`);
     fullAssistantResponse += disclaimer;
 
@@ -131,7 +134,8 @@ export const getChatHistory = asyncHandler(async (req: Request, res: Response): 
     return;
   }
 
-  if (report.patientId.toString() !== req.user.id) {
+  const patientIdStr = (report.patientId._id || report.patientId).toString();
+  if (patientIdStr !== req.user.id) {
     res.status(403).json({ success: false, message: 'Forbidden: Access to another patient\'s report is denied' });
     return;
   }

@@ -44,6 +44,7 @@ async function runTests() {
     email: 'test_patient_7@example.com',
     role: 'patient',
     passwordHash,
+    isVerified: true,
     isActive: true,
   });
 
@@ -52,6 +53,7 @@ async function runTests() {
     email: 'test_patient_7b@example.com',
     role: 'patient',
     passwordHash,
+    isVerified: true,
     isActive: true,
   });
 
@@ -60,6 +62,7 @@ async function runTests() {
     email: 'test_staff_7@example.com',
     role: 'staff',
     passwordHash,
+    isVerified: true,
     isActive: true,
   });
 
@@ -68,6 +71,7 @@ async function runTests() {
     email: 'test_admin_7@example.com',
     role: 'admin',
     passwordHash,
+    isVerified: true,
     isActive: true,
   });
 
@@ -190,7 +194,7 @@ async function runTests() {
   assert(uploadRes2.status === 409, 'Should reject duplicate upload with 409 Conflict');
   console.log(`${green}✔ Duplicate upload conflict prevented!${reset}`);
 
-  // 6. Test Case 3: Patient retrieves report list with signed URLs
+  // 6. Test Case 3: Patient retrieves report list without fileUrls or sensitive content
   console.log('\nTest Case 3: Retrieving patient reports list...');
   const patientRes = await fetch(`${BASE_URL}/reports/me`, {
     method: 'GET',
@@ -200,8 +204,22 @@ async function runTests() {
   console.log('Get /reports/me status:', patientRes.status);
   assert(patientRes.status === 200, 'Should return 200 OK');
   assert(patientData.data.reports.length === 1, 'Should find 1 report for patient');
-  assert(patientData.data.reports[0].fileUrl.includes('mock-signature=true') || patientData.data.reports[0].fileUrl.includes('AWSAccessKeyId'), 'Should return a pre-signed URL');
-  console.log(`${green}✔ Reports retrieved by patient with signed S3 URLs!${reset}`);
+  
+  const reportItem = patientData.data.reports[0];
+  assert(reportItem.fileUrl === undefined, 'Should not return fileUrl in reports list');
+  assert(reportItem.textContent === undefined, 'Should not return textContent in reports list');
+  assert(reportItem.summary === undefined, 'Should not return summary in reports list');
+  console.log(`${green}✔ Reports list returned without fileUrl, textContent, or summary (Task 1 & Task 2 verification)!${reset}`);
+
+  // Try fetching direct stream to verify view works
+  console.log('\nVerifying secure streaming endpoint (GET /reports/:id/view)...');
+  const viewRes = await fetch(`${BASE_URL}/reports/${reportId}/view`, {
+    method: 'GET',
+    headers: { 'Authorization': `Bearer ${patientToken}` },
+  });
+  console.log('View stream status:', viewRes.status);
+  assert(viewRes.status === 200, 'Secure stream should return 200 OK');
+  console.log(`${green}✔ Secure report stream accessible via authorized route!${reset}`);
 
   // 7. Test Case 4: Cross-patient access validation
   console.log('\nTest Case 4: Testing unauthorized patient access...');

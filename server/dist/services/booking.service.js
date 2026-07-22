@@ -7,40 +7,31 @@ import Subscription from '../models/Subscription.model.js';
 import Payment from '../models/Payment.model.js';
 import User from '../models/User.model.js';
 import { calendarService } from './calendar.service.js';
+import { AppError } from '../utils/AppError.js';
 export const bookingService = {
     async createBooking(patientId, data) {
         const { forMemberId, tests, couponCode, homeSampling, notes } = data;
         // 1. Validate tests array
         if (!tests || !Array.isArray(tests) || tests.length === 0) {
-            const error = new Error('Booking must contain at least one test');
-            error.statusCode = 400;
-            throw error;
+            throw new AppError('Booking must contain at least one test', 400);
         }
         // 2. Fetch selected tests and verify active
         const foundTests = await Test.find({ _id: { $in: tests } });
         if (foundTests.length !== tests.length) {
-            const error = new Error('One or more selected tests do not exist');
-            error.statusCode = 400;
-            throw error;
+            throw new AppError('One or more selected tests do not exist', 400);
         }
         const inactiveTest = foundTests.find((t) => !t.isActive);
         if (inactiveTest) {
-            const error = new Error(`Test "${inactiveTest.name}" is not active`);
-            error.statusCode = 400;
-            throw error;
+            throw new AppError(`Test "${inactiveTest.name}" is not active`, 400);
         }
         // 3. If forMemberId is provided, validate family member and subscription gate
         if (forMemberId) {
             const familyMember = await FamilyMember.findById(forMemberId);
             if (!familyMember) {
-                const error = new Error('Family member not found');
-                error.statusCode = 400;
-                throw error;
+                throw new AppError('Family member not found', 400);
             }
             if (familyMember.userId.toString() !== patientId) {
-                const error = new Error('Forbidden: Family member does not belong to you');
-                error.statusCode = 403;
-                throw error;
+                throw new AppError('Forbidden: Family member does not belong to you', 403);
             }
             // Check active subscription family-member gate
             const activeSubscription = await Subscription.findOne({
@@ -48,49 +39,35 @@ export const bookingService = {
                 status: 'active',
             }).populate('planId');
             if (!activeSubscription) {
-                const error = new Error('An active subscription is required to book for family members.');
-                error.statusCode = 403;
-                throw error;
+                throw new AppError('An active subscription is required to book for family members.', 403);
             }
             const plan = activeSubscription.planId;
             const familyCount = await FamilyMember.countDocuments({ userId: patientId });
             if (familyCount > plan.maxFamilyMembers) {
-                const error = new Error(`Your active subscription allows a maximum of ${plan.maxFamilyMembers} family members.`);
-                error.statusCode = 403;
-                throw error;
+                throw new AppError(`Your active subscription allows a maximum of ${plan.maxFamilyMembers} family members.`, 403);
             }
         }
         // 4. Validate scheduling details
         if (homeSampling) {
             if (homeSampling.requested) {
                 if (!homeSampling.address) {
-                    const error = new Error('Address is required for home sampling');
-                    error.statusCode = 400;
-                    throw error;
+                    throw new AppError('Address is required for home sampling', 400);
                 }
                 const nonHomeCollectionTest = foundTests.find((t) => !t.isHomeCollectionAvailable);
                 if (nonHomeCollectionTest) {
-                    const error = new Error(`Home collection is not available for test: "${nonHomeCollectionTest.name}"`);
-                    error.statusCode = 400;
-                    throw error;
+                    throw new AppError(`Home collection is not available for test: "${nonHomeCollectionTest.name}"`, 400);
                 }
             }
             if (!homeSampling.scheduledAt) {
-                const error = new Error('Appointment slot date and time is required');
-                error.statusCode = 400;
-                throw error;
+                throw new AppError('Appointment slot date and time is required', 400);
             }
             const appointmentDate = new Date(homeSampling.scheduledAt);
             if (isNaN(appointmentDate.getTime()) || appointmentDate <= new Date()) {
-                const error = new Error('Appointment slot must be in the future');
-                error.statusCode = 400;
-                throw error;
+                throw new AppError('Appointment slot must be in the future', 400);
             }
         }
         else {
-            const error = new Error('Scheduling details are required');
-            error.statusCode = 400;
-            throw error;
+            throw new AppError('Scheduling details are required', 400);
         }
         // 5. Snapshot test price and name
         const snapshotTests = foundTests.map((t) => ({
@@ -110,28 +87,20 @@ export const bookingService = {
                 isActive: true,
             });
             if (!couponDoc) {
-                const error = new Error('Invalid or inactive coupon code');
-                error.statusCode = 400;
-                throw error;
+                throw new AppError('Invalid or inactive coupon code', 400);
             }
             if (couponDoc.expiresAt && new Date(couponDoc.expiresAt) < new Date()) {
-                const error = new Error('Coupon code has expired');
-                error.statusCode = 400;
-                throw error;
+                throw new AppError('Coupon code has expired', 400);
             }
             if (couponDoc.maxUses !== undefined &&
                 couponDoc.maxUses !== null &&
                 couponDoc.usedCount >= couponDoc.maxUses) {
-                const error = new Error('Coupon usage limit reached');
-                error.statusCode = 400;
-                throw error;
+                throw new AppError('Coupon usage limit reached', 400);
             }
             if (couponDoc.minOrderValue !== undefined &&
                 couponDoc.minOrderValue !== null &&
                 totalAmount < couponDoc.minOrderValue) {
-                const error = new Error(`Minimum order value for coupon is $${couponDoc.minOrderValue}`);
-                error.statusCode = 400;
-                throw error;
+                throw new AppError(`Minimum order value for coupon is $${couponDoc.minOrderValue}`, 400);
             }
             // Calculate discount amount
             if (couponDoc.discountType === 'percentage') {
@@ -210,9 +179,7 @@ export const bookingService = {
         }
         const conflictingBooking = await Booking.findOne(query);
         if (conflictingBooking) {
-            const error = new Error(`Staff member has a scheduling conflict in the database at this time.`);
-            error.statusCode = 409;
-            throw error;
+            throw new AppError('Staff member has a scheduling conflict in the database at this time.', 409);
         }
         // 2. Google Calendar conflict checking (FreeBusy API)
         const staff = await User.findById(staffId);
@@ -221,9 +188,7 @@ export const bookingService = {
             const decryptedToken = decrypt(staff.googleRefreshToken);
             const isBusy = await calendarService.checkFreeBusy(decryptedToken, staff.googleEmail || staff.email, startTime, endTime);
             if (isBusy) {
-                const error = new Error(`Staff member has a scheduling conflict on Google Calendar.`);
-                error.statusCode = 409;
-                throw error;
+                throw new AppError('Staff member has a scheduling conflict on Google Calendar.', 409);
             }
         }
     },

@@ -275,6 +275,10 @@ export const bookingService = {
   },
 
   async syncBookingToCalendar(booking: IBooking): Promise<void> {
+    if (!booking.homeSampling.requested || !booking.homeSampling.scheduledAt || booking.status !== 'scheduled') {
+      return;
+    }
+
     const { decrypt } = await import('../utils/crypto.js');
     
     let updated = false;
@@ -289,23 +293,12 @@ export const bookingService = {
     ) {
       try {
         const decryptedToken = decrypt(patient.googleRefreshToken);
-        const testNames = booking.tests.map((t) => t.name);
-        
-        let eventId: string;
-        if (booking.homeSampling.requested && booking.homeSampling.scheduledAt) {
-          eventId = await calendarService.createHomeSamplingEvent(
-            decryptedToken,
-            patient.name,
-            booking.homeSampling.address || '',
-            booking.homeSampling.scheduledAt
-          );
-        } else {
-          eventId = await calendarService.createPatientInLabEvent(
-            decryptedToken,
-            testNames,
-            booking.homeSampling.scheduledAt!
-          );
-        }
+        const eventId = await calendarService.createHomeSamplingEvent(
+          decryptedToken,
+          patient.name,
+          booking.homeSampling.address || '',
+          booking.homeSampling.scheduledAt
+        );
         
         if (!booking.googleCalendar) {
           booking.googleCalendar = { patientEventId: null, staffEventId: null };

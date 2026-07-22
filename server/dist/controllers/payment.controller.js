@@ -1,13 +1,12 @@
 import asyncHandler from '../utils/asyncHandler.js';
 import Payment from '../models/Payment.model.js';
 import { paymentService } from '../services/payment.service.js';
-import { createPaymentIntentSchema, confirmPaymentSchema } from '../utils/validators.js';
 export const createPaymentIntent = asyncHandler(async (req, res) => {
     if (!req.user) {
         res.status(401).json({ success: false, message: 'Unauthorized' });
         return;
     }
-    const validated = createPaymentIntentSchema.parse(req.body);
+    const validated = req.body;
     const result = await paymentService.createPaymentIntent(req.user.id, validated.bookingId);
     res.status(200).json({
         success: true,
@@ -19,7 +18,7 @@ export const confirmPayment = asyncHandler(async (req, res) => {
         res.status(401).json({ success: false, message: 'Unauthorized' });
         return;
     }
-    const validated = confirmPaymentSchema.parse(req.body);
+    const validated = req.body;
     const booking = await paymentService.confirmPayment(req.user.id, validated.paymentIntentId);
     res.status(200).json({
         success: true,

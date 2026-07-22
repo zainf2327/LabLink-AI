@@ -10,9 +10,6 @@ const envSchema = z.object({
     }),
     JWT_ACCESS_SECRET: z.string().min(32, 'JWT_ACCESS_SECRET must be at least 32 characters long'),
     JWT_REFRESH_SECRET: z.string().min(32, 'JWT_REFRESH_SECRET must be at least 32 characters long'),
-    CLOUDINARY_CLOUD_NAME: z.string().optional(),
-    CLOUDINARY_API_KEY: z.string().optional(),
-    CLOUDINARY_API_SECRET: z.string().optional(),
     STRIPE_SECRET_KEY: z.string().min(1, 'STRIPE_SECRET_KEY is required'),
     STRIPE_WEBHOOK_SECRET: z.string().optional(),
     PINECONE_API_KEY: z.string().min(1, 'PINECONE_API_KEY is required'),
@@ -29,6 +26,7 @@ const envSchema = z.object({
     AWS_REGION: z.string().optional(),
     AWS_S3_BUCKET_NAME: z.string().optional(),
     AWS_SES_FROM_EMAIL: z.string().optional(),
+    INCLUDE_PATIENT_NAME_IN_FILENAME: z.preprocess((val) => val === 'true' || val === true, z.boolean()).default(true),
 });
 const parsed = envSchema.safeParse(process.env);
 if (!parsed.success) {
