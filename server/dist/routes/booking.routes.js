@@ -4,9 +4,10 @@ import { authenticate } from '../middleware/auth.middleware.js';
 import { authorize } from '../middleware/role.middleware.js';
 import { validate } from '../middleware/validate.middleware.js';
 import { createBookingSchema, updateBookingStatusSchema, assignStaffSchema } from '../utils/validators.js';
+import { resolveSubscription } from '../middleware/subscriptionResolver.middleware.js';
 const router = Router();
 // Apply auth to all booking routes
-router.use(authenticate);
+router.use(authenticate, resolveSubscription);
 // Patient actions
 router.post('/', authorize('patient'), validate(createBookingSchema), createBooking);
 router.get('/me', authorize('patient'), getMyBookings);

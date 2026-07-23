@@ -4,6 +4,7 @@ import { env } from '../config/env.js';
 import User from '../models/User.model.js';
 import Subscription from '../models/Subscription.model.js';
 import SubscriptionPlan from '../models/SubscriptionPlan.model.js';
+import { subscriptionService } from '../services/subscription.service.js';
 import asyncHandler from '../utils/asyncHandler.js';
 import { calendarService } from '../services/calendar.service.js';
 import { emailService } from '../services/email.service.js';
@@ -27,18 +28,11 @@ const ensureDefaultSubscription = async (userId) => {
     const existing = await Subscription.findOne({ userId });
     if (existing)
         return;
-    // Find the free plan (price = 0, isActive = true)
-    const basicPlan = await SubscriptionPlan.findOne({ price: 0, isActive: true });
-    if (basicPlan) {
-        const renewalDate = new Date();
-        renewalDate.setDate(renewalDate.getDate() + 30);
-        await Subscription.create({
-            userId,
-            planId: basicPlan._id,
-            status: 'active',
-            startDate: new Date(),
-            renewalDate,
-        });
+    // Find the free plan (isDefault = true, isActive = true)
+    const defaultPlan = await SubscriptionPlan.findOne({ isDefault: true, isActive: true });
+    if (defaultPlan) {
+        const sub = await subscriptionService.createSubscriptionFromPlan(userId.toString(), defaultPlan);
+        await subscriptionService.initializeFamilyMembers(sub, defaultPlan);
     }
 };
 export const register = asyncHandler(async (req, res) => {
@@ -69,6 +63,8 @@ export const register = asyncHandler(async (req, res) => {
         verificationCode,
         verificationCodeExpires,
     });
+    // Assign default Free subscription immediately on signup
+    await ensureDefaultSubscription(newUser._id);
     // Send verification email
     await emailService.sendVerificationEmail(newUser.email, verificationCode);
     res.status(201).json({

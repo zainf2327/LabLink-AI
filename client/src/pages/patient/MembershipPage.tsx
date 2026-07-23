@@ -4,6 +4,7 @@ import type { SubscriptionPlan, Subscription } from '../../services/subscription
 import { familyService } from '../../services/family.service';
 import type { FamilyMember } from '../../services/family.service';
 import AppLayout from '../../components/layout/AppLayout';
+import { ConfirmModal } from '../../components/ConfirmModal';
 import { loadStripe } from '@stripe/stripe-js';
 import { Elements, CardElement, useStripe, useElements } from '@stripe/react-stripe-js';
 import {
@@ -65,6 +66,34 @@ const MembershipPageContent: React.FC = () => {
   // Family Selection Modal state
   const [isFamilySelectModalOpen, setIsFamilySelectModalOpen] = useState(false);
   const [selectedFamilyIds, setSelectedFamilyIds] = useState<string[]>([]);
+
+  // Confirm modal configurations
+  const [confirmConfig, setConfirmConfig] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    onConfirm: () => void;
+    isDanger?: boolean;
+  }>({
+    isOpen: false,
+    title: '',
+    message: '',
+    onConfirm: () => {},
+    isDanger: false,
+  });
+
+  const triggerConfirm = (title: string, message: string, onConfirm: () => void, isDanger = false) => {
+    setConfirmConfig({
+      isOpen: true,
+      title,
+      message,
+      onConfirm: () => {
+        onConfirm();
+        setConfirmConfig((prev) => ({ ...prev, isOpen: false }));
+      },
+      isDanger,
+    });
+  };
 
   const fetchData = async () => {
     setLoading(true);
@@ -193,25 +222,26 @@ const MembershipPageContent: React.FC = () => {
     }
   };
 
-  const handleCancelSub = async () => {
-    if (
-      !window.confirm(
-        'Are you sure you want to cancel your subscription? Your access will revert to the Free plan immediately.'
-      )
-    )
-      return;
-    setSubmitting(true);
-    try {
-      const res = await subscriptionService.cancelMySubscription();
-      if (res.success) {
-        displaySuccess('Subscription cancelled successfully.');
-        await fetchData();
-      }
-    } catch (err: any) {
-      displayError(err.response?.data?.message || 'Failed to cancel subscription.');
-    } finally {
-      setSubmitting(false);
-    }
+  const handleCancelSub = () => {
+    triggerConfirm(
+      'Cancel Membership',
+      'Are you sure you want to cancel your subscription? Your access will revert to the Free plan immediately.',
+      async () => {
+        setSubmitting(true);
+        try {
+          const res = await subscriptionService.cancelMySubscription();
+          if (res.success) {
+            displaySuccess('Subscription cancelled successfully.');
+            await fetchData();
+          }
+        } catch (err: any) {
+          displayError(err.response?.data?.message || 'Failed to cancel subscription.');
+        } finally {
+          setSubmitting(false);
+        }
+      },
+      true // isDanger
+    );
   };
 
   const handleOpenAddModal = () => {
@@ -273,17 +303,23 @@ const MembershipPageContent: React.FC = () => {
     }
   };
 
-  const handleDeleteMember = async (memberId: string) => {
-    if (!window.confirm('Are you sure you want to remove this family member?')) return;
-    try {
-      const res = await familyService.deleteFamilyMember(memberId);
-      if (res.success) {
-        displaySuccess('Family member removed successfully.');
-        await fetchData();
-      }
-    } catch (err: any) {
-      displayError(err.response?.data?.message || 'Failed to remove family member.');
-    }
+  const handleDeleteMember = (memberId: string) => {
+    triggerConfirm(
+      'Remove Family Member',
+      'Are you sure you want to remove this family member profile? Any diagnostic records linked to this member will remain, but you will not be able to schedule new tests for them.',
+      async () => {
+        try {
+          const res = await familyService.deleteFamilyMember(memberId);
+          if (res.success) {
+            displaySuccess('Family member removed successfully.');
+            await fetchData();
+          }
+        } catch (err: any) {
+          displayError(err.response?.data?.message || 'Failed to remove family member.');
+        }
+      },
+      true // isDanger
+    );
   };
 
   const handleFamilySelectionCheckbox = (memberId: string) => {
@@ -463,7 +499,7 @@ const MembershipPageContent: React.FC = () => {
 
                 <button
                   onClick={handleOpenAddModal}
-                  disabled={familyMembers.length >= maxFamilyAllowed && maxFamilyAllowed > 0}
+                  disabled={familyMembers.length >= maxFamilyAllowed}
                   className="px-3.5 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold transition-all shadow-xs flex items-center gap-1.5 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   <Plus size={14} />
@@ -937,6 +973,15 @@ const MembershipPageContent: React.FC = () => {
         )}
 
       </div>
+      {/* Reusable Confirm Dialogue Popup */}
+      <ConfirmModal
+        isOpen={confirmConfig.isOpen}
+        title={confirmConfig.title}
+        message={confirmConfig.message}
+        onConfirm={confirmConfig.onConfirm}
+        onCancel={() => setConfirmConfig((prev) => ({ ...prev, isOpen: false }))}
+        isDanger={confirmConfig.isDanger}
+      />
     </AppLayout>
   );
 };

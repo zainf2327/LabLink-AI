@@ -41,10 +41,9 @@ export const bookingService = {
             if (!activeSubscription) {
                 throw new AppError('An active subscription is required to book for family members.', 403);
             }
-            const plan = activeSubscription.planId;
-            const familyCount = await FamilyMember.countDocuments({ userId: patientId });
-            if (familyCount > plan.maxFamilyMembers) {
-                throw new AppError(`Your active subscription allows a maximum of ${plan.maxFamilyMembers} family members.`, 403);
+            const activeMemberIds = activeSubscription.activeFamilyMemberIds.map((id) => id.toString());
+            if (!activeMemberIds.includes(forMemberId)) {
+                throw new AppError('Selected family member is locked or inactive on your current subscription plan.', 403);
             }
         }
         // 4. Validate scheduling details
@@ -193,6 +192,9 @@ export const bookingService = {
         }
     },
     async syncBookingToCalendar(booking) {
+        if (!booking.homeSampling.requested || !booking.homeSampling.scheduledAt || booking.status !== 'scheduled') {
+            return;
+        }
         const { decrypt } = await import('../utils/crypto.js');
         let updated = false;
         // 1. Patient Event Sync
@@ -203,14 +205,7 @@ export const bookingService = {
             !booking.googleCalendar?.patientEventId) {
             try {
                 const decryptedToken = decrypt(patient.googleRefreshToken);
-                const testNames = booking.tests.map((t) => t.name);
-                let eventId;
-                if (booking.homeSampling.requested && booking.homeSampling.scheduledAt) {
-                    eventId = await calendarService.createHomeSamplingEvent(decryptedToken, patient.name, booking.homeSampling.address || '', booking.homeSampling.scheduledAt);
-                }
-                else {
-                    eventId = await calendarService.createPatientInLabEvent(decryptedToken, testNames, booking.homeSampling.scheduledAt);
-                }
+                const eventId = await calendarService.createHomeSamplingEvent(decryptedToken, patient.name, booking.homeSampling.address || '', booking.homeSampling.scheduledAt);
                 if (!booking.googleCalendar) {
                     booking.googleCalendar = { patientEventId: null, staffEventId: null };
                 }

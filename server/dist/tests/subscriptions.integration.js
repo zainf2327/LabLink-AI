@@ -1,6 +1,7 @@
 import mongoose from 'mongoose';
 import bcrypt from 'bcryptjs';
 import dns from 'dns';
+import Stripe from 'stripe';
 import User from '../models/User.model.js';
 import SubscriptionPlan from '../models/SubscriptionPlan.model.js';
 import Subscription from '../models/Subscription.model.js';
@@ -59,6 +60,11 @@ async function runTests() {
         throw new Error('Patient login failed: ' + patientLogin.message);
     const patientToken = patientLogin.accessToken;
     console.log('Logged in both Admin and Patient.');
+    // Verify Patient has default Free plan automatically created
+    const initialSub = await Subscription.findOne({ userId: patient._id, status: 'active' }).populate('planId');
+    if (!initialSub)
+        throw new Error('Patient did not automatically receive Free subscription on registration');
+    console.log('Verified automatic Free subscription assignment.');
     // 2. Admin creates a new plan
     const planName = `Gold Test Plan ${Date.now()}`;
     const createPlanRes = await fetch(`${API_URL}/subscription-plans`, {
@@ -84,7 +90,7 @@ async function runTests() {
     if (!createAudit)
         throw new Error('Audit log for plan creation not found');
     console.log('Verified CREATE_SUB_PLAN audit log.');
-    // 3. Patient tries to add a family member (should fail - no subscription)
+    // 3. Patient tries to add a family member (should fail - Free plan has maxFamilyMembers: 0)
     const addFamilyFailRes = await fetch(`${API_URL}/family-members`, {
         method: 'POST',
         headers: {
@@ -99,11 +105,11 @@ async function runTests() {
         }),
     });
     if (addFamilyFailRes.status !== 403) {
-        throw new Error('Adding family member without subscription should have returned 403, got: ' + addFamilyFailRes.status);
+        throw new Error('Adding family member on Free plan should have returned 403, got: ' + addFamilyFailRes.status);
     }
-    console.log('Correctly rejected family member addition without active subscription.');
-    // 4. Patient subscribes to plan
-    const subscribeRes = await fetch(`${API_URL}/subscriptions`, {
+    console.log('Correctly rejected family member addition because active Free plan limit is 0.');
+    // 4. Patient initiates subscription checkout (POST /subscriptions/create-intent)
+    const intentRes = await fetch(`${API_URL}/subscriptions/create-intent`, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
@@ -111,16 +117,41 @@ async function runTests() {
         },
         body: JSON.stringify({ planId }),
     });
-    const subscribeData = await subscribeRes.json();
-    if (!subscribeData.success)
-        throw new Error('Subscription failed: ' + subscribeData.message);
-    const subId = subscribeData.subscription._id;
-    console.log(`Patient subscribed to: ${planName} (${subId})`);
-    // Verify Audit Log for Subscription
-    const subAudit = await AuditLog.findOne({ action: 'CREATE_SUBSCRIPTION', targetId: subId });
+    const intentData = await intentRes.json();
+    if (!intentData.success)
+        throw new Error('Creating intent failed: ' + intentData.message);
+    const clientSecret = intentData.data.clientSecret;
+    const paymentIntentId = intentData.data.stripePaymentIntentId;
+    console.log('Created subscription payment intent.');
+    // Confirm payment directly with Stripe SDK
+    const stripe = new Stripe(env.STRIPE_SECRET_KEY);
+    await stripe.paymentIntents.confirm(paymentIntentId, {
+        payment_method: 'pm_card_visa',
+        return_url: `${API_URL}/health`,
+    });
+    console.log('Confirmed PaymentIntent with Stripe.');
+    // Patient confirms subscription on backend
+    const confirmRes = await fetch(`${API_URL}/subscriptions/confirm-payment`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${patientToken}`,
+        },
+        body: JSON.stringify({ paymentIntentId }),
+    });
+    const confirmData = await confirmRes.json();
+    if (!confirmData.success)
+        throw new Error('Confirming subscription failed: ' + confirmData.message);
+    const subId = confirmData.subscription._id;
+    console.log(`Activated premium subscription: ${planName} (${subId})`);
+    // Verify Audit Log for Purchase
+    const subAudit = await AuditLog.findOne({
+        action: { $in: ['PURCHASE_SUBSCRIPTION', 'UPGRADE_SUBSCRIPTION'] },
+        targetId: subId
+    });
     if (!subAudit)
-        throw new Error('Audit log for subscription creation not found');
-    console.log('Verified CREATE_SUBSCRIPTION audit log.');
+        throw new Error('Audit log for subscription purchase/upgrade not found');
+    console.log(`Verified ${subAudit.action} audit log.`);
     // 5. Patient adds family member 1 (should succeed)
     const addFamily1Res = await fetch(`${API_URL}/family-members`, {
         method: 'POST',
@@ -138,7 +169,8 @@ async function runTests() {
     const addFamily1 = await addFamily1Res.json();
     if (!addFamily1.success)
         throw new Error('Adding family member 1 failed: ' + addFamily1.message);
-    console.log('Successfully added Family Member 1 (Jane Doe).');
+    const familyMember1Id = addFamily1.familyMember._id;
+    console.log('Successfully added Family Member 1 (Jane Doe) and auto-activated.');
     // 6. Patient adds family member 2 (should succeed)
     const addFamily2Res = await fetch(`${API_URL}/family-members`, {
         method: 'POST',
@@ -156,7 +188,8 @@ async function runTests() {
     const addFamily2 = await addFamily2Res.json();
     if (!addFamily2.success)
         throw new Error('Adding family member 2 failed: ' + addFamily2.message);
-    console.log('Successfully added Family Member 2 (Baby Doe).');
+    const familyMember2Id = addFamily2.familyMember._id;
+    console.log('Successfully added Family Member 2 (Baby Doe) and auto-activated.');
     // 7. Patient adds family member 3 (should fail - max family members is 2)
     const addFamily3Res = await fetch(`${API_URL}/family-members`, {
         method: 'POST',
@@ -175,21 +208,50 @@ async function runTests() {
         throw new Error('Adding family member 3 should have returned 403, got: ' + addFamily3Res.status);
     }
     console.log('Correctly rejected family member addition because active plan limit was reached.');
-    // 8. Patient cancels subscription
-    const cancelRes = await fetch(`${API_URL}/subscriptions/me/cancel`, {
-        method: 'PATCH',
+    // 8. Test Expiry On-Demand Transition
+    // Let's set the active subscription's expiryDate in the past
+    await Subscription.updateOne({ _id: subId }, { expiryDate: new Date(Date.now() - 1000) });
+    // Fetch the subscription (triggers middleware resolver)
+    const getSubMeRes = await fetch(`${API_URL}/subscriptions/me`, {
         headers: { 'Authorization': `Bearer ${patientToken}` },
     });
-    const cancelData = await cancelRes.json();
-    if (!cancelData.success)
-        throw new Error('Subscription cancellation failed: ' + cancelData.message);
-    console.log('Successfully cancelled subscription.');
-    // Verify Audit Log for Cancellation
-    const cancelAudit = await AuditLog.findOne({ action: 'CANCEL_SUBSCRIPTION', targetId: subId });
-    if (!cancelAudit)
-        throw new Error('Audit log for subscription cancellation not found');
-    console.log('Verified CANCEL_SUBSCRIPTION audit log.');
-    // 9. Clean up test data from DB
+    const getSubMe = await getSubMeRes.json();
+    if (!getSubMe.success)
+        throw new Error('Fetching subscription failed');
+    const activePlanName = getSubMe.subscription.planSnapshot.name;
+    if (activePlanName !== 'Free') {
+        throw new Error('Subscription should have resolved/expired to Free plan, got: ' + activePlanName);
+    }
+    console.log('Successfully verified on-demand subscription expiry and Free auto-activation.');
+    // Verify Audit Log for Expiry
+    const expiryAudit = await AuditLog.findOne({ action: 'EXPIRE_SUBSCRIPTION', actorId: patient._id });
+    if (!expiryAudit)
+        throw new Error('Audit log for subscription expiry not found');
+    console.log('Verified EXPIRE_SUBSCRIPTION audit log.');
+    // 9. Test Lock Restrictions (Free plan has all family members locked)
+    // Trying to edit a locked family member (should return 403)
+    const editLockedRes = await fetch(`${API_URL}/family-members/${familyMember1Id}`, {
+        method: 'PATCH',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${patientToken}`,
+        },
+        body: JSON.stringify({ name: 'Jane Doe Updated' }),
+    });
+    if (editLockedRes.status !== 403) {
+        throw new Error('Editing locked family member details should have returned 403, got: ' + editLockedRes.status);
+    }
+    console.log('Correctly rejected locked family member details modification.');
+    // Delete a locked family member without booking history (should succeed)
+    const deleteLockedRes = await fetch(`${API_URL}/family-members/${familyMember1Id}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${patientToken}` },
+    });
+    if (deleteLockedRes.status !== 200) {
+        throw new Error('Deleting locked family member without history should succeed, got status: ' + deleteLockedRes.status);
+    }
+    console.log('Successfully allowed deletion of locked family member without diagnostic history.');
+    // 10. Clean up test data from DB
     await User.deleteOne({ _id: patient._id });
     await SubscriptionPlan.deleteOne({ _id: planId });
     await Subscription.deleteMany({ userId: patient._id });

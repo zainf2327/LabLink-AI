@@ -1,6 +1,7 @@
 import Stripe from 'stripe';
 import { stripeConfig } from '../config/stripe.js';
 import { paymentService } from '../services/payment.service.js';
+import { subscriptionService } from '../services/subscription.service.js';
 import Payment from '../models/Payment.model.js';
 import logger from '../utils/logger.js';
 export const stripeWebhookHandler = async (req, res) => {
@@ -34,7 +35,15 @@ export const stripeWebhookHandler = async (req, res) => {
             case 'payment_intent.succeeded': {
                 const paymentIntent = event.data.object;
                 logger.info(`PaymentIntent was successful: ${paymentIntent.id}`);
-                await paymentService.processSuccessfulPayment(paymentIntent.id);
+                const payment = await Payment.findOne({ stripePaymentIntentId: paymentIntent.id });
+                if (payment) {
+                    if (payment.paymentFor === 'subscription') {
+                        await subscriptionService.confirmSubscriptionPayment(payment.patientId.toString(), paymentIntent.id);
+                    }
+                    else {
+                        await paymentService.processSuccessfulPayment(paymentIntent.id);
+                    }
+                }
                 break;
             }
             case 'payment_intent.payment_failed': {

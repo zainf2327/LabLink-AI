@@ -10,6 +10,8 @@ import type { Booking } from '../../services/booking.service';
 import AppLayout from '../../components/layout/AppLayout';
 import { ReportDisclosure } from '../../components/ReportDisclosure';
 import { buildReportFilename } from '../../utils/reportFilename';
+import { ConfirmModal } from '../../components/ConfirmModal';
+import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import {
   Calendar,
   Activity,
@@ -44,6 +46,34 @@ export const PatientDashboard: React.FC = () => {
   const [viewingLoading, setViewingLoading] = useState<boolean>(false);
   const [downloadingReportId, setDownloadingReportId] = useState<string | null>(null);
   const [downloadProgress, setDownloadProgress] = useState<number>(0);
+
+  // Confirm modal configurations
+  const [confirmConfig, setConfirmConfig] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    onConfirm: () => void;
+    isDanger?: boolean;
+  }>({
+    isOpen: false,
+    title: '',
+    message: '',
+    onConfirm: () => {},
+    isDanger: false,
+  });
+
+  const triggerConfirm = (title: string, message: string, onConfirm: () => void, isDanger = false) => {
+    setConfirmConfig({
+      isOpen: true,
+      title,
+      message,
+      onConfirm: () => {
+        onConfirm();
+        setConfirmConfig((prev) => ({ ...prev, isOpen: false }));
+      },
+      isDanger,
+    });
+  };
 
   const handleConnectCalendar = async () => {
     setSyncingCalendar(true);
@@ -170,22 +200,28 @@ export const PatientDashboard: React.FC = () => {
     fetchReports();
   }, []);
 
-  const handleCancelBooking = async (bookingId: string, wasPaid: boolean) => {
-    if (!window.confirm('Are you sure you want to cancel this booking?')) return;
-    try {
-      const res = await bookingService.cancelBooking(bookingId);
-      if (res.success) {
-        if (wasPaid) {
-          const refundedAmount = res.data.booking.finalAmount;
-          setCancelMessage(`Booking cancelled. $${refundedAmount.toFixed(2)} has been credited to your wallet.`);
-          fetchWallet(); // refresh wallet balance
-          setTimeout(() => setCancelMessage(null), 6000);
+  const handleCancelBooking = (bookingId: string, wasPaid: boolean) => {
+    triggerConfirm(
+      'Cancel Diagnostic Booking',
+      'Are you sure you want to cancel this booking? If you have paid, the amount will be fully refunded to your wallet.',
+      async () => {
+        try {
+          const res = await bookingService.cancelBooking(bookingId);
+          if (res.success) {
+            if (wasPaid) {
+              const refundedAmount = res.data.booking.finalAmount;
+              setCancelMessage(`Booking cancelled. $${refundedAmount.toFixed(2)} has been credited to your wallet.`);
+              fetchWallet(); // refresh wallet balance
+              setTimeout(() => setCancelMessage(null), 6000);
+            }
+            fetchBookings();
+          }
+        } catch (err: any) {
+          alert(err.response?.data?.message || 'Failed to cancel booking.');
         }
-        fetchBookings();
-      }
-    } catch (err: any) {
-      alert(err.response?.data?.message || 'Failed to cancel booking.');
-    }
+      },
+      true // isDanger
+    );
   };
 
   const openReportForBooking = (bookingId: string) => {
@@ -408,6 +444,28 @@ export const PatientDashboard: React.FC = () => {
     (b) => b.status === 'scheduled' || b.status === 'pending_payment'
   ).length;
 
+  const mockChartData = [
+    { date: 'Jan 15', glucose: 98, cholesterol: 185 },
+    { date: 'Feb 12', glucose: 104, cholesterol: 178 },
+    { date: 'Mar 10', glucose: 95, cholesterol: 190 },
+    { date: 'Apr 08', glucose: 92, cholesterol: 182 },
+    { date: 'May 05', glucose: 88, cholesterol: 172 },
+  ];
+
+  const activeBooking = bookings.find(
+    (b) => b.status !== 'completed' && b.status !== 'cancelled'
+  );
+
+  const getStepStatus = (currentStatus: string, stepName: string) => {
+    const statusOrder = ['pending_payment', 'scheduled', 'sample_collected', 'in_lab', 'report_ready'];
+    const currentIndex = statusOrder.indexOf(currentStatus);
+    const stepIndex = statusOrder.indexOf(stepName);
+
+    if (currentIndex > stepIndex) return 'completed';
+    if (currentIndex === stepIndex) return 'active';
+    return 'pending';
+  };
+
   return (
     <AppLayout
       pageTitle="Dashboard"
@@ -430,49 +488,164 @@ export const PatientDashboard: React.FC = () => {
         <div className="space-y-6">
 
           {/* Stats Row */}
+          {/* Active Booking Tracker Stepper */}
+          {activeBooking && (
             <div className="glassmorphic-card rounded-2xl p-6">
-              <h3 className="text-base font-bold text-zinc-100 mb-5 flex items-center gap-2">
-                <Activity className="text-emerald-400" size={18} />
-                <span>Health Summary</span>
-              </h3>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                <div className="bg-zinc-900/60 border border-zinc-800/80 p-4 rounded-xl">
-                  <div className="flex justify-between items-start mb-2">
-                    <span className="text-zinc-500 text-xs font-semibold uppercase tracking-wider">Upcoming</span>
-                    <Calendar className="text-emerald-400" size={15} />
-                  </div>
-                  <p className="text-2xl font-bold text-zinc-100">{loading ? '…' : upcomingBookingsCount}</p>
-                  <span className="text-[10px] text-zinc-500 block mt-1">Scheduled / unpaid</span>
+              <div className="flex justify-between items-start mb-4">
+                <div>
+                  <h3 className="text-sm font-bold text-zinc-100 flex items-center gap-2">
+                    <Clock className="text-emerald-400 animate-pulse" size={16} />
+                    <span>Active Test Tracker</span>
+                  </h3>
+                  <p className="text-[10px] text-zinc-500 mt-0.5">
+                    Tracking: <strong className="text-zinc-300">{activeBooking.tests.map(t => t.name).join(', ')}</strong>
+                  </p>
                 </div>
-                <div className="bg-zinc-900/60 border border-zinc-800/80 p-4 rounded-xl">
-                  <div className="flex justify-between items-start mb-2">
-                    <span className="text-zinc-500 text-xs font-semibold uppercase tracking-wider">Completed</span>
-                    <ClipboardList className="text-emerald-400" size={15} />
-                  </div>
-                  <p className="text-2xl font-bold text-zinc-100">{loading ? '…' : bookings.filter((b) => b.status === 'completed').length}</p>
-                  <span className="text-[10px] text-zinc-500 block mt-1">Diagnostic runs</span>
-                </div>
-                <button
-                  onClick={() => setActiveTab('reports')}
-                  className="bg-zinc-900/60 border border-zinc-800/80 p-4 rounded-xl hover:border-emerald-500/40 transition-all text-left cursor-pointer group"
-                >
-                  <div className="flex justify-between items-start mb-2">
-                    <span className="text-zinc-500 text-xs font-semibold uppercase tracking-wider">Reports</span>
-                    <ClipboardList className="text-emerald-400 group-hover:scale-110 transition-transform" size={15} />
-                  </div>
-                  <p className="text-2xl font-bold text-zinc-100">{reportsLoading ? '…' : reports.length}</p>
-                  <span className="text-[10px] text-zinc-500 block mt-1">Click to view</span>
-                </button>
-                <Link to="/patient/wallet" className="bg-zinc-900/60 border border-zinc-800/80 p-4 rounded-xl hover:border-teal-500/40 transition-all group">
-                  <div className="flex justify-between items-start mb-2">
-                    <span className="text-zinc-500 text-xs font-semibold uppercase tracking-wider">Wallet</span>
-                    <Wallet className="text-teal-500 group-hover:scale-110 transition-transform" size={15} />
-                  </div>
-                  <p className="text-2xl font-bold text-zinc-100">${walletBalance.toFixed(2)}</p>
-                  <span className="text-[10px] text-zinc-500 block mt-1">Tap for history</span>
-                </Link>
+                <span className="text-[10px] uppercase font-extrabold tracking-wider bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 px-2 py-0.5 rounded-full">
+                  {activeBooking.status.replace('_', ' ')}
+                </span>
+              </div>
+
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 py-4">
+                {[
+                  { name: 'pending_payment', label: 'Payment' },
+                  { name: 'scheduled', label: 'Scheduled' },
+                  { name: 'sample_collected', label: 'Sample' },
+                  { name: 'in_lab', label: 'In Lab' },
+                  { name: 'report_ready', label: 'Ready' }
+                ].map((step, index, arr) => {
+                  const status = getStepStatus(activeBooking.status, step.name);
+                  return (
+                    <React.Fragment key={step.name}>
+                      <div className="flex items-center gap-3 md:flex-col md:text-center flex-1">
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs shrink-0 transition-all ${
+                          status === 'completed'
+                            ? 'bg-emerald-500 text-white'
+                            : status === 'active'
+                            ? 'bg-emerald-500/25 border-2 border-emerald-500 text-emerald-400 animate-pulse'
+                            : 'bg-zinc-850 border border-zinc-800 text-zinc-500'
+                        }`}>
+                          {status === 'completed' ? '✓' : index + 1}
+                        </div>
+                        <div>
+                          <span className={`text-[10px] font-extrabold uppercase tracking-wide block ${
+                            status === 'active' ? 'text-emerald-400' : 'text-zinc-400'
+                          }`}>
+                            {step.label}
+                          </span>
+                        </div>
+                      </div>
+                      {index < arr.length - 1 && (
+                        <div className={`hidden md:block h-[1px] flex-1 border-t border-dashed transition-all ${
+                          status === 'completed' ? 'border-emerald-500' : 'border-zinc-800'
+                        }`} />
+                      )}
+                    </React.Fragment>
+                  );
+                })}
               </div>
             </div>
+          )}
+
+          {/* Grid Layout: Health Summary Cards + Spline Chart */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Left side: Stats cards */}
+            <div className="lg:col-span-1 flex flex-col gap-4">
+              <div className="glassmorphic-card rounded-2xl p-6 flex-1 flex flex-col justify-between">
+                <div>
+                  <h3 className="text-base font-bold text-zinc-100 mb-4 flex items-center gap-2">
+                    <Activity className="text-emerald-400" size={18} />
+                    <span>Health Summary</span>
+                  </h3>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="bg-zinc-900/60 border border-zinc-800/80 p-4 rounded-xl">
+                      <div className="flex justify-between items-start mb-2">
+                        <span className="text-zinc-500 text-[10px] font-semibold uppercase tracking-wider">Upcoming</span>
+                        <Calendar className="text-emerald-400" size={14} />
+                      </div>
+                      <p className="text-2xl font-bold text-zinc-100">{loading ? '…' : upcomingBookingsCount}</p>
+                      <span className="text-[9px] text-zinc-500 block mt-1 leading-tight">Scheduled / unpaid</span>
+                    </div>
+                    <div className="bg-zinc-900/60 border border-zinc-800/80 p-4 rounded-xl">
+                      <div className="flex justify-between items-start mb-2">
+                        <span className="text-zinc-500 text-[10px] font-semibold uppercase tracking-wider">Completed</span>
+                        <ClipboardList className="text-emerald-400" size={14} />
+                      </div>
+                      <p className="text-2xl font-bold text-zinc-100">{loading ? '…' : bookings.filter((b) => b.status === 'completed').length}</p>
+                      <span className="text-[9px] text-zinc-500 block mt-1 leading-tight">Diagnostic runs</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4 mt-4">
+                  <button
+                    onClick={() => setActiveTab('reports')}
+                    className="bg-zinc-900/60 border border-zinc-800/80 p-4 rounded-xl hover:border-emerald-500/40 transition-all text-left cursor-pointer group"
+                  >
+                    <div className="flex justify-between items-start mb-2">
+                      <span className="text-zinc-500 text-[10px] font-semibold uppercase tracking-wider">Reports</span>
+                      <ClipboardList className="text-emerald-400 group-hover:scale-110 transition-transform" size={14} />
+                    </div>
+                    <p className="text-2xl font-bold text-zinc-100">{reportsLoading ? '…' : reports.length}</p>
+                    <span className="text-[9px] text-zinc-500 block mt-1 leading-tight">Click to view</span>
+                  </button>
+                  <Link to="/patient/wallet" className="bg-zinc-900/60 border border-zinc-800/80 p-4 rounded-xl hover:border-teal-500/40 transition-all group block">
+                    <div className="flex justify-between items-start mb-2">
+                      <span className="text-zinc-500 text-[10px] font-semibold uppercase tracking-wider">Wallet</span>
+                      <Wallet className="text-teal-500 group-hover:scale-110 transition-transform" size={14} />
+                    </div>
+                    <p className="text-2xl font-bold text-zinc-100">${walletBalance.toFixed(2)}</p>
+                    <span className="text-[9px] text-zinc-500 block mt-1 leading-tight">Tap for ledger</span>
+                  </Link>
+                </div>
+              </div>
+            </div>
+
+            {/* Right side: Spline Chart */}
+            <div className="lg:col-span-2 glassmorphic-card rounded-2xl p-6 flex flex-col justify-between gap-4">
+              <div className="flex justify-between items-start">
+                <div>
+                  <h4 className="text-sm font-bold text-zinc-100">Patient Health Trends</h4>
+                  <p className="text-[10px] text-zinc-500 mt-0.5">Biomarker tracking based on diagnostic report history.</p>
+                </div>
+                <div className="flex gap-4 text-[10px] font-bold uppercase tracking-wider">
+                  <span className="flex items-center gap-1.5 text-emerald-500">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block" />
+                    Glucose
+                  </span>
+                  <span className="flex items-center gap-1.5 text-teal-400">
+                    <span className="w-2 h-2 rounded-full bg-teal-400 inline-block" />
+                    Cholesterol
+                  </span>
+                </div>
+              </div>
+              <div className="h-44 w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={mockChartData} margin={{ top: 10, right: 10, left: -25, bottom: 0 }}>
+                    <defs>
+                      <linearGradient id="colorGlucose" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#2563eb" stopOpacity={0.25}/>
+                        <stop offset="95%" stopColor="#2563eb" stopOpacity={0}/>
+                      </linearGradient>
+                      <linearGradient id="colorCholesterol" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#0891b2" stopOpacity={0.25}/>
+                        <stop offset="95%" stopColor="#0891b2" stopOpacity={0}/>
+                      </linearGradient>
+                    </defs>
+                    <XAxis dataKey="date" stroke="#94a3b8" fontSize={9} tickLine={false} axisLine={false} />
+                    <YAxis stroke="#94a3b8" fontSize={9} tickLine={false} axisLine={false} />
+                    <Tooltip 
+                      contentStyle={{ backgroundColor: '#ffffff', borderColor: '#e2e8f0', borderRadius: '12px' }}
+                      labelStyle={{ fontSize: '10px', fontWeight: 'bold', color: '#0f172a' }}
+                      itemStyle={{ fontSize: '10px', padding: '1px 0' }}
+                    />
+                    <Area type="monotone" dataKey="glucose" stroke="#2563eb" strokeWidth={2.5} fillOpacity={1} fill="url(#colorGlucose)" />
+                    <Area type="monotone" dataKey="cholesterol" stroke="#0891b2" strokeWidth={2.5} fillOpacity={1} fill="url(#colorCholesterol)" />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          </div>
 
             {/* Navigation Tabs */}
             <div className="flex border-b border-zinc-800 gap-6 pb-px mb-6">
@@ -828,6 +1001,15 @@ export const PatientDashboard: React.FC = () => {
           </div>
         </div>
       )}
+      {/* Reusable Confirm Dialogue Popup */}
+      <ConfirmModal
+        isOpen={confirmConfig.isOpen}
+        title={confirmConfig.title}
+        message={confirmConfig.message}
+        onConfirm={confirmConfig.onConfirm}
+        onCancel={() => setConfirmConfig((prev) => ({ ...prev, isOpen: false }))}
+        isDanger={confirmConfig.isDanger}
+      />
     </AppLayout>
   );
 };

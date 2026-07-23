@@ -5,8 +5,8 @@ import useCartStore from '../../store/useCartStore';
 import { bookingService } from '../../services/booking.service';
 import { walletService } from '../../services/wallet.service';
 import { familyService } from '../../services/family.service';
-import type { FamilyMember } from '../../services/family.service'
-''
+import type { FamilyMember } from '../../services/family.service';
+import { subscriptionService } from '../../services/subscription.service';
 import { loadStripe } from '@stripe/stripe-js';
 import { Elements, CardElement, useStripe, useElements } from '@stripe/react-stripe-js';
 import {
@@ -94,14 +94,28 @@ const CheckoutForm: React.FC = () => {
   }, [errorMessage]);
 
   useEffect(() => {
-    // Fetch family members
-    const fetchFamily = async () => {
-      const res = await familyService.getMyFamilyMembers();
-      if (res.success && res.data) {
-        setFamilyMembers(res.data);
+    // Fetch family members and active subscription
+    const fetchFamilyAndSub = async () => {
+      try {
+        const [familyRes, subRes] = await Promise.all([
+          familyService.getMyFamilyMembers(),
+          subscriptionService.getMySubscription(),
+        ]);
+
+        let activeMemberIds: string[] = [];
+        if (subRes.success && subRes.subscription) {
+          activeMemberIds = subRes.subscription.activeFamilyMemberIds || [];
+        }
+
+        if (familyRes.success && familyRes.data) {
+          const filtered = familyRes.data.filter((m: FamilyMember) => activeMemberIds.includes(m._id));
+          setFamilyMembers(filtered);
+        }
+      } catch (err) {
+        console.error('Failed to load family details and active subscription:', err);
       }
     };
-    fetchFamily();
+    fetchFamilyAndSub();
 
     // Fetch wallet balance
     const fetchWallet = async () => {

@@ -1,5 +1,6 @@
 import asyncHandler from '../utils/asyncHandler.js';
 import Coupon from '../models/Coupon.model.js';
+import { logAudit } from '../utils/auditLogger.js';
 export const createCoupon = asyncHandler(async (req, res) => {
     const validated = req.body;
     const coupon = new Coupon({
@@ -12,6 +13,16 @@ export const createCoupon = asyncHandler(async (req, res) => {
         isActive: validated.isActive !== undefined ? validated.isActive : true,
     });
     await coupon.save();
+    if (req.user) {
+        await logAudit({
+            actorId: req.user.id,
+            actorRole: req.user.role,
+            action: 'CREATE_COUPON',
+            targetModel: 'Coupon',
+            targetId: coupon.id,
+            metadata: { code: coupon.code, discountType: coupon.discountType, discountValue: coupon.discountValue },
+        });
+    }
     res.status(201).json({
         success: true,
         data: { coupon },
@@ -57,6 +68,16 @@ export const updateCoupon = asyncHandler(async (req, res) => {
     if (validated.isActive !== undefined)
         coupon.isActive = validated.isActive;
     await coupon.save();
+    if (req.user) {
+        await logAudit({
+            actorId: req.user.id,
+            actorRole: req.user.role,
+            action: 'UPDATE_COUPON',
+            targetModel: 'Coupon',
+            targetId: coupon.id,
+            metadata: validated,
+        });
+    }
     res.status(200).json({
         success: true,
         data: { coupon },
@@ -67,6 +88,16 @@ export const deleteCoupon = asyncHandler(async (req, res) => {
     if (!coupon) {
         res.status(404).json({ success: false, message: 'Coupon not found' });
         return;
+    }
+    if (req.user) {
+        await logAudit({
+            actorId: req.user.id,
+            actorRole: req.user.role,
+            action: 'DELETE_COUPON',
+            targetModel: 'Coupon',
+            targetId: coupon.id,
+            metadata: { code: coupon.code },
+        });
     }
     res.status(200).json({
         success: true,

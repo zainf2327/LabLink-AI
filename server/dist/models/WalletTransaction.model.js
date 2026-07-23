@@ -9,7 +9,7 @@ const WalletTransactionSchema = new Schema({
     amount: { type: Number, required: true, min: 0 },
     reason: {
         type: String,
-        enum: ['cancellation_refund', 'booking_payment'],
+        enum: ['cancellation_refund', 'booking_payment', 'subscription_payment'],
         required: true,
     },
     bookingId: { type: Schema.Types.ObjectId, ref: 'Booking', default: null },

@@ -1,16 +1,15 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Link } from 'react-router-dom';
 import { walletService } from '../../services/wallet.service';
 import type { WalletTransaction } from '../../services/wallet.service';
 import {
   Wallet,
-  ArrowLeft,
   TrendingUp,
   TrendingDown,
-  RefreshCw,
   ChevronLeft,
   ChevronRight,
 } from 'lucide-react';
+
+import AppLayout from '../../components/layout/AppLayout';
 
 const LIMIT = 10;
 
@@ -61,33 +60,8 @@ const WalletPage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-zinc-100 flex flex-col">
-      {/* Header */}
-      <header className="border-b border-zinc-800/80 bg-zinc-900/50 backdrop-blur-md sticky top-0 z-50">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-          <Link
-            to="/patient/dashboard"
-            className="flex items-center gap-2 text-zinc-400 hover:text-zinc-200 transition-colors text-xs font-semibold"
-          >
-            <ArrowLeft size={16} />
-            <span>Back to Dashboard</span>
-          </Link>
-          <div className="flex items-center gap-2">
-            <Wallet size={18} className="text-teal-500" />
-            <span className="text-zinc-300 font-bold text-sm">My Wallet</span>
-          </div>
-          <button
-            onClick={() => fetchAll(page)}
-            disabled={loading}
-            className="flex items-center gap-1.5 text-xs text-zinc-500 hover:text-zinc-300 transition-colors disabled:opacity-40"
-          >
-            <RefreshCw size={13} className={loading ? 'animate-spin' : ''} />
-            <span>Refresh</span>
-          </button>
-        </div>
-      </header>
-
-      <main className="flex-1 max-w-4xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
+    <AppLayout pageTitle="My Wallet">
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
         {/* Balance Card */}
         <div className="relative overflow-hidden rounded-3xl p-8 bg-gradient-to-br from-teal-900/60 via-teal-950/80 to-zinc-950 border border-teal-700/30 shadow-xl shadow-teal-900/10">
           <div className="absolute top-0 right-0 w-64 h-64 bg-teal-500/5 rounded-full blur-3xl pointer-events-none" />
@@ -192,8 +166,8 @@ const WalletPage: React.FC = () => {
             </div>
           )}
         </div>
-      </main>
-    </div>
+      </div>
+    </AppLayout>
   );
 };
 

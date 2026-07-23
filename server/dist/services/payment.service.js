@@ -234,18 +234,20 @@ export const paymentService = {
                 await coupon.save();
             }
         }
-        // 3. Sync to Google Calendar
-        try {
-            const { bookingService } = await import('./booking.service.js');
-            await bookingService.syncBookingToCalendar(booking);
-        }
-        catch (err) {
-            console.error('Failed to sync to Google Calendar:', err);
-        }
-        // 4. Update booking status
+        // 3. Update booking status before any downstream scheduled-booking side effects
         if (booking.status === 'pending_payment') {
             booking.status = 'scheduled';
             await booking.save();
+        }
+        // 4. Sync home-sampling bookings to Google Calendar after scheduling
+        if (booking.homeSampling.requested) {
+            try {
+                const { bookingService } = await import('./booking.service.js');
+                await bookingService.syncBookingToCalendar(booking);
+            }
+            catch (err) {
+                console.error('Failed to sync to Google Calendar:', err);
+            }
         }
     },
 };

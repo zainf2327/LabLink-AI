@@ -2,6 +2,7 @@ import asyncHandler from '../utils/asyncHandler.js';
 import Report from '../models/Report.model.js';
 import ChatMessage from '../models/ChatMessage.model.js';
 import { aiAssistantService } from '../services/aiAssistant.service.js';
+import { appendMedicalDisclaimer, MEDICAL_DISCLAIMER } from '../utils/medicalDisclaimer.js';
 export const chatWithAssistant = asyncHandler(async (req, res) => {
     if (!req.user) {
         res.status(401).json({ success: false, message: 'Unauthorized' });
@@ -49,14 +50,13 @@ export const chatWithAssistant = asyncHandler(async (req, res) => {
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
     if (result.fallback) {
-        // Send standard fallback message and close stream
-        res.write(`data: ${JSON.stringify({ token: result.fallbackMessage })}\n\n`);
-        // Save assistant fallback message to database
+        const fallbackWithDisclaimer = appendMedicalDisclaimer(result.fallbackMessage || 'I do not have enough report context to answer that yet.');
+        res.write(`data: ${JSON.stringify({ token: fallbackWithDisclaimer })}\n\n`);
         await ChatMessage.create({
             patientId: req.user.id,
             reportId,
             role: 'assistant',
-            content: result.fallbackMessage || '',
+            content: fallbackWithDisclaimer,
         });
         res.write('data: [DONE]\n\n');
         res.end();
@@ -70,8 +70,7 @@ export const chatWithAssistant = asyncHandler(async (req, res) => {
             fullAssistantResponse += token;
             res.write(`data: ${JSON.stringify({ token })}\n\n`);
         }
-        // Append medical disclaimer
-        const disclaimer = `\n\n---\n⚕️ *Medical Disclaimer: This AI provides informational summaries of your lab reports only. It is not a substitute for professional medical advice. Please consult your doctor.*`;
+        const disclaimer = `\n\n---\n${MEDICAL_DISCLAIMER}`;
         res.write(`data: ${JSON.stringify({ token: disclaimer })}\n\n`);
         fullAssistantResponse += disclaimer;
         // Save assistant response to DB
