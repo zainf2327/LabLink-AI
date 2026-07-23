@@ -398,7 +398,7 @@ const CheckoutForm: React.FC = () => {
                   onChange={(e) => setSelectedMemberId(e.target.value)}
                   className="w-full py-3 px-4 rounded-xl border border-zinc-800/80 bg-zinc-900/40 text-zinc-200 text-sm focus:outline-none focus:border-emerald-500/50 cursor-pointer"
                 >
-                  <option value="" className="bg-zinc-950">Jane Doe (Self)</option>
+                  <option value="" className="bg-zinc-950">{user?.name || 'Self'} (Self)</option>
                   {familyMembers.map((member) => (
                     <option key={member._id} value={member._id} className="bg-zinc-950">
                       {member.name} ({member.relationship})

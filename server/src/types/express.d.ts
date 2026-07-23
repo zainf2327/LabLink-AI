@@ -5,6 +5,8 @@ declare global {
         id: string;
         role: 'patient' | 'staff' | 'admin';
       };
+      subscription?: any;
+      subscriptionPlan?: any;
     }
   }
 }

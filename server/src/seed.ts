@@ -117,46 +117,7 @@ async function seed() {
 
     console.log(`Created Users:\n- Admin: ${adminUser.email}\n- Staff (Active): ${staffUser1.email}, ${staffUser2.email}, ${staffUser3.email}\n- Staff (Inactive): ${staffUser4.email}\n- Patient: ${patientUser.email}`);
 
-    // 3. Create Subscription Plans
-    console.log('Creating subscription plans...');
-    const basicPlan = await SubscriptionPlan.create({
-      name: 'Basic Health Plan',
-      price: 0,
-      maxFamilyMembers: 0,
-      features: ['Single user dashboard', 'Standard report delivery'],
-      isActive: true,
-    });
-
-    const silverPlan = await SubscriptionPlan.create({
-      name: 'Family Silver Plan',
-      price: 29,
-      maxFamilyMembers: 2,
-      features: ['Dashboard for self & 2 family members', 'Priority report delivery', '10% discount on all tests'],
-      isActive: true,
-    });
-
-    const goldPlan = await SubscriptionPlan.create({
-      name: 'Family Gold Plan',
-      price: 59,
-      maxFamilyMembers: 5,
-      features: ['Dashboard for self & 5 family members', 'Express 12hr report delivery', '15% discount on all tests', 'Free home sampling'],
-      isActive: true,
-    });
-
-    console.log('Created subscription plans.');
-
-    // 4. Create Active Subscription for Patient
-    console.log('Assigning Family Silver Plan active subscription to patient user...');
-    await Subscription.create({
-      userId: patientUser._id,
-      planId: silverPlan._id,
-      status: 'active',
-      startDate: new Date(),
-      renewalDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days later
-    });
-    console.log('Active subscription created.');
-
-    // 5. Create Family Member for Patient (so they are under the subscription limit of 2)
+    // 3. Create Family Member first
     console.log('Creating family member for patient user...');
     const familyMember = await FamilyMember.create({
       userId: patientUser._id,
@@ -166,6 +127,71 @@ async function seed() {
       gender: 'female',
     });
     console.log(`Created Family Member: ${familyMember.name} (Spouse)`);
+
+    // 4. Create Subscription Plans
+    console.log('Creating subscription plans...');
+    const freePlan = await SubscriptionPlan.create({
+      name: 'Free',
+      price: 0,
+      maxFamilyMembers: 0,
+      features: ['Single user dashboard', 'Standard report delivery'],
+      isActive: true,
+      durationMonths: null,
+      isDefault: true,
+      testDiscountPercent: 0,
+      freeHomeCollections: false,
+      aiQuestionsPerMonth: 5,
+    });
+
+    const silverPlan = await SubscriptionPlan.create({
+      name: 'Family Silver Plan',
+      price: 29,
+      maxFamilyMembers: 2,
+      features: ['Dashboard for self & 2 family members', 'Priority report delivery', '10% discount on all tests'],
+      isActive: true,
+      durationMonths: 1,
+      isDefault: false,
+      testDiscountPercent: 10,
+      freeHomeCollections: false,
+      aiQuestionsPerMonth: 15,
+    });
+
+    const goldPlan = await SubscriptionPlan.create({
+      name: 'Family Gold Plan',
+      price: 59,
+      maxFamilyMembers: 5,
+      features: ['Dashboard for self & 5 family members', 'Express 12hr report delivery', '15% discount on all tests', 'Free home sampling'],
+      isActive: true,
+      durationMonths: 1,
+      isDefault: false,
+      testDiscountPercent: 15,
+      freeHomeCollections: true,
+      aiQuestionsPerMonth: 50,
+    });
+
+    console.log('Created subscription plans.');
+
+    // 5. Create Active Subscription for Patient
+    console.log('Assigning Family Silver Plan active subscription to patient user...');
+    await Subscription.create({
+      userId: patientUser._id,
+      planId: silverPlan._id,
+      status: 'active',
+      startDate: new Date(),
+      expiryDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days later
+      activeFamilyMemberIds: [familyMember._id],
+      needsFamilySelection: false,
+      planSnapshot: {
+        price: silverPlan.price,
+        name: silverPlan.name,
+        durationMonths: silverPlan.durationMonths,
+        testDiscountPercent: silverPlan.testDiscountPercent,
+        freeHomeCollections: silverPlan.freeHomeCollections,
+        aiQuestionsPerMonth: silverPlan.aiQuestionsPerMonth,
+        maxFamilyMembers: silverPlan.maxFamilyMembers,
+      },
+    });
+    console.log('Active subscription created.');
 
     // 6. Create Test Categories
     console.log('Creating test categories...');

@@ -4,11 +4,12 @@ import { authenticate } from '../middleware/auth.middleware.js';
 import { authorize } from '../middleware/role.middleware.js';
 import { validate } from '../middleware/validate.middleware.js';
 import { createFamilyMemberSchema, updateFamilyMemberSchema } from '../utils/validators.js';
+import { resolveSubscription } from '../middleware/subscriptionResolver.middleware.js';
 
 const router = Router();
 
 // Patient-only family member routes
-router.use(authenticate, authorize('patient'));
+router.use(authenticate, authorize('patient'), resolveSubscription);
 
 router.get('/', getMyFamilyMembers);
 router.post('/', validate(createFamilyMemberSchema), createFamilyMember);

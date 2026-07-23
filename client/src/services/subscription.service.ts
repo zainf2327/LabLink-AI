@@ -7,6 +7,7 @@ export interface SubscriptionPlan {
   maxFamilyMembers: number;
   features: string[];
   isActive: boolean;
+  durationMonths?: number | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -17,7 +18,11 @@ export interface Subscription {
   planId: SubscriptionPlan | string;
   status: 'active' | 'expired' | 'cancelled';
   startDate: string;
-  renewalDate: string;
+  renewalDate?: string;
+  expiryDate?: string;
+  activeFamilyMemberIds?: any[];
+  needsFamilySelection?: boolean;
+  planSnapshot?: any;
   createdAt: string;
   updatedAt: string;
 }
@@ -34,8 +39,32 @@ export const subscriptionService = {
     return response.data;
   },
 
-  async createSubscription(planId: string): Promise<{ success: boolean; message: string; subscription: Subscription }> {
-    const response = await api.post('/subscriptions', { planId });
+  async createSubscriptionIntent(planId: string): Promise<{
+    success: boolean;
+    data: {
+      clientSecret: string | null;
+      paymentId: string;
+      stripePaymentIntentId: string;
+      walletAmountUsed: number;
+      stripeAmount: number;
+    };
+  }> {
+    const response = await api.post('/subscriptions/create-intent', { planId });
+    return response.data;
+  },
+
+  async confirmSubscriptionPayment(paymentIntentId: string): Promise<{ success: boolean; message: string; subscription: Subscription }> {
+    const response = await api.post('/subscriptions/confirm-payment', { paymentIntentId });
+    return response.data;
+  },
+
+  async updateActiveFamilyMembers(activeFamilyMemberIds: string[]): Promise<{ success: boolean; message: string; subscription: Subscription }> {
+    const response = await api.patch('/subscriptions/me/family-members', { activeFamilyMemberIds });
+    return response.data;
+  },
+
+  async getMySubscriptionHistory(): Promise<{ success: boolean; data: Subscription[] }> {
+    const response = await api.get('/subscriptions/history');
     return response.data;
   },
 

@@ -66,12 +66,10 @@ export const bookingService = {
         );
       }
 
-      const plan = activeSubscription.planId as any;
-      const familyCount = await FamilyMember.countDocuments({ userId: patientId });
-
-      if (familyCount > plan.maxFamilyMembers) {
+      const activeMemberIds = activeSubscription.activeFamilyMemberIds.map((id) => id.toString());
+      if (!activeMemberIds.includes(forMemberId)) {
         throw new AppError(
-          `Your active subscription allows a maximum of ${plan.maxFamilyMembers} family members.`,
+          'Selected family member is locked or inactive on your current subscription plan.',
           403
         );
       }
