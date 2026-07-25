@@ -63,6 +63,40 @@
   --color-red-950: #fee2e2;       /* Light red background */
   --color-red-900: #fca5a5;       /* Saturated red border border */
   --color-red-400: #dc2626;       /* Clean legible error text */
+
+  /* --- Semantic Color Tokens --- */
+  /* Surfaces */
+  --color-surface: #f8fafc;
+  --color-surface-elevated: #ffffff;
+  --color-surface-muted: #f1f5f9;
+  --color-border: #e2e8f0;
+  --color-border-strong: #cbd5e1;
+
+  /* Text */
+  --color-text-primary: #0f172a;
+  --color-text-secondary: #334155;
+  --color-text-muted: #64748b;
+  --color-text-disabled: #94a3b8;
+
+  /* Brand / medical blue */
+  --color-brand-50: #eff6ff;
+  --color-brand-100: #dbeafe;
+  --color-brand-400: #3b82f6;
+  --color-brand-500: #2563eb;   /* primary */
+  --color-brand-600: #1d4ed8;   /* active/hover */
+  --color-brand-900: #172554;
+
+  /* Accent / clinical cyan */
+  --color-accent-50: #ecfeff;
+  --color-accent-100: #cffafe;
+  --color-accent-400: #22d3ee;
+  --color-accent-500: #0891b2;
+  --color-accent-600: #0e7490;
+
+  /* Status */
+  --color-danger-bg: #fee2e2;
+  --color-danger-border: #fca5a5;
+  --color-danger-text: #dc2626;
 }
 
 /* Custom premium design classes and utility properties */
@@ -102,6 +136,76 @@
 
   .neon-border-glow {
     box-shadow: 0 4px 20px rgba(37, 99, 235, 0.08);
+  }
+
+  .animate-float {
+    animation: float 6s ease-in-out infinite;
+  }
+
+  .animate-float-delayed {
+    animation: float 6s ease-in-out infinite;
+    animation-delay: 3s;
+  }
+
+  .animate-heartbeat {
+    animation: heartbeat 2.5s ease-in-out infinite;
+  }
+
+  .animate-pulse-ring {
+    animation: pulse-ring 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
+  
+  .glassmorphic-navbar {
+    background: rgba(255, 255, 255, 0.7);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-bottom: 1px solid rgba(226, 232, 240, 0.6);
+  }
+  
+  .text-gradient-primary {
+    background-image: linear-gradient(135deg, #0f172a 30%, #2563eb 70%, #0891b2 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+}
+
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-12px);
+  }
+}
+
+@keyframes heartbeat {
+  0%, 100% {
+    transform: scale(1);
+  }
+  14% {
+    transform: scale(1.08);
+  }
+  28% {
+    transform: scale(1.02);
+  }
+  42% {
+    transform: scale(1.12);
+  }
+  70% {
+    transform: scale(1);
+  }
+}
+
+@keyframes pulse-ring {
+  0% {
+    box-shadow: 0 0 0 0 rgba(37, 99, 235, 0.4);
+  }
+  70% {
+    box-shadow: 0 0 0 10px rgba(37, 99, 235, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(37, 99, 235, 0);
   }
 }
 

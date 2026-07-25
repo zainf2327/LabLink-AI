@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import useAuthStore from '../store/useAuthStore';
-import { Mail, Lock, Shield, Eye, EyeOff, AlertCircle, Sparkles } from 'lucide-react';
+import { Activity, Mail, Lock, Shield, Eye, EyeOff, AlertCircle } from 'lucide-react';
 
 export const Login: React.FC = () => {
   const navigate = useNavigate();
@@ -71,8 +71,8 @@ export const Login: React.FC = () => {
       <div className="w-full max-w-md z-10">
         {/* Header Branding */}
         <div className="flex flex-col items-center mb-8 text-center">
-          <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-emerald-600 to-teal-400 flex items-center justify-center shadow-lg shadow-emerald-500/25 mb-4 group hover:scale-105 transition-transform duration-300">
-            <Sparkles size={28} className="text-black animate-pulse" />
+          <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-brand-500 to-accent-400 flex items-center justify-center shadow-lg shadow-brand-500/25 mb-4 group hover:scale-105 transition-transform duration-300">
+            <Activity size={28} className="text-white animate-heartbeat" />
           </div>
           <h1 className="text-3xl font-extrabold tracking-tight bg-gradient-to-r from-zinc-100 via-zinc-200 to-emerald-400 bg-clip-text text-transparent">
             Welcome to LabLink AI
@@ -85,7 +85,7 @@ export const Login: React.FC = () => {
         {/* Card */}
         <div className="glassmorphic-card neon-border-glow rounded-3xl p-8 relative">
           <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-emerald-500/30 to-transparent rounded-t-3xl"></div>
-          
+
           <h2 className="text-xl font-bold text-zinc-100 mb-6 flex items-center gap-2">
             <Shield size={20} className="text-emerald-400" />
             <span>Sign in to account</span>

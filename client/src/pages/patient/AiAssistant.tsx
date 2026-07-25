@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useParams, Link, useNavigate } from 'react-router-dom';
+import { useParams, Link, useNavigate, useLocation } from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
 import {
   ArrowLeft,
@@ -29,6 +29,22 @@ export const AiAssistant: React.FC = () => {
   const [report, setReport] = useState<Report | null>(null);
   const [reportLoading, setReportLoading] = useState(false);
   const [isSummaryExpanded, setIsSummaryExpanded] = useState(false);
+
+  const location = useLocation();
+  const initialPromptProcessed = useRef(false);
+
+  useEffect(() => {
+    if (reportId && location.state?.initialPrompt && !initialPromptProcessed.current) {
+      initialPromptProcessed.current = true;
+      const initialPrompt = location.state.initialPrompt;
+      setTimeout(() => {
+        sendMessage(reportId, initialPrompt).catch((err) => {
+          console.error('Failed to send initial prompt:', err);
+        });
+      }, 500);
+      navigate(location.pathname, { replace: true });
+    }
+  }, [reportId, location, sendMessage, navigate]);
 
   const session = reportId ? sessions[reportId] : null;
   const messages = session?.messages || [];

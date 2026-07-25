@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import useAuthStore from '../../store/useAuthStore';
 import { bookingService } from '../../services/booking.service';
 import { walletService } from '../../services/wallet.service';
-import { authService } from '../../services/auth.service';
+
 import { reportService } from '../../services/report.service';
 import type { Report } from '../../services/report.service';
 import type { Booking } from '../../services/booking.service';
@@ -34,7 +34,7 @@ export const PatientDashboard: React.FC = () => {
   const [reports, setReports] = useState<Report[]>([]);
   const [loading, setLoading] = useState(true);
   const [reportsLoading, setReportsLoading] = useState(false);
-  const [syncingCalendar, setSyncingCalendar] = useState(false);
+
   const [walletBalance, setWalletBalance] = useState<number>(0);
   const [cancelMessage, setCancelMessage] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'bookings' | 'reports'>('bookings');
@@ -75,39 +75,7 @@ export const PatientDashboard: React.FC = () => {
     });
   };
 
-  const handleConnectCalendar = async () => {
-    setSyncingCalendar(true);
-    try {
-      const res = await authService.getGoogleCalendarConnectUrl();
-      if (res.success && res.url) {
-        window.location.href = res.url;
-      } else {
-        alert('Failed to get connection URL.');
-      }
-    } catch (err: any) {
-      console.error('Calendar sync error:', err);
-      alert(err.response?.data?.message || 'Failed to connect Google Calendar.');
-    } finally {
-      setSyncingCalendar(false);
-    }
-  };
 
-  const handleDisconnectCalendar = async () => {
-    if (!window.confirm('Are you sure you want to disconnect Google Calendar?')) return;
-    setSyncingCalendar(true);
-    try {
-      const res = await authService.disconnectGoogleCalendar();
-      if (res.success) {
-        alert('Google Calendar disconnected successfully.');
-        // Reload page to re-trigger getMe and update UI status
-        window.location.reload();
-      }
-    } catch (err: any) {
-      alert(err.response?.data?.message || 'Failed to disconnect Google Calendar.');
-    } finally {
-      setSyncingCalendar(false);
-    }
-  };
 
   const fetchBookings = async () => {
     try {
@@ -376,7 +344,7 @@ export const PatientDashboard: React.FC = () => {
       case 'cancelled':
         return <XCircle className="text-red-400" size={16} />;
       default:
-        return <Clock className="text-zinc-400" size={16} />;
+        return <Clock className="text-slate-500" size={16} />;
     }
   };
 
@@ -433,7 +401,7 @@ export const PatientDashboard: React.FC = () => {
         );
       default:
         return (
-          <span className="px-2.5 py-0.5 rounded-full bg-zinc-800 text-zinc-400 text-[10px] font-extrabold uppercase border border-zinc-700 flex items-center gap-1.5">
+          <span className="px-2.5 py-0.5 rounded-full bg-zinc-800 text-slate-500 text-[10px] font-extrabold uppercase border border-zinc-700 flex items-center gap-1.5">
             <span>{status}</span>
           </span>
         );
@@ -467,19 +435,14 @@ export const PatientDashboard: React.FC = () => {
   };
 
   return (
-    <AppLayout
-      pageTitle="Dashboard"
-      syncingCalendar={syncingCalendar}
-      onConnectCalendar={handleConnectCalendar}
-      onDisconnectCalendar={handleDisconnectCalendar}
-    >
+    <AppLayout pageTitle="Dashboard">
       <div className="p-6 space-y-6">
         {/* Cancel Refund Toast */}
         {cancelMessage && (
-          <div className="p-4 bg-teal-50 border border-teal-200 rounded-2xl text-teal-700 text-sm flex items-center gap-3">
-            <Wallet size={18} className="shrink-0 text-teal-500" />
-            <span>{cancelMessage}</span>
-            <Link to="/patient/wallet" className="ml-auto text-xs underline underline-offset-2 hover:text-teal-900 whitespace-nowrap">
+          <div className="p-4 bg-cyan-50 border border-cyan-100 rounded-2xl text-cyan-700 text-sm flex items-center gap-3 shadow-sm animate-fadeIn">
+            <Wallet size={18} className="shrink-0 text-brand-500" />
+            <span className="font-semibold">{cancelMessage}</span>
+            <Link to="/patient/wallet" className="ml-auto text-xs font-bold text-brand-600 hover:text-brand-700 underline underline-offset-2 whitespace-nowrap">
               View Wallet
             </Link>
           </div>
@@ -490,18 +453,18 @@ export const PatientDashboard: React.FC = () => {
           {/* Stats Row */}
           {/* Active Booking Tracker Stepper */}
           {activeBooking && (
-            <div className="glassmorphic-card rounded-2xl p-6">
+            <div className="glassmorphic-card rounded-2xl p-6 relative overflow-hidden group hover:shadow-lg hover:scale-[1.005] transition-all duration-300">
               <div className="flex justify-between items-start mb-4">
                 <div>
-                  <h3 className="text-sm font-bold text-zinc-100 flex items-center gap-2">
-                    <Clock className="text-emerald-400 animate-pulse" size={16} />
+                  <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2">
+                    <Clock className="text-brand-500 animate-pulse" size={16} />
                     <span>Active Test Tracker</span>
                   </h3>
-                  <p className="text-[10px] text-zinc-500 mt-0.5">
-                    Tracking: <strong className="text-zinc-300">{activeBooking.tests.map(t => t.name).join(', ')}</strong>
+                  <p className="text-[10px] text-slate-500 mt-0.5">
+                    Tracking: <strong className="text-slate-700">{activeBooking.tests.map(t => t.name).join(', ')}</strong>
                   </p>
                 </div>
-                <span className="text-[10px] uppercase font-extrabold tracking-wider bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 px-2 py-0.5 rounded-full">
+                <span className="text-[10px] uppercase font-extrabold tracking-wider bg-brand-50 text-brand-500 border border-brand-100 px-2.5 py-0.5 rounded-full">
                   {activeBooking.status.replace('_', ' ')}
                 </span>
               </div>
@@ -518,26 +481,26 @@ export const PatientDashboard: React.FC = () => {
                   return (
                     <React.Fragment key={step.name}>
                       <div className="flex items-center gap-3 md:flex-col md:text-center flex-1">
-                        <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs shrink-0 transition-all ${
+                        <div className={`w-9 h-9 rounded-full flex items-center justify-center font-bold text-xs shrink-0 transition-all duration-300 ${
                           status === 'completed'
-                            ? 'bg-emerald-500 text-white'
+                            ? 'bg-gradient-to-br from-brand-500 to-brand-600 text-white shadow-lg shadow-brand-500/25 scale-105'
                             : status === 'active'
-                            ? 'bg-emerald-500/25 border-2 border-emerald-500 text-emerald-400 animate-pulse'
-                            : 'bg-zinc-850 border border-zinc-800 text-zinc-500'
+                            ? 'bg-brand-50 border-2 border-brand-500 text-brand-500 animate-pulse shadow-md shadow-brand-500/15 ring-4 ring-brand-500/10 scale-110'
+                            : 'bg-slate-50 border border-slate-200 text-slate-400'
                         }`}>
                           {status === 'completed' ? '✓' : index + 1}
                         </div>
                         <div>
-                          <span className={`text-[10px] font-extrabold uppercase tracking-wide block ${
-                            status === 'active' ? 'text-emerald-400' : 'text-zinc-400'
+                          <span className={`text-[10px] font-extrabold uppercase tracking-wider block mt-1 ${
+                            status === 'active' ? 'text-brand-500 font-black' : status === 'completed' ? 'text-slate-700' : 'text-slate-400'
                           }`}>
                             {step.label}
                           </span>
                         </div>
                       </div>
                       {index < arr.length - 1 && (
-                        <div className={`hidden md:block h-[1px] flex-1 border-t border-dashed transition-all ${
-                          status === 'completed' ? 'border-emerald-500' : 'border-zinc-800'
+                        <div className={`hidden md:block h-[2px] flex-1 border-t transition-all duration-500 ${
+                          status === 'completed' ? 'border-brand-500 border-solid' : 'border-slate-200 border-dashed'
                         }`} />
                       )}
                     </React.Fragment>
@@ -551,28 +514,28 @@ export const PatientDashboard: React.FC = () => {
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Left side: Stats cards */}
             <div className="lg:col-span-1 flex flex-col gap-4">
-              <div className="glassmorphic-card rounded-2xl p-6 flex-1 flex flex-col justify-between">
+              <div className="glassmorphic-card rounded-2xl p-6 flex-1 flex flex-col justify-between group hover:shadow-lg hover:scale-[1.005] transition-all duration-300">
                 <div>
-                  <h3 className="text-base font-bold text-zinc-100 mb-4 flex items-center gap-2">
-                    <Activity className="text-emerald-400" size={18} />
+                  <h3 className="text-base font-extrabold text-slate-800 mb-4 flex items-center gap-2">
+                    <Activity className="text-brand-500" size={18} />
                     <span>Health Summary</span>
                   </h3>
                   <div className="grid grid-cols-2 gap-4">
-                    <div className="bg-zinc-900/60 border border-zinc-800/80 p-4 rounded-xl">
+                    <div className="bg-white/80 border border-slate-200/65 p-4 rounded-xl shadow-sm hover:shadow-md hover:scale-[1.03] hover:border-brand-200 transition-all duration-300">
                       <div className="flex justify-between items-start mb-2">
-                        <span className="text-zinc-500 text-[10px] font-semibold uppercase tracking-wider">Upcoming</span>
-                        <Calendar className="text-emerald-400" size={14} />
+                        <span className="text-slate-400 text-[10px] font-bold uppercase tracking-wider">Upcoming</span>
+                        <Calendar className="text-brand-500" size={14} />
                       </div>
-                      <p className="text-2xl font-bold text-zinc-100">{loading ? '…' : upcomingBookingsCount}</p>
-                      <span className="text-[9px] text-zinc-500 block mt-1 leading-tight">Scheduled / unpaid</span>
+                      <p className="text-2xl font-extrabold text-slate-800">{loading ? '…' : upcomingBookingsCount}</p>
+                      <span className="text-[9px] text-slate-500 block mt-1 leading-tight font-medium">Scheduled / unpaid</span>
                     </div>
-                    <div className="bg-zinc-900/60 border border-zinc-800/80 p-4 rounded-xl">
+                    <div className="bg-white/80 border border-slate-200/65 p-4 rounded-xl shadow-sm hover:shadow-md hover:scale-[1.03] hover:border-brand-200 transition-all duration-300">
                       <div className="flex justify-between items-start mb-2">
-                        <span className="text-zinc-500 text-[10px] font-semibold uppercase tracking-wider">Completed</span>
-                        <ClipboardList className="text-emerald-400" size={14} />
+                        <span className="text-slate-400 text-[10px] font-bold uppercase tracking-wider">Completed</span>
+                        <ClipboardList className="text-brand-500" size={14} />
                       </div>
-                      <p className="text-2xl font-bold text-zinc-100">{loading ? '…' : bookings.filter((b) => b.status === 'completed').length}</p>
-                      <span className="text-[9px] text-zinc-500 block mt-1 leading-tight">Diagnostic runs</span>
+                      <p className="text-2xl font-extrabold text-slate-800">{loading ? '…' : bookings.filter((b) => b.status === 'completed').length}</p>
+                      <span className="text-[9px] text-slate-500 block mt-1 leading-tight font-medium">Diagnostic runs</span>
                     </div>
                   </div>
                 </div>
@@ -580,41 +543,41 @@ export const PatientDashboard: React.FC = () => {
                 <div className="grid grid-cols-2 gap-4 mt-4">
                   <button
                     onClick={() => setActiveTab('reports')}
-                    className="bg-zinc-900/60 border border-zinc-800/80 p-4 rounded-xl hover:border-emerald-500/40 transition-all text-left cursor-pointer group"
+                    className="bg-white/80 border border-slate-200/65 p-4 rounded-xl shadow-sm hover:shadow-md hover:scale-[1.03] hover:border-brand-200 transition-all duration-300 text-left cursor-pointer group"
                   >
                     <div className="flex justify-between items-start mb-2">
-                      <span className="text-zinc-500 text-[10px] font-semibold uppercase tracking-wider">Reports</span>
-                      <ClipboardList className="text-emerald-400 group-hover:scale-110 transition-transform" size={14} />
+                      <span className="text-slate-400 text-[10px] font-bold uppercase tracking-wider">Reports</span>
+                      <ClipboardList className="text-brand-500 group-hover:scale-110 transition-transform duration-300" size={14} />
                     </div>
-                    <p className="text-2xl font-bold text-zinc-100">{reportsLoading ? '…' : reports.length}</p>
-                    <span className="text-[9px] text-zinc-500 block mt-1 leading-tight">Click to view</span>
+                    <p className="text-2xl font-extrabold text-slate-800">{reportsLoading ? '…' : reports.length}</p>
+                    <span className="text-[9px] text-slate-500 block mt-1 leading-tight font-medium">Click to view</span>
                   </button>
-                  <Link to="/patient/wallet" className="bg-zinc-900/60 border border-zinc-800/80 p-4 rounded-xl hover:border-teal-500/40 transition-all group block">
+                  <Link to="/patient/wallet" className="bg-white/80 border border-slate-200/65 p-4 rounded-xl shadow-sm hover:shadow-md hover:scale-[1.03] hover:border-brand-200 transition-all duration-300 group block">
                     <div className="flex justify-between items-start mb-2">
-                      <span className="text-zinc-500 text-[10px] font-semibold uppercase tracking-wider">Wallet</span>
-                      <Wallet className="text-teal-500 group-hover:scale-110 transition-transform" size={14} />
+                      <span className="text-slate-400 text-[10px] font-bold uppercase tracking-wider">Wallet</span>
+                      <Wallet className="text-teal-500 group-hover:scale-110 transition-transform duration-300" size={14} />
                     </div>
-                    <p className="text-2xl font-bold text-zinc-100">${walletBalance.toFixed(2)}</p>
-                    <span className="text-[9px] text-zinc-500 block mt-1 leading-tight">Tap for ledger</span>
+                    <p className="text-2xl font-extrabold text-slate-800">${walletBalance.toFixed(2)}</p>
+                    <span className="text-[9px] text-slate-500 block mt-1 leading-tight font-medium">Tap for ledger</span>
                   </Link>
                 </div>
               </div>
             </div>
 
             {/* Right side: Spline Chart */}
-            <div className="lg:col-span-2 glassmorphic-card rounded-2xl p-6 flex flex-col justify-between gap-4">
+            <div className="lg:col-span-2 glassmorphic-card rounded-2xl p-6 flex flex-col justify-between gap-4 group hover:shadow-lg hover:scale-[1.005] transition-all duration-300">
               <div className="flex justify-between items-start">
                 <div>
-                  <h4 className="text-sm font-bold text-zinc-100">Patient Health Trends</h4>
-                  <p className="text-[10px] text-zinc-500 mt-0.5">Biomarker tracking based on diagnostic report history.</p>
+                  <h4 className="text-sm font-extrabold text-slate-800">Patient Health Trends</h4>
+                  <p className="text-[10px] text-slate-500 mt-0.5">Biomarker tracking based on diagnostic report history.</p>
                 </div>
                 <div className="flex gap-4 text-[10px] font-bold uppercase tracking-wider">
-                  <span className="flex items-center gap-1.5 text-emerald-500">
-                    <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block" />
+                  <span className="flex items-center gap-1.5 text-brand-500">
+                    <span className="w-2.5 h-2.5 rounded-full bg-brand-500 inline-block shadow-sm" />
                     Glucose
                   </span>
-                  <span className="flex items-center gap-1.5 text-teal-400">
-                    <span className="w-2 h-2 rounded-full bg-teal-400 inline-block" />
+                  <span className="flex items-center gap-1.5 text-teal-500">
+                    <span className="w-2.5 h-2.5 rounded-full bg-teal-500 inline-block shadow-sm" />
                     Cholesterol
                   </span>
                 </div>
@@ -624,18 +587,24 @@ export const PatientDashboard: React.FC = () => {
                   <AreaChart data={mockChartData} margin={{ top: 10, right: 10, left: -25, bottom: 0 }}>
                     <defs>
                       <linearGradient id="colorGlucose" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#2563eb" stopOpacity={0.25}/>
+                        <stop offset="5%" stopColor="#2563eb" stopOpacity={0.2}/>
                         <stop offset="95%" stopColor="#2563eb" stopOpacity={0}/>
                       </linearGradient>
                       <linearGradient id="colorCholesterol" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#0891b2" stopOpacity={0.25}/>
+                        <stop offset="5%" stopColor="#0891b2" stopOpacity={0.2}/>
                         <stop offset="95%" stopColor="#0891b2" stopOpacity={0}/>
                       </linearGradient>
                     </defs>
-                    <XAxis dataKey="date" stroke="#94a3b8" fontSize={9} tickLine={false} axisLine={false} />
-                    <YAxis stroke="#94a3b8" fontSize={9} tickLine={false} axisLine={false} />
+                    <XAxis dataKey="date" stroke="#64748b" fontSize={9} tickLine={false} axisLine={false} />
+                    <YAxis stroke="#64748b" fontSize={9} tickLine={false} axisLine={false} />
                     <Tooltip 
-                      contentStyle={{ backgroundColor: '#ffffff', borderColor: '#e2e8f0', borderRadius: '12px' }}
+                      contentStyle={{ 
+                        backgroundColor: 'rgba(255, 255, 255, 0.95)', 
+                        backdropFilter: 'blur(8px)',
+                        border: '1px solid #e2e8f0', 
+                        borderRadius: '16px',
+                        boxShadow: '0 10px 25px -5px rgba(148, 163, 184, 0.15)'
+                      }}
                       labelStyle={{ fontSize: '10px', fontWeight: 'bold', color: '#0f172a' }}
                       itemStyle={{ fontSize: '10px', padding: '1px 0' }}
                     />
@@ -647,14 +616,82 @@ export const PatientDashboard: React.FC = () => {
             </div>
           </div>
 
+          {/* AI Health Insights Widget */}
+          <div className="glassmorphic-card rounded-2xl p-6 relative overflow-hidden group hover:shadow-lg hover:scale-[1.005] transition-all duration-300">
+            {/* Background decorative glow */}
+            <div className="absolute right-0 top-0 -translate-y-12 translate-x-12 w-48 h-48 bg-gradient-to-br from-brand-400/10 to-accent-400/20 rounded-full blur-3xl group-hover:scale-110 transition-transform duration-500 pointer-events-none" />
+
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 relative z-10">
+              <div className="flex items-start gap-4">
+                <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-brand-500 to-accent-400 flex items-center justify-center text-white shadow-lg shadow-brand-500/25 shrink-0 group-hover:scale-105 transition-transform duration-300">
+                  <Activity size={22} className="animate-heartbeat" />
+                </div>
+                <div>
+                  <h3 className="text-base font-extrabold text-slate-800 tracking-tight flex items-center gap-1.5">
+                    <span>AI Health Assistant Insights</span>
+                    <span className="px-2 py-0.5 text-[8px] font-black uppercase tracking-widest bg-brand-500 text-white rounded-md">
+                      Interactive
+                    </span>
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-1 max-w-xl leading-relaxed">
+                    Get instant medical report analysis, track biomarkers over time, and ask question prompts based on your processed diagnostic samples.
+                  </p>
+                </div>
+              </div>
+
+              {/* Action Button */}
+              {reports.length > 0 ? (
+                <Link
+                  to={`/patient/reports/${reports[0]._id}/ai-assistant`}
+                  className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-brand-500 to-brand-600 hover:from-brand-600 hover:to-brand-700 text-white text-xs font-bold transition-all shadow-md shadow-brand-500/15 hover:scale-[1.02] whitespace-nowrap self-start md:self-center"
+                >
+                  Consult AI Assistant
+                </Link>
+              ) : (
+                <button
+                  disabled
+                  className="px-5 py-2.5 rounded-xl bg-slate-100 border border-slate-200 text-slate-400 text-xs font-bold cursor-not-allowed whitespace-nowrap self-start md:self-center"
+                >
+                  No Reports Uploaded Yet
+                </button>
+              )}
+            </div>
+
+            {/* Quick Prompts */}
+            {reports.length > 0 && (
+              <div className="mt-5 pt-4 border-t border-slate-100/60">
+                <p className="text-[10px] font-bold text-slate-450 uppercase tracking-widest mb-3">
+                  Quick Prompt Suggestions
+                </p>
+                <div className="flex flex-wrap gap-2.5">
+                  {[
+                    { label: 'Analyze Glucose Levels', prompt: 'Please analyze my glucose levels and explain if they are within normal range.' },
+                    { label: 'Explain Cholesterol Trends', prompt: 'Explain the cholesterol trends from my reports.' },
+                    { label: 'Fasting Guidelines', prompt: 'What are the fasting guidelines for my upcoming diagnostic samples?' }
+                  ].map((p) => (
+                    <Link
+                      key={p.label}
+                      to={`/patient/reports/${reports[0]._id}/ai-assistant`}
+                      state={{ initialPrompt: p.prompt }}
+                      className="px-3.5 py-2 rounded-xl bg-slate-55 hover:bg-brand-50 border border-slate-200 hover:border-brand-200 text-xs text-slate-600 hover:text-brand-600 font-semibold transition-all cursor-pointer flex items-center gap-1.5"
+                    >
+                      <span className="w-1.5 h-1.5 rounded-full bg-brand-500/70" />
+                      <span>{p.label}</span>
+                    </Link>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
             {/* Navigation Tabs */}
-            <div className="flex border-b border-zinc-800 gap-6 pb-px mb-6">
+            <div className="flex border-b border-slate-200 gap-6 pb-px mb-6">
               <button
                 onClick={() => setActiveTab('bookings')}
                 className={`pb-3 px-1 text-xs font-extrabold uppercase tracking-wider transition-all border-b-2 cursor-pointer ${
                   activeTab === 'bookings'
-                    ? 'border-emerald-500 text-emerald-400 font-black'
-                    : 'border-transparent text-zinc-500 hover:text-zinc-300'
+                    ? 'border-brand-500 text-brand-500 font-black'
+                    : 'border-transparent text-slate-400 hover:text-slate-600'
                 }`}
               >
                 My Bookings ({bookings.length})
@@ -663,8 +700,8 @@ export const PatientDashboard: React.FC = () => {
                 onClick={() => setActiveTab('reports')}
                 className={`pb-3 px-1 text-xs font-extrabold uppercase tracking-wider transition-all border-b-2 cursor-pointer ${
                   activeTab === 'reports'
-                    ? 'border-emerald-500 text-emerald-400 font-black'
-                    : 'border-transparent text-zinc-500 hover:text-zinc-300'
+                    ? 'border-brand-500 text-brand-500 font-black'
+                    : 'border-transparent text-slate-400 hover:text-slate-600'
                 }`}
               >
                 My Reports ({reports.length})
@@ -673,8 +710,8 @@ export const PatientDashboard: React.FC = () => {
 
             {/* Bookings List */}
             {activeTab === 'bookings' && (
-              <div className="glassmorphic-card rounded-2xl p-6">
-                <h3 className="text-lg font-bold text-zinc-100 mb-6 flex items-center justify-between">
+              <div className="glassmorphic-card rounded-2xl p-6 relative overflow-hidden group hover:shadow-lg hover:scale-[1.005] transition-all duration-300">
+                <h3 className="text-lg font-bold text-slate-800 mb-6 flex items-center justify-between">
                   <span>My Diagnostic Bookings</span>
                   <Link
                     to="/tests"
@@ -689,7 +726,7 @@ export const PatientDashboard: React.FC = () => {
                     <Loader className="animate-spin text-emerald-400" size={32} />
                   </div>
                 ) : bookings.length === 0 ? (
-                  <div className="py-12 text-center text-zinc-500 text-sm">
+                  <div className="py-12 text-center text-slate-400 text-sm">
                     You haven't made any bookings yet. Click the button above to book your first test!
                   </div>
                 ) : (
@@ -697,16 +734,16 @@ export const PatientDashboard: React.FC = () => {
                     {bookings.map((booking) => (
                       <div
                         key={booking._id}
-                        className="border border-zinc-850 bg-zinc-900/30 p-5 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-4"
+                        className="border border-slate-200/60 bg-white/60 hover:bg-white hover:border-brand-200/60 p-5 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition-all duration-300 hover:shadow-md hover:scale-[1.01]"
                       >
                         <div className="space-y-2">
                           <div className="flex items-center gap-3">
                             {getStatusIcon(booking.status)}
-                            <span className="text-sm font-bold text-zinc-200">
+                            <span className="text-sm font-bold text-slate-700">
                               {booking.tests.map((t) => t.name).join(', ')}
                             </span>
                           </div>
-                          <div className="flex flex-wrap gap-x-4 gap-y-1.5 text-xs text-zinc-500">
+                          <div className="flex flex-wrap gap-x-4 gap-y-1.5 text-xs text-slate-400">
                             <span>
                               Date: {new Date(booking.createdAt).toLocaleDateString()} at{' '}
                               {new Date(booking.createdAt).toLocaleTimeString([], {
@@ -721,7 +758,7 @@ export const PatientDashboard: React.FC = () => {
                           </div>
 
                           {booking.homeSampling?.requested && (
-                            <div className="text-[11px] text-zinc-400 bg-zinc-900/60 border border-zinc-800/80 p-3 rounded-xl space-y-1.5 mt-2 max-w-md">
+                            <div className="text-[11px] text-slate-500 bg-white border border-slate-200 p-3 rounded-xl space-y-1.5 mt-2 max-w-md">
                               <span className="font-semibold text-emerald-400 flex items-center gap-1">
                                 <Home size={12} />
                                 <span>Home Sampling details</span>
@@ -742,7 +779,7 @@ export const PatientDashboard: React.FC = () => {
                           {booking.status === 'scheduled' && (
                             <button
                               onClick={() => handleCancelBooking(booking._id, true)}
-                              className="px-3.5 py-1.5 rounded-xl border border-zinc-800 hover:border-red-500/20 bg-zinc-950 text-xs font-semibold text-zinc-400 hover:text-red-400 transition-all cursor-pointer"
+                              className="px-3.5 py-1.5 rounded-xl border border-zinc-800 hover:border-red-500/20 bg-slate-50 text-xs font-semibold text-slate-500 hover:text-red-400 transition-all cursor-pointer"
                             >
                               Cancel
                             </button>
@@ -775,8 +812,8 @@ export const PatientDashboard: React.FC = () => {
             {/* Reports List */}
             {activeTab === 'reports' && (
               <div className="space-y-6">
-                <div className="glassmorphic-card rounded-2xl p-6">
-                  <h3 className="text-lg font-bold text-zinc-100 mb-6 flex items-center gap-2">
+                <div className="glassmorphic-card rounded-2xl p-6 relative overflow-hidden group hover:shadow-lg hover:scale-[1.005] transition-all duration-300">
+                  <h3 className="text-lg font-bold text-slate-800 mb-6 flex items-center gap-2">
                     <FileCheck className="text-emerald-400" size={20} />
                     <span>My Diagnostic Reports</span>
                   </h3>
@@ -786,7 +823,7 @@ export const PatientDashboard: React.FC = () => {
                       <Loader size={32} />
                     </div>
                   ) : reports.length === 0 ? (
-                    <div className="py-12 text-center text-zinc-500 text-sm">
+                    <div className="py-12 text-center text-slate-400 text-sm">
                       No medical reports available yet. Once your samples are processed, your reports will appear here.
                     </div>
                   ) : (
@@ -796,17 +833,17 @@ export const PatientDashboard: React.FC = () => {
                         return (
                           <div
                             key={report._id}
-                            className="border border-zinc-850 bg-zinc-900/30 p-5 rounded-2xl flex flex-col hover:border-zinc-800/80 transition-all"
+                            className="border border-slate-200/60 bg-white/60 hover:bg-white hover:border-brand-200/60 p-5 rounded-2xl flex flex-col hover:border-brand-200/60 transition-all duration-300 hover:shadow-md hover:scale-[1.01]"
                           >
                             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                               <div className="space-y-1.5 flex-1">
                                 <div className="flex items-center gap-2">
                                   <FileCheck className="text-teal-400" size={16} />
-                                  <span className="text-sm font-bold text-zinc-200">
+                                  <span className="text-sm font-bold text-slate-700">
                                     {getReportTitle(report)}
                                   </span>
                                 </div>
-                                <div className="flex flex-wrap gap-x-4 text-xs text-zinc-500">
+                                <div className="flex flex-wrap gap-x-4 text-xs text-slate-400">
                                   <span>
                                     Uploaded: {new Date(report.createdAt).toLocaleDateString()} at{' '}
                                     {new Date(report.createdAt).toLocaleTimeString([], {
@@ -821,7 +858,7 @@ export const PatientDashboard: React.FC = () => {
                               <div className="flex items-center gap-3 self-end sm:self-center">
                                 <button
                                   onClick={() => handleToggleExpand(report._id)}
-                                  className="px-3.5 py-1.5 rounded-xl border border-zinc-800 hover:border-purple-500/30 bg-zinc-950 text-xs font-semibold text-zinc-400 hover:text-purple-400 transition-all cursor-pointer flex items-center gap-1.5"
+                                  className="px-3.5 py-1.5 rounded-xl border border-zinc-800 hover:border-purple-500/30 bg-slate-50 text-xs font-semibold text-slate-500 hover:text-purple-400 transition-all cursor-pointer flex items-center gap-1.5"
                                 >
                                   <span>AI Summary</span>
                                   <span className="text-[10px]">{isExpanded ? '▲' : '▼'}</span>
@@ -845,7 +882,7 @@ export const PatientDashboard: React.FC = () => {
                             {isExpanded && (
                               <>
                                 {!report.summary && !report.vectorized ? (
-                                  <div className="mt-4 p-4 rounded-xl bg-zinc-950 border border-zinc-850/60 animate-pulse space-y-2">
+                                  <div className="mt-4 p-4 rounded-xl bg-slate-50 border border-slate-200/60 animate-pulse space-y-2">
                                     <div className="h-3.5 bg-zinc-800 rounded w-1/4"></div>
                                     <div className="h-3 bg-zinc-900 rounded w-full"></div>
                                     <div className="h-3 bg-zinc-900 rounded w-5/6"></div>
@@ -854,12 +891,12 @@ export const PatientDashboard: React.FC = () => {
                                     </span>
                                   </div>
                                 ) : (
-                                  <div className="mt-4 p-4 rounded-xl bg-zinc-950/80 border border-zinc-850/60 space-y-3">
+                                  <div className="mt-4 p-4 rounded-xl bg-slate-50/80 border border-slate-200/60 space-y-3">
                                     <div className="space-y-1.5">
                                       <span className="text-[10px] uppercase font-bold tracking-wider text-purple-400 block">
                                         AI Plain-Language Summary
                                       </span>
-                                      <p className="text-zinc-300 text-xs leading-relaxed whitespace-pre-line">
+                                      <p className="text-slate-600 text-xs leading-relaxed whitespace-pre-line">
                                         {report.summary || 'Summary generation in progress...'}
                                       </p>
                                     </div>
@@ -904,12 +941,12 @@ export const PatientDashboard: React.FC = () => {
             role="dialog"
             aria-modal="true"
             aria-labelledby="modal-report-title"
-            className="relative w-full max-w-5xl h-[85vh] bg-zinc-950/95 border border-zinc-800/80 rounded-3xl overflow-hidden shadow-2xl flex flex-col glassmorphic-card"
+            className="relative w-full max-w-5xl h-[85vh] bg-slate-50/95 border border-slate-200 rounded-3xl overflow-hidden shadow-2xl flex flex-col glassmorphic-card"
           >
             {/* Modal Header */}
-            <div className="flex items-center justify-between p-5 border-b border-zinc-850 bg-zinc-900/60 backdrop-blur-md">
+            <div className="flex items-center justify-between p-5 border-b border-slate-200 bg-white backdrop-blur-md">
               <div className="space-y-1">
-                <h3 id="modal-report-title" className="text-sm font-bold text-zinc-100 flex items-center gap-2">
+                <h3 id="modal-report-title" className="text-sm font-bold text-slate-800 flex items-center gap-2">
                   <FileCheck size={16} className="text-teal-400 animate-pulse" />
                   <span>{getReportTitle(viewingReport)}</span>
                 </h3>
@@ -922,7 +959,7 @@ export const PatientDashboard: React.FC = () => {
                 {!viewingLoading && viewingBlobUrl && (
                   <button
                     onClick={handlePrintReport}
-                    className="px-3.5 py-1.5 rounded-xl border border-zinc-800 hover:border-zinc-700 bg-zinc-900 hover:bg-zinc-850 transition-all text-zinc-400 hover:text-zinc-200 cursor-pointer flex items-center gap-1.5"
+                    className="px-3.5 py-1.5 rounded-xl border border-zinc-800 hover:border-zinc-700 bg-zinc-900 hover:bg-zinc-850 transition-all text-slate-500 hover:text-slate-700 cursor-pointer flex items-center gap-1.5"
                     title="Print report"
                   >
                     <Printer size={14} />
@@ -945,7 +982,7 @@ export const PatientDashboard: React.FC = () => {
                 <button
                   onClick={handleCloseViewer}
                   aria-label="Close report viewer"
-                  className="modal-close-btn p-2 rounded-xl border border-zinc-800 hover:border-zinc-700 bg-zinc-900 hover:bg-zinc-850 transition-all text-zinc-400 hover:text-zinc-200 cursor-pointer"
+                  className="modal-close-btn p-2 rounded-xl border border-zinc-800 hover:border-zinc-700 bg-zinc-900 hover:bg-zinc-850 transition-all text-slate-500 hover:text-slate-700 cursor-pointer"
                 >
                   <X size={16} />
                 </button>
@@ -953,7 +990,7 @@ export const PatientDashboard: React.FC = () => {
             </div>
 
             {/* Modal Body / Viewer */}
-            <div className="flex-1 bg-zinc-950/40 flex items-center justify-center p-4 relative animate-fade-in animate-duration-300">
+            <div className="flex-1 bg-slate-50/40 flex items-center justify-center p-4 relative animate-fade-in animate-duration-300">
               {viewingLoading ? (
                 <div className="flex flex-col items-center gap-4">
                   <div className="relative w-16 h-16 flex items-center justify-center">
@@ -964,7 +1001,7 @@ export const PatientDashboard: React.FC = () => {
                     )}
                   </div>
                   <div className="text-center space-y-1">
-                    <span className="text-zinc-400 text-xs font-bold uppercase tracking-wider block animate-pulse animate-duration-1000">
+                    <span className="text-slate-500 text-xs font-bold uppercase tracking-wider block animate-pulse animate-duration-1000">
                       Streaming Secure PDF...
                     </span>
                     {downloadProgress > 0 && (
@@ -981,16 +1018,16 @@ export const PatientDashboard: React.FC = () => {
                 <iframe
                   id="secure-report-iframe"
                   src={`${viewingBlobUrl}#toolbar=0&navpanes=0`}
-                  className="w-full h-full rounded-2xl border border-zinc-850/60 bg-zinc-900/20 shadow-inner"
+                  className="w-full h-full rounded-2xl border border-slate-200/60 bg-zinc-900/20 shadow-inner"
                   title="Secure Report Viewer"
                 />
               ) : (
-                <div className="text-zinc-500 text-sm">Failed to load report.</div>
+                <div className="text-slate-400 text-sm">Failed to load report.</div>
               )}
             </div>
 
             {/* Compact Disclosure Footer */}
-            <div className="p-4 border-t border-zinc-850 bg-zinc-900/20">
+            <div className="p-4 border-t border-slate-200 bg-zinc-900/20">
               <ReportDisclosure
                 variant="compact"
                 createdAt={viewingReport.createdAt}

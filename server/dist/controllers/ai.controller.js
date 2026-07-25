@@ -24,6 +24,25 @@ export const chatWithAssistant = asyncHandler(async (req, res) => {
         res.status(403).json({ success: false, message: 'Forbidden: Access to another patient\'s report is denied' });
         return;
     }
+    // 1.5 Enforce AI monthly question quota (per calendar month)
+    const limit = req.subscription?.planSnapshot?.aiQuestionsPerMonth !== undefined
+        ? req.subscription.planSnapshot.aiQuestionsPerMonth
+        : 5;
+    const now = new Date();
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+    const messageCount = await ChatMessage.countDocuments({
+        patientId: req.user.id,
+        role: 'user',
+        createdAt: { $gte: startOfMonth, $lte: endOfMonth },
+    });
+    if (messageCount >= limit) {
+        res.status(403).json({
+            success: false,
+            message: `You have reached your monthly limit of ${limit} AI questions for your current subscription plan. Please upgrade your plan to ask more questions.`,
+        });
+        return;
+    }
     // 2. Fetch last 10 messages for sliding window history (excl. new message)
     const chatHistoryDocs = await ChatMessage.find({
         patientId: req.user.id,

@@ -24,6 +24,11 @@ export const bookingService = {
         if (inactiveTest) {
             throw new AppError(`Test "${inactiveTest.name}" is not active`, 400);
         }
+        // Fetch active subscription for family gates and discount calculations
+        const activeSubscription = await Subscription.findOne({
+            userId: patientId,
+            status: 'active',
+        }).populate('planId');
         // 3. If forMemberId is provided, validate family member and subscription gate
         if (forMemberId) {
             const familyMember = await FamilyMember.findById(forMemberId);
@@ -33,11 +38,6 @@ export const bookingService = {
             if (familyMember.userId.toString() !== patientId) {
                 throw new AppError('Forbidden: Family member does not belong to you', 403);
             }
-            // Check active subscription family-member gate
-            const activeSubscription = await Subscription.findOne({
-                userId: patientId,
-                status: 'active',
-            }).populate('planId');
             if (!activeSubscription) {
                 throw new AppError('An active subscription is required to book for family members.', 403);
             }
@@ -76,8 +76,12 @@ export const bookingService = {
         }));
         // 6. Calculate totalAmount
         const totalAmount = snapshotTests.reduce((sum, t) => sum + t.price, 0);
+        // Calculate subscription discount first
+        const subDiscountPercent = activeSubscription?.planSnapshot?.testDiscountPercent || 0;
+        const subDiscountAmount = (subDiscountPercent / 100) * totalAmount;
+        const amountAfterSub = totalAmount - subDiscountAmount;
         // 7. Validate coupon if provided
-        let discountAmount = 0;
+        let couponDiscount = 0;
         let couponId = null;
         let couponDoc = null;
         if (couponCode) {
@@ -98,19 +102,20 @@ export const bookingService = {
             }
             if (couponDoc.minOrderValue !== undefined &&
                 couponDoc.minOrderValue !== null &&
-                totalAmount < couponDoc.minOrderValue) {
+                amountAfterSub < couponDoc.minOrderValue) {
                 throw new AppError(`Minimum order value for coupon is $${couponDoc.minOrderValue}`, 400);
             }
-            // Calculate discount amount
+            // Calculate coupon discount amount on amountAfterSub
             if (couponDoc.discountType === 'percentage') {
-                discountAmount = (couponDoc.discountValue / 100) * totalAmount;
+                couponDiscount = (couponDoc.discountValue / 100) * amountAfterSub;
             }
             else {
-                discountAmount = couponDoc.discountValue;
+                couponDiscount = couponDoc.discountValue;
             }
-            discountAmount = Math.min(discountAmount, totalAmount);
+            couponDiscount = Math.min(couponDiscount, amountAfterSub);
             couponId = couponDoc._id;
         }
+        const discountAmount = subDiscountAmount + couponDiscount;
         // 8. Calculate finalAmount
         const finalAmount = totalAmount - discountAmount;
         // 9. Create Booking

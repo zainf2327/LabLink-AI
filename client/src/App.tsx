@@ -16,6 +16,7 @@ import StaffDashboard from './pages/staff/Dashboard';
 import AdminDashboard from './pages/admin/Dashboard';
 import ProfileSettings from './pages/ProfileSettings';
 import ProtectedRoute from './components/ProtectedRoute';
+import Landing from './pages/Landing';
 
 export const App: React.FC = () => {
   const { checkAuth, isCheckingAuth, isAuthenticated, user } = useAuthStore();
@@ -41,7 +42,7 @@ export const App: React.FC = () => {
   // Root redirect helper based on roles
   const getDashboardRedirect = () => {
     if (!isAuthenticated || !user) {
-      return <Navigate to="/login" replace />;
+      return <Landing />;
     }
     if (user.role === 'admin') return <Navigate to="/admin/dashboard" replace />;
     if (user.role === 'staff') return <Navigate to="/staff/dashboard" replace />;

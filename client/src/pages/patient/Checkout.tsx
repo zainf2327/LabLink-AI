@@ -45,6 +45,7 @@ const CheckoutForm: React.FC = () => {
 
   // Booking details states
   const [familyMembers, setFamilyMembers] = useState<FamilyMember[]>([]);
+  const [activeSubscription, setActiveSubscription] = useState<any>(null);
   const [selectedMemberId, setSelectedMemberId] = useState<string>('');
   const [requestHomeSampling, setRequestHomeSampling] = useState(false);
   const [address, setAddress] = useState('');
@@ -74,8 +75,12 @@ const CheckoutForm: React.FC = () => {
 
   // Calculate pricing
   const subtotal = items.reduce((sum, item) => sum + item.price, 0);
+  const subDiscountPercent = activeSubscription?.planSnapshot?.testDiscountPercent || 0;
+  const subDiscount = (subDiscountPercent / 100) * subtotal;
+  const afterSubDiscount = subtotal - subDiscount;
+
   const discount = appliedCoupon ? appliedCoupon.discountAmount : 0;
-  const afterCoupon = Math.max(0, subtotal - discount);
+  const afterCoupon = Math.max(0, afterSubDiscount - discount);
   // Wallet covers up to afterCoupon amount
   const walletApplied = Math.min(walletBalance, afterCoupon);
   const finalTotal = Math.max(0, afterCoupon - walletApplied);
@@ -104,6 +109,7 @@ const CheckoutForm: React.FC = () => {
 
         let activeMemberIds: string[] = [];
         if (subRes.success && subRes.subscription) {
+          setActiveSubscription(subRes.subscription);
           activeMemberIds = subRes.subscription.activeFamilyMemberIds || [];
         }
 
@@ -137,7 +143,7 @@ const CheckoutForm: React.FC = () => {
     if (!couponCode.trim()) return;
     setCouponError(null);
     try {
-      const res = await bookingService.validateCoupon(couponCode, subtotal);
+      const res = await bookingService.validateCoupon(couponCode, afterSubDiscount);
       if (res.success) {
         setAppliedCoupon(res.data);
         setCouponError(null);
@@ -672,6 +678,12 @@ const CheckoutForm: React.FC = () => {
                 <span>Subtotal</span>
                 <span className="text-zinc-300 font-medium">${subtotal.toFixed(2)}</span>
               </div>
+              {subDiscount > 0 && (
+                <div className="flex justify-between text-xs text-zinc-500">
+                  <span className="text-emerald-400">Subscription Discount ({subDiscountPercent}%)</span>
+                  <span className="text-emerald-400 font-semibold">-${subDiscount.toFixed(2)}</span>
+                </div>
+              )}
               {appliedCoupon && (
                 <div className="flex justify-between text-xs text-zinc-500">
                   <span className="text-emerald-400">Coupon Discount</span>

@@ -16,9 +16,6 @@ interface AppLayoutProps {
 const AppLayout: React.FC<AppLayoutProps> = ({
   pageTitle,
   children,
-  syncingCalendar,
-  onConnectCalendar,
-  onDisconnectCalendar,
 }) => {
   const [sidebarWidth, setSidebarWidth] = useState(() => {
     const saved = localStorage.getItem('sidebarWidth');
@@ -60,9 +57,6 @@ const AppLayout: React.FC<AppLayoutProps> = ({
           onWidthChange={setSidebarWidth}
           mobileOpen={false}
           onCloseMobile={() => {}}
-          syncingCalendar={syncingCalendar}
-          onConnectCalendar={onConnectCalendar}
-          onDisconnectCalendar={onDisconnectCalendar}
         />
       </div>
 

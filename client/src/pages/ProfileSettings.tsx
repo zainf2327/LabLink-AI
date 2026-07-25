@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import useAuthStore from '../store/useAuthStore';
 import AppLayout from '../components/layout/AppLayout';
-import { User, Lock, AlertCircle, CheckCircle2, Calendar } from 'lucide-react';
+import { User, Lock, AlertCircle, CheckCircle2, Calendar, ChevronsUpDown, Search } from 'lucide-react';
 import { authService } from '../services/auth.service';
 import { api } from '../services/api';
 
@@ -10,10 +10,112 @@ export const ProfileSettings: React.FC = () => {
 
   // Profile fields
   const [name, setName] = useState(user?.name || '');
-  const [phone, setPhone] = useState(user?.phone || '');
+  const [countryCode, setCountryCode] = useState('+92');
+  const [phoneNumber, setPhoneNumber] = useState('');
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [searchCountryQuery, setSearchCountryQuery] = useState('');
+  const dropdownRef = useRef<HTMLDivElement>(null);
   const [profileSuccess, setProfileSuccess] = useState(false);
   const [profileError, setProfileError] = useState<string | null>(null);
   const [updatingProfile, setUpdatingProfile] = useState(false);
+
+  const COUNTRIES = [
+    { code: '+92', iso: 'pk', name: 'Pakistan' },
+    { code: '+1', iso: 'us', name: 'United States' },
+    { code: '+998', iso: 'uz', name: 'Uzbekistan' },
+    { code: '+93', iso: 'af', name: 'Afghanistan' },
+    { code: '+355', iso: 'al', name: 'Albania' },
+    { code: '+213', iso: 'dz', name: 'Algeria' },
+    { code: '+376', iso: 'ad', name: 'Andorra' },
+    { code: '+44', iso: 'gb', name: 'United Kingdom' },
+    { code: '+91', iso: 'in', name: 'India' },
+    { code: '+61', iso: 'au', name: 'Australia' },
+    { code: '+49', iso: 'de', name: 'Germany' },
+    { code: '+33', iso: 'fr', name: 'France' },
+    { code: '+971', iso: 'ae', name: 'UAE' },
+    { code: '+966', iso: 'sa', name: 'Saudi Arabia' },
+    { code: '+86', iso: 'cn', name: 'China' },
+    { code: '+1', iso: 'ca', name: 'Canada' },
+  ];
+
+  const PLACEHOLDERS: Record<string, string> = {
+    '+1': '(555) 000-0000',
+    '+44': '7700 900077',
+    '+91': '98765 43210',
+    '+92': '300 1234567',
+    '+61': '412 345 678',
+    '+49': '170 1234567',
+    '+33': '6 12 34 56 78',
+    '+971': '50 123 4567',
+    '+966': '50 123 4567',
+    '+93': '300 1234567',
+    '+998': '90 123 4567',
+    '+355': '67 123 4567',
+    '+213': '5 1234 5678',
+    '+376': '123 456',
+    '+86': '139 1234 5678',
+    '+ca': '(555) 000-0000',
+  };
+
+  const EXPECTED_DIGIT_LENGTHS: Record<string, number> = {
+    '+1': 10,
+    '+44': 10,
+    '+91': 10,
+    '+92': 10,
+    '+61': 9,
+    '+49': 10,
+    '+33': 9,
+    '+971': 9,
+    '+966': 9,
+    '+93': 9,
+    '+998': 9,
+    '+355': 9,
+    '+213': 9,
+    '+376': 6,
+    '+86': 11,
+  };
+
+  const activeCountry = COUNTRIES.find(c => c.code === countryCode) || COUNTRIES[0];
+  const filteredCountries = COUNTRIES.filter(c => 
+    c.name.toLowerCase().includes(searchCountryQuery.toLowerCase()) || 
+    c.code.includes(searchCountryQuery) ||
+    c.iso.toLowerCase().includes(searchCountryQuery.toLowerCase())
+  );
+
+  // Close dropdown on click outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Parse existing database phone format on load
+  useEffect(() => {
+    if (user) {
+      setName(user.name);
+      
+      const fullPhone = user.phone || '';
+      if (fullPhone) {
+        // Sort COUNTRIES by code length descending to match longer dial codes (+971) before shorter ones (+1)
+        const sortedCountries = [...COUNTRIES].sort((a, b) => b.code.length - a.code.length);
+        const match = sortedCountries.find(c => fullPhone.startsWith(c.code));
+        if (match) {
+          setCountryCode(match.code);
+          setPhoneNumber(fullPhone.substring(match.code.length));
+        } else {
+          setCountryCode('+92');
+          setPhoneNumber(fullPhone);
+        }
+      } else {
+        setCountryCode('+92');
+        setPhoneNumber('');
+      }
+    }
+  }, [user]);
 
   // Security / Password fields
   const [newPassword, setNewPassword] = useState('');
@@ -25,25 +127,45 @@ export const ProfileSettings: React.FC = () => {
   // Google Calendar Integration state (for patients/staff)
   const [syncingCalendar, setSyncingCalendar] = useState(false);
 
-  useEffect(() => {
-    if (user) {
-      setName(user.name);
-      setPhone(user.phone || '');
-    }
-  }, [user]);
-
   const handleProfileSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setProfileSuccess(false);
     setProfileError(null);
+
+    // Validate phone input
+    if (!phoneNumber || phoneNumber.trim().length === 0) {
+      setProfileError('Phone number is required');
+      return;
+    }
+
+    let digitsOnly = phoneNumber.replace(/\D/g, '');
+    // Strip leading 0 if provided (e.g. 03001234567 -> 3001234567)
+    if (digitsOnly.startsWith('0')) {
+      digitsOnly = digitsOnly.substring(1);
+    }
+    
+    const expectedLength = EXPECTED_DIGIT_LENGTHS[countryCode];
+    if (expectedLength) {
+      if (digitsOnly.length !== expectedLength) {
+        setProfileError(`Phone number for ${activeCountry.name} must be exactly ${expectedLength} digits (e.g. ${PLACEHOLDERS[countryCode]})`);
+        return;
+      }
+    } else {
+      if (digitsOnly.length < 7 || digitsOnly.length > 14) {
+        setProfileError('Phone number must be between 7 and 14 digits');
+        return;
+      }
+    }
+
     setUpdatingProfile(true);
 
     try {
-      const res = await api.patch('/users/me/profile', { name, phone });
+      const combinedPhone = `${countryCode}${digitsOnly}`;
+      const res = await api.patch('/users/me/profile', { name, phone: combinedPhone });
       if (res.data?.success) {
         setProfileSuccess(true);
         // Sync updated user state into the global auth store
-        useAuthStore.setState({ user: { ...user, name, phone } as any });
+        useAuthStore.setState({ user: { ...user, name, phone: combinedPhone } as any });
       }
     } catch (err: any) {
       setProfileError(err.response?.data?.message || 'Failed to update profile settings.');
@@ -151,17 +273,108 @@ export const ProfileSettings: React.FC = () => {
                 />
               </div>
 
-              <div>
+              <div className="flex flex-col">
                 <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">
                   Phone Number
                 </label>
-                <input
-                  type="text"
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                  placeholder="e.g. +1 555 1234"
-                  className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:border-blue-400 focus:outline-none text-sm text-slate-700 placeholder:text-slate-400"
-                />
+                
+                {/* Combined Input Field Container */}
+                <div 
+                  className="flex items-center rounded-xl bg-white border border-slate-200 focus-within:border-blue-400 transition-colors relative" 
+                  ref={dropdownRef}
+                >
+                  {/* Dropdown Selector Trigger */}
+                  <button
+                    type="button"
+                    onClick={() => setDropdownOpen(!dropdownOpen)}
+                    className="pl-3.5 pr-2 py-2.5 flex items-center gap-2 hover:bg-slate-50 transition-colors rounded-l-xl focus:outline-none cursor-pointer shrink-0"
+                    disabled={updatingProfile}
+                  >
+                    <img
+                      src={`https://flagcdn.com/w40/${activeCountry.iso}.png`}
+                      alt="Flag"
+                      className="w-5 h-5 rounded-full object-cover border border-slate-200 shrink-0"
+                    />
+                    <span className="font-bold text-xs text-slate-700 tracking-wide uppercase">
+                      {activeCountry.iso} {activeCountry.code}
+                    </span>
+                    <ChevronsUpDown size={14} className="text-slate-400" />
+                  </button>
+
+                  {/* Vertical Divider */}
+                  <div className="h-6 w-px bg-slate-200 shrink-0"></div>
+
+                  {/* Phone Input Box */}
+                  <input
+                    id="phone"
+                    type="tel"
+                    value={phoneNumber}
+                    onChange={(e) => setPhoneNumber(e.target.value)}
+                    placeholder={PLACEHOLDERS[countryCode] || '300 1234567'}
+                    className="flex-grow bg-transparent pl-3.5 pr-4 py-2.5 text-slate-700 text-sm focus:outline-none placeholder:text-slate-400"
+                    disabled={updatingProfile}
+                  />
+
+                  {/* Dropdown Panel List */}
+                  {dropdownOpen && (
+                    <div className="absolute left-0 top-full mt-2 w-full bg-white border border-slate-200 rounded-2xl shadow-xl overflow-hidden z-50 flex flex-col">
+                      {/* Search Field */}
+                      <div className="flex items-center gap-2 px-3.5 py-2.5 border-b border-slate-100 bg-slate-50/40">
+                        <Search size={14} className="text-slate-400" />
+                        <input
+                          type="text"
+                          value={searchCountryQuery}
+                          onChange={(e) => setSearchCountryQuery(e.target.value)}
+                          placeholder="Search for countries"
+                          className="w-full bg-transparent text-xs text-slate-700 placeholder:text-slate-400 focus:outline-none"
+                        />
+                        {searchCountryQuery && (
+                          <button
+                            type="button"
+                            onClick={() => setSearchCountryQuery('')}
+                            className="text-slate-400 hover:text-slate-650 p-0.5 cursor-pointer text-xs"
+                          >
+                            ✕
+                          </button>
+                        )}
+                      </div>
+
+                      {/* Options List */}
+                      <div className="max-h-56 overflow-y-auto py-1">
+                        {filteredCountries.length === 0 ? (
+                          <div className="px-4 py-3 text-xs text-slate-400 text-center font-semibold">
+                            No countries found
+                          </div>
+                        ) : (
+                          filteredCountries.map((c) => (
+                            <button
+                              key={c.iso}
+                              type="button"
+                              onClick={() => {
+                                setCountryCode(c.code);
+                                setDropdownOpen(false);
+                                setSearchCountryQuery('');
+                              }}
+                              className={`w-full px-4 py-2.5 text-left hover:bg-slate-50 flex items-center gap-3 text-xs transition-colors cursor-pointer ${
+                                c.code === countryCode ? 'bg-blue-50/50 text-blue-600 font-bold' : 'text-slate-600'
+                              }`}
+                            >
+                              <img
+                                src={`https://flagcdn.com/w40/${c.iso}.png`}
+                                alt={c.name}
+                                className="w-6 h-6 rounded-full object-cover border border-slate-200 shrink-0"
+                              />
+                              <span className="flex-grow font-semibold">{c.name}</span>
+                              <span className="px-2.5 py-0.5 rounded-full bg-slate-55 border border-slate-100 text-[10px] text-slate-500 font-black shrink-0">
+                                {c.code}
+                              </span>
+                            </button>
+                          ))
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
 

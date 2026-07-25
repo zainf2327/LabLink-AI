@@ -8,12 +8,14 @@ import Subscription from '../models/Subscription.model.js';
 import FamilyMember from '../models/FamilyMember.model.js';
 import Booking from '../models/Booking.model.js';
 import AuditLog from '../models/AuditLog.model.js';
+import Test from '../models/Test.model.js';
+import Coupon from '../models/Coupon.model.js';
 import { env } from '../config/env.js';
 
 dns.setServers(['8.8.8.8', '1.1.1.1']);
 
 const MONGODB_URI = env.MONGODB_URI;
-const API_URL = `http://localhost:${env.PORT}/api/v1`;
+const API_URL = `http://127.0.0.1:${env.PORT}/api/v1`;
 
 async function runTests() {
   console.log('--- STARTING SUBSCRIPTION INTEGRATION TESTS ---');
@@ -263,6 +265,87 @@ async function runTests() {
     throw new Error('Deleting locked family member without history should succeed, got status: ' + deleteLockedRes.status);
   }
   console.log('Successfully allowed deletion of locked family member without diagnostic history.');
+
+  // 9.5 Test Booking Subscription Discount + Coupon Calculations
+  console.log('Testing booking subscription discount and coupon calculations...');
+  // Create a dummy category and test
+  const dummyTest = await Test.create({
+    name: `Test for Discount ${Date.now()}`,
+    description: 'A test description',
+    type: 'lab',
+    categoryId: new mongoose.Types.ObjectId(),
+    price: 100,
+    duration: '24h',
+    isHomeCollectionAvailable: true,
+    isActive: true,
+  });
+
+  // Ensure patient has a 20% discount on their active subscription
+  await Subscription.updateOne(
+    { userId: patient._id, status: 'active' },
+    { 'planSnapshot.testDiscountPercent': 20 }
+  );
+
+  // 1) Test booking with subscription discount only (should have 20% discount on $100 -> $80)
+  const booking1Res = await fetch(`${API_URL}/bookings`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${patientToken}`,
+    },
+    body: JSON.stringify({
+      tests: [dummyTest._id.toString()],
+      homeSampling: {
+        requested: false,
+        scheduledAt: new Date(Date.now() + 24 * 3600 * 1000).toISOString(),
+      },
+    }),
+  });
+  const booking1Data = await booking1Res.json() as any;
+  if (!booking1Data.success) throw new Error('Failed to create booking 1: ' + booking1Data.message);
+  const booking1 = booking1Data.data.booking;
+  if (booking1.discountAmount !== 20 || booking1.finalAmount !== 80) {
+    throw new Error(`Expected booking 1 to have 20% subscription discount, got discountAmount: ${booking1.discountAmount}, finalAmount: ${booking1.finalAmount}`);
+  }
+  console.log('✅ Subscription-only discount applied correctly ($20 discount, $80 total).');
+
+  // Create a coupon code giving 10% discount
+  const couponCode = `TESTSUB${Date.now()}`;
+  const dummyCoupon = await Coupon.create({
+    code: couponCode,
+    discountType: 'percentage',
+    discountValue: 10,
+    isActive: true,
+  });
+
+  // 2) Test booking with subscription discount (20%) + coupon discount (10% of remaining 80 -> 8, total discount = 28, final = 72)
+  const booking2Res = await fetch(`${API_URL}/bookings`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${patientToken}`,
+    },
+    body: JSON.stringify({
+      tests: [dummyTest._id.toString()],
+      couponCode: couponCode,
+      homeSampling: {
+        requested: false,
+        scheduledAt: new Date(Date.now() + 24 * 3600 * 1000).toISOString(),
+      },
+    }),
+  });
+  const booking2Data = await booking2Res.json() as any;
+  if (!booking2Data.success) throw new Error('Failed to create booking 2: ' + booking2Data.message);
+  const booking2 = booking2Data.data.booking;
+  if (booking2.discountAmount !== 28 || booking2.finalAmount !== 72) {
+    throw new Error(`Expected booking 2 to have combined discount of 28, got discountAmount: ${booking2.discountAmount}, finalAmount: ${booking2.finalAmount}`);
+  }
+  console.log('✅ Combined subscription + coupon discount applied correctly ($28 discount, $72 total).');
+
+  // Clean up booking and dummy test/coupon
+  await Booking.deleteMany({ patientId: patient._id });
+  await Test.deleteOne({ _id: dummyTest._id });
+  await Coupon.deleteOne({ _id: dummyCoupon._id });
 
   // 10. Clean up test data from DB
   await User.deleteOne({ _id: patient._id });

@@ -5,12 +5,13 @@ import User from '../models/User.model.js';
 import Report from '../models/Report.model.js';
 import Booking from '../models/Booking.model.js';
 import ChatMessage from '../models/ChatMessage.model.js';
+import Subscription from '../models/Subscription.model.js';
 import { env } from '../config/env.js';
 
 dns.setServers(['8.8.8.8', '1.1.1.1']);
 
 const MONGODB_URI = env.MONGODB_URI;
-const API_URL = `http://localhost:${env.PORT}/api/v1`;
+const API_URL = `http://127.0.0.1:${env.PORT}/api/v1`;
 
 async function runTests() {
   console.log('--- STARTING AI ASSISTANT INTEGRATION TESTS ---');
@@ -184,13 +185,75 @@ async function runTests() {
   }
   console.log('✅ Test 5 Passed: Missing inputs correctly return 400.');
 
+  // Test 6: Verify AI monthly calendar question limit checks
+  console.log('Testing AI monthly calendar question limit...');
+  
+  // Set patient's active subscription limit to 2
+  const patient1Sub = await Subscription.findOne({ userId: patient1._id, status: 'active' });
+  if (patient1Sub) {
+    await Subscription.updateOne(
+      { _id: patient1Sub._id },
+      { 'planSnapshot.aiQuestionsPerMonth': 2 }
+    );
+  }
+
+  // Clear existing chat messages for patient 1 to ensure a clean slate
+  await ChatMessage.deleteMany({ patientId: patient1._id });
+
+  // Send 1st chat message (should succeed)
+  const chatMsg1Res = await fetch(`${API_URL}/ai/chat`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${p1Token}`,
+    },
+    body: JSON.stringify({ message: 'What was my hemoglobin level?', reportId: mockReport._id }),
+  });
+  if (chatMsg1Res.status !== 200) {
+    throw new Error('AI Chat Message 1 should have succeeded, got status: ' + chatMsg1Res.status);
+  }
+  console.log('✅ Sent AI Chat Message 1 successfully.');
+
+  // Send 2nd chat message (should succeed)
+  const chatMsg2Res = await fetch(`${API_URL}/ai/chat`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${p1Token}`,
+    },
+    body: JSON.stringify({ message: 'Is my glucose normal?', reportId: mockReport._id }),
+  });
+  if (chatMsg2Res.status !== 200) {
+    throw new Error('AI Chat Message 2 should have succeeded, got status: ' + chatMsg2Res.status);
+  }
+  console.log('✅ Sent AI Chat Message 2 successfully.');
+
+  // Send 3rd chat message (should fail - exceeded the limit of 2)
+  const chatMsg3Res = await fetch(`${API_URL}/ai/chat`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${p1Token}`,
+    },
+    body: JSON.stringify({ message: 'Can you tell me more about it?', reportId: mockReport._id }),
+  });
+  if (chatMsg3Res.status !== 403) {
+    throw new Error('AI Chat Message 3 should have returned 403 Forbidden, got: ' + chatMsg3Res.status);
+  }
+  
+  const chatMsg3Data = await chatMsg3Res.json() as any;
+  if (!chatMsg3Data.message.includes('reached your monthly limit')) {
+    throw new Error('Expected rate limit error message, got: ' + chatMsg3Data.message);
+  }
+  console.log('✅ Correctly blocked 3rd AI Chat message due to subscription limit.');
+
   // Clean up database records
   await User.deleteOne({ _id: patient1._id });
   await User.deleteOne({ _id: patient2._id });
   await User.deleteOne({ _id: staff._id });
   await Booking.deleteOne({ _id: mockBooking._id });
   await Report.deleteOne({ _id: mockReport._id });
-  await ChatMessage.deleteMany({ reportId: mockReport._id });
+  await ChatMessage.deleteMany({ patientId: patient1._id });
 
   console.log('Cleaned up integration test records.');
   console.log('--- ALL AI ASSISTANT INTEGRATION TESTS PASSED SUCCESSFULLY! ---');

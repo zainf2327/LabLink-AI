@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { authService } from '../services/auth.service';
-import { ShieldCheck, AlertCircle, CheckCircle2, Eye, EyeOff, Lock } from 'lucide-react';
+import { Activity, AlertCircle, CheckCircle2, Eye, EyeOff, Lock } from 'lucide-react';
 
 export const ResetPassword: React.FC = () => {
   const navigate = useNavigate();
@@ -61,8 +61,8 @@ export const ResetPassword: React.FC = () => {
 
       <div className="w-full max-w-md z-10">
         <div className="flex flex-col items-center mb-8 text-center">
-          <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-emerald-600 to-teal-400 flex items-center justify-center shadow-lg shadow-emerald-500/25 mb-4 hover:scale-105 transition-transform duration-300">
-            <ShieldCheck size={28} className="text-black" />
+          <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-brand-500 to-accent-400 flex items-center justify-center shadow-lg shadow-brand-500/25 mb-4 group hover:scale-105 transition-transform duration-300">
+            <Activity size={28} className="text-white animate-heartbeat" />
           </div>
           <h1 className="text-3xl font-extrabold tracking-tight bg-gradient-to-r from-zinc-100 via-zinc-200 to-emerald-400 bg-clip-text text-transparent">
             Reset Password
