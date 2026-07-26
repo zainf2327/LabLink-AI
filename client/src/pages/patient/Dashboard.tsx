@@ -12,6 +12,8 @@ import { ReportDisclosure } from '../../components/ReportDisclosure';
 import { buildReportFilename } from '../../utils/reportFilename';
 import { ConfirmModal } from '../../components/ConfirmModal';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
+import Logo from '../../components/Logo';
+
 import {
   Calendar,
   Activity,
@@ -623,9 +625,7 @@ export const PatientDashboard: React.FC = () => {
 
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 relative z-10">
               <div className="flex items-start gap-4">
-                <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-brand-500 to-accent-400 flex items-center justify-center text-white shadow-lg shadow-brand-500/25 shrink-0 group-hover:scale-105 transition-transform duration-300">
-                  <Activity size={22} className="animate-heartbeat" />
-                </div>
+                <Logo size="md-lg" className="group-hover:scale-105" />
                 <div>
                   <h3 className="text-base font-extrabold text-slate-800 tracking-tight flex items-center gap-1.5">
                     <span>AI Health Assistant Insights</span>

@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
+import Logo from '../components/Logo';
 import { 
   Sparkles, 
-  Activity, 
   Search, 
   ArrowRight, 
   Check, 
@@ -302,9 +302,7 @@ export const Landing: React.FC = () => {
           
           {/* Logo Branding */}
           <Link to="/" className="flex items-center gap-2 group">
-            <div className="w-9 h-9 md:w-10 md:h-10 rounded-xl bg-gradient-to-br from-brand-500 to-accent-400 flex items-center justify-center shadow-md shadow-brand-500/15 group-hover:scale-110 group-hover:rotate-3 transition-all duration-350">
-              <Activity className="text-white animate-heartbeat" size={18} />
-            </div>
+            <Logo size="md" className="group-hover:scale-110 group-hover:rotate-3" />
             <div>
               <h1 className="text-lg font-black tracking-tight text-gradient-primary group-hover:opacity-90 transition-opacity">
                 LabLink <span className="text-[9px] bg-brand-50 text-brand-500 border border-brand-100 px-2 py-0.5 rounded-full font-black ml-1 uppercase tracking-widest align-middle">AI</span>
@@ -1088,9 +1086,7 @@ export const Landing: React.FC = () => {
           {/* Logo Brand column */}
           <div className="space-y-4">
             <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-brand-500 to-accent-400 flex items-center justify-center text-white">
-                <Activity size={16} />
-              </div>
+              <Logo size="sm" animate={false} />
               <span className="text-base font-black text-text-primary tracking-tight">LabLink AI</span>
             </div>
             <p className="text-[11px] text-text-muted font-semibold leading-relaxed">

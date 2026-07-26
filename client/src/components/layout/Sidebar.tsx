@@ -1,7 +1,6 @@
 import React from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import {
-  Activity,
   LayoutDashboard,
   FlaskConical,
   Wallet,
@@ -11,6 +10,7 @@ import {
   Shield,
 } from 'lucide-react';
 import useAuthStore from '../../store/useAuthStore';
+import Logo from '../Logo';
 
 // ─── Nav config per role ─────────────────────────────────────────────────────
 const NAV_ITEMS = {
@@ -123,11 +123,8 @@ const Sidebar: React.FC<SidebarProps> = ({
           className="hidden md:block absolute top-0 right-0 w-1.5 h-full cursor-col-resize hover:bg-blue-500/20 active:bg-blue-600 transition-colors z-50"
         />
 
-      {/* Logo */}
       <div className="h-16 flex items-center gap-3 px-5 border-b border-slate-200 shrink-0">
-        <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-brand-500 to-accent-400 flex items-center justify-center shadow-sm">
-          <Activity size={16} className="text-white animate-heartbeat" />
-        </div>
+        <Logo size="sm" />
         <div>
           <span className="font-bold text-slate-800 text-sm tracking-tight leading-tight block">LabLink AI</span>
           <span className="text-[10px] text-slate-400 leading-none capitalize">{role} portal</span>

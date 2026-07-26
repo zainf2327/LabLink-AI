@@ -8,8 +8,9 @@ ENV NODE_ENV=production
 COPY package*.json ./
 
 # Install only production dependencies
-RUN npm ci --omit=dev
 
+
+RUN npm ci --omit=dev 
 # Copy compiled JavaScript from local build
 COPY dist ./dist
 
