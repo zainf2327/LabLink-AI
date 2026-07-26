@@ -445,7 +445,7 @@ export const Tests: React.FC = () => {
 
       {/* Footer */}
       <footer className="border-t border-zinc-900/80 bg-zinc-950 py-8 text-center text-xs text-zinc-600 uppercase tracking-wider mt-auto">
-        All AI insights require medical practitioner sign-off. LabLink AI Diagnostics v1.0.0.
+        All AI insights require medical practitioner sign-off.
       </footer>
     </div>
   );

@@ -259,11 +259,12 @@ export const swaggerPaths = {
                     'application/json': {
                         schema: {
                             type: 'object',
-                            required: ['name', 'email', 'password'],
+                            required: ['name', 'email', 'password', 'phone'],
                             properties: {
                                 name: { type: 'string', example: 'Muhammad Zain' },
                                 email: { type: 'string', example: 'zainf2327@gmail.com' },
                                 password: { type: 'string', example: 'password123' },
+                                phone: { type: 'string', example: '+923001234567' },
                             },
                         },
                     },

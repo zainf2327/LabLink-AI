@@ -52,7 +52,7 @@ export const aiAssistantService = {
       }));
 
       // Upsert new vectors
-      await namespace.upsert({ records: vectors });
+      await namespace.upsert(vectors);
 
       return vectors.length;
     } catch (err: any) {

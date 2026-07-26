@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link, useLocation } from 'react-router-dom';
 import useAuthStore from '../../store/useAuthStore';
 import useCartStore from '../../store/useCartStore';
 import { bookingService } from '../../services/booking.service';
+import type { Booking } from '../../services/booking.service';
 import { walletService } from '../../services/wallet.service';
 import { familyService } from '../../services/family.service';
 import type { FamilyMember } from '../../services/family.service';
@@ -73,6 +74,13 @@ const CheckoutForm: React.FC = () => {
   // Credit Card states
   const [cardName, setCardName] = useState('');
 
+  const location = useLocation();
+  const searchParams = new URLSearchParams(location.search);
+  const paramBookingId = searchParams.get('bookingId') || location.state?.bookingId || null;
+
+  const [existingBooking, setExistingBooking] = useState<Booking | null>(null);
+  const [loadingBooking, setLoadingBooking] = useState<boolean>(false);
+
   // Calculate pricing
   const subtotal = items.reduce((sum, item) => sum + item.price, 0);
   const subDiscountPercent = activeSubscription?.planSnapshot?.testDiscountPercent || 0;
@@ -86,11 +94,11 @@ const CheckoutForm: React.FC = () => {
   const finalTotal = Math.max(0, afterCoupon - walletApplied);
 
   useEffect(() => {
-    // Redirect if cart is empty and not on success step
-    if (items.length === 0 && step !== 'success') {
+    // Redirect if cart is empty and not on success step and not loading an existing booking
+    if (!paramBookingId && items.length === 0 && step !== 'success') {
       navigate('/tests');
     }
-  }, [items, navigate, step]);
+  }, [items, navigate, step, paramBookingId]);
 
   useEffect(() => {
     if (errorMessage) {
@@ -138,6 +146,44 @@ const CheckoutForm: React.FC = () => {
     };
     fetchWallet();
   }, []);
+
+  useEffect(() => {
+    if (paramBookingId) {
+      const loadBooking = async () => {
+        setLoadingBooking(true);
+        setErrorMessage(null);
+        try {
+          const res = await bookingService.getBookingById(paramBookingId);
+          if (res.success && res.data?.booking) {
+            const booking = res.data.booking;
+            setExistingBooking(booking);
+            
+            // Generate or fetch payment intent
+            const intentRes = await bookingService.createPaymentIntent(booking._id);
+            if (intentRes.success) {
+              const { clientSecret, walletAmountUsed: wUsed, stripeAmount } = intentRes.data;
+              setWalletAmountUsed(wUsed);
+              setStripeChargeAmount(stripeAmount);
+              
+              if (!clientSecret || stripeAmount === 0) {
+                // If it is covered by wallet
+                setCreatedBooking({ ...booking, status: 'scheduled' });
+                setStep('success');
+              } else {
+                setPaymentSecret(clientSecret);
+                setStep('payment');
+              }
+            }
+          }
+        } catch (err: any) {
+          setErrorMessage(err.response?.data?.message || 'Failed to load booking details.');
+        } finally {
+          setLoadingBooking(false);
+        }
+      };
+      loadBooking();
+    }
+  }, [paramBookingId]);
 
   const handleApplyCoupon = async () => {
     if (!couponCode.trim()) return;
@@ -374,6 +420,17 @@ const CheckoutForm: React.FC = () => {
     );
   }
 
+  if (loadingBooking) {
+    return (
+      <div className="min-h-screen bg-zinc-950 text-zinc-100 flex flex-col justify-center items-center">
+        <Loader className="animate-spin text-emerald-400" size={36} />
+        <p className="text-xs text-zinc-500 uppercase font-bold tracking-widest mt-4">
+          Loading Booking Details...
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-zinc-950 bg-grid-pattern text-zinc-100 flex flex-col">
       {/* Header */}
@@ -515,10 +572,6 @@ const CheckoutForm: React.FC = () => {
               </h3>
 
               <div className="space-y-4">
-                <div className="p-4 rounded-2xl bg-emerald-500/5 border border-emerald-500/10 text-emerald-400 text-xs leading-relaxed">
-                  Payments are secured by Stripe. You can complete this checkout using standard test cards (e.g. 4242 4242...).
-                </div>
-
                 {/* Cardholder Name */}
                 <div className="space-y-2">
                   <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wider block">
@@ -589,11 +642,11 @@ const CheckoutForm: React.FC = () => {
           <div className="glassmorphic-card rounded-3xl p-6 space-y-6">
             <h3 className="text-sm font-semibold uppercase tracking-wider text-zinc-400 flex items-center gap-2">
               <FileText size={16} className="text-emerald-400" />
-              <span>Cart Summary</span>
+              <span>{existingBooking ? 'Booking Summary' : 'Cart Summary'}</span>
             </h3>
 
             {/* Wallet balance pill */}
-            {!walletLoading && walletBalance > 0 && (
+            {!existingBooking && !walletLoading && walletBalance > 0 && (
               <div className="flex items-center justify-between bg-teal-500/10 border border-teal-500/20 rounded-xl px-3 py-2">
                 <span className="text-xs text-teal-600 flex items-center gap-1.5 font-semibold">
                   <Wallet size={13} />
@@ -605,36 +658,54 @@ const CheckoutForm: React.FC = () => {
 
             {/* Test items list */}
             <div className="space-y-3 max-h-60 overflow-y-auto pr-1">
-              {items.map((test) => (
-                <div key={test._id} className="flex justify-between items-start gap-4">
-                  <div className="space-y-0.5">
-                    <span className="text-sm font-bold text-zinc-200 line-clamp-1">{test.name}</span>
-                    <span className="text-[10px] text-zinc-500 uppercase font-semibold">
-                      {test.type === 'lab' ? 'Lab Test' : 'Radiology'}
-                    </span>
+              {existingBooking ? (
+                existingBooking.tests.map((test) => (
+                  <div key={test.testId} className="flex justify-between items-start gap-4">
+                    <div className="space-y-0.5">
+                      <span className="text-sm font-bold text-zinc-200 line-clamp-1">{test.name}</span>
+                      <span className="text-[10px] text-zinc-500 uppercase font-semibold">
+                        Lab Panel
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <strong className="text-sm text-zinc-300 font-extrabold">
+                        ${test.price.toFixed(2)}
+                      </strong>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-3">
-                    <strong className="text-sm text-zinc-300 font-extrabold">
-                      ${test.price.toFixed(2)}
-                    </strong>
-                    {step === 'details' && (
-                      <button
-                        onClick={() => removeItem(test._id || '')}
-                        className="text-zinc-600 hover:text-red-400 transition-colors cursor-pointer"
-                        title="Remove test"
-                      >
-                        <Trash2 size={14} />
-                      </button>
-                    )}
+                ))
+              ) : (
+                items.map((test) => (
+                  <div key={test._id} className="flex justify-between items-start gap-4">
+                    <div className="space-y-0.5">
+                      <span className="text-sm font-bold text-zinc-200 line-clamp-1">{test.name}</span>
+                      <span className="text-[10px] text-zinc-500 uppercase font-semibold">
+                        {test.type === 'lab' ? 'Lab Test' : 'Radiology'}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <strong className="text-sm text-zinc-300 font-extrabold">
+                        ${test.price.toFixed(2)}
+                      </strong>
+                      {step === 'details' && (
+                        <button
+                          onClick={() => removeItem(test._id || '')}
+                          className="text-zinc-600 hover:text-red-400 transition-colors cursor-pointer"
+                          title="Remove test"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      )}
+                    </div>
                   </div>
-                </div>
-              ))}
+                ))
+              )}
             </div>
 
             {/* Coupon Application Block */}
-            {step === 'details' && (
+            {!existingBooking && step === 'details' && (
               <div className="border-t border-zinc-900 pt-4 space-y-3">
-                <span className="text-xs font-semibold text-zinc-400 uppercase tracking-wider block">
+                <span className="text-xs font-semibold text-zinc-450 uppercase tracking-wider block">
                   Promo / Coupon Code
                 </span>
                 {appliedCoupon ? (
@@ -673,47 +744,70 @@ const CheckoutForm: React.FC = () => {
             )}
 
             {/* Total Details */}
-            <div className="border-t border-zinc-900 pt-4 space-y-2.5">
-              <div className="flex justify-between text-xs text-zinc-500">
-                <span>Subtotal</span>
-                <span className="text-zinc-300 font-medium">${subtotal.toFixed(2)}</span>
+            {existingBooking ? (
+              <div className="border-t border-zinc-900 pt-4 space-y-2.5">
+                <div className="flex justify-between text-xs text-zinc-500">
+                  <span>Booking Code</span>
+                  <span className="text-zinc-300 font-mono text-[10px]">#{existingBooking._id}</span>
+                </div>
+                {walletAmountUsed > 0 && (
+                  <div className="flex justify-between text-xs text-zinc-500">
+                    <span className="text-teal-600 flex items-center gap-1.5 font-semibold">
+                      <Wallet size={11} />
+                      Wallet Applied
+                    </span>
+                    <span className="text-teal-600 font-semibold">-${walletAmountUsed.toFixed(2)}</span>
+                  </div>
+                )}
+                <div className="flex justify-between items-center pt-2.5 border-t border-zinc-900">
+                  <span className="text-sm font-bold text-zinc-200">Amount Due</span>
+                  <strong className="text-xl font-extrabold text-emerald-400">
+                    ${stripeChargeAmount.toFixed(2)}
+                  </strong>
+                </div>
               </div>
-              {subDiscount > 0 && (
+            ) : (
+              <div className="border-t border-zinc-900 pt-4 space-y-2.5">
                 <div className="flex justify-between text-xs text-zinc-500">
-                  <span className="text-emerald-400">Subscription Discount ({subDiscountPercent}%)</span>
-                  <span className="text-emerald-400 font-semibold">-${subDiscount.toFixed(2)}</span>
+                  <span>Subtotal</span>
+                  <span className="text-zinc-300 font-medium">${subtotal.toFixed(2)}</span>
                 </div>
-              )}
-              {appliedCoupon && (
-                <div className="flex justify-between text-xs text-zinc-500">
-                  <span className="text-emerald-400">Coupon Discount</span>
-                  <span className="text-emerald-400 font-semibold">-${discount.toFixed(2)}</span>
+                {subDiscount > 0 && (
+                  <div className="flex justify-between text-xs text-zinc-500">
+                    <span className="text-emerald-400">Subscription Discount ({subDiscountPercent}%)</span>
+                    <span className="text-emerald-400 font-semibold">-${subDiscount.toFixed(2)}</span>
+                  </div>
+                )}
+                {appliedCoupon && (
+                  <div className="flex justify-between text-xs text-zinc-500">
+                    <span className="text-emerald-400">Coupon Discount</span>
+                    <span className="text-emerald-400 font-semibold">-${discount.toFixed(2)}</span>
+                  </div>
+                )}
+                {requestHomeSampling && (
+                  <div className="flex justify-between text-xs text-zinc-500">
+                    <span>Home Sampling Collection</span>
+                    <span className="text-emerald-400 font-semibold">Included</span>
+                  </div>
+                )}
+                {!walletLoading && walletBalance > 0 && (
+                  <div className="flex justify-between text-xs text-zinc-500 border-t border-zinc-900/50 pt-2">
+                    <span className="text-teal-600 flex items-center gap-1">
+                      <Wallet size={11} />
+                      Wallet Credit
+                      <span className="text-zinc-600">(bal: ${walletBalance.toFixed(2)})</span>
+                    </span>
+                    <span className="text-teal-600 font-semibold">-${walletApplied.toFixed(2)}</span>
+                  </div>
+                )}
+                <div className="flex justify-between items-center pt-2.5 border-t border-zinc-900">
+                  <span className="text-sm font-bold text-zinc-200">You Pay</span>
+                  <strong className="text-xl font-extrabold text-emerald-400">
+                    ${finalTotal.toFixed(2)}
+                  </strong>
                 </div>
-              )}
-              {requestHomeSampling && (
-                <div className="flex justify-between text-xs text-zinc-500">
-                  <span>Home Sampling Collection</span>
-                  <span className="text-emerald-400 font-semibold">Included</span>
-                </div>
-              )}
-              {/* Wallet balance row */}
-              {!walletLoading && walletBalance > 0 && (
-                <div className="flex justify-between text-xs text-zinc-500 border-t border-zinc-900/50 pt-2">
-                  <span className="text-teal-600 flex items-center gap-1">
-                    <Wallet size={11} />
-                    Wallet Credit
-                    <span className="text-zinc-600">(bal: ${walletBalance.toFixed(2)})</span>
-                  </span>
-                  <span className="text-teal-600 font-semibold">-${walletApplied.toFixed(2)}</span>
-                </div>
-              )}
-              <div className="flex justify-between items-center pt-2.5 border-t border-zinc-900">
-                <span className="text-sm font-bold text-zinc-200">You Pay</span>
-                <strong className="text-xl font-extrabold text-emerald-400">
-                  ${finalTotal.toFixed(2)}
-                </strong>
               </div>
-            </div>
+            )}
           </div>
         </div>
       </main>

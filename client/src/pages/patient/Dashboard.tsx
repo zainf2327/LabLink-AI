@@ -28,6 +28,8 @@ import {
   FileDown,
   X,
   Printer,
+  Sparkles,
+  CreditCard,
 } from 'lucide-react';
 
 export const PatientDashboard: React.FC = () => {
@@ -436,6 +438,15 @@ export const PatientDashboard: React.FC = () => {
     return 'pending';
   };
 
+  const stepIcons: Record<string, React.ComponentType<{ size?: number; className?: string }>> = {
+    pending_payment: CreditCard,
+    scheduled: Calendar,
+    sample_collected: FlaskConical,
+    in_lab: Activity,
+    report_ready: FileCheck,
+  };
+
+
   return (
     <AppLayout pageTitle="Dashboard">
       <div className="p-6 space-y-6">
@@ -466,12 +477,22 @@ export const PatientDashboard: React.FC = () => {
                     Tracking: <strong className="text-slate-700">{activeBooking.tests.map(t => t.name).join(', ')}</strong>
                   </p>
                 </div>
-                <span className="text-[10px] uppercase font-extrabold tracking-wider bg-brand-50 text-brand-500 border border-brand-100 px-2.5 py-0.5 rounded-full">
-                  {activeBooking.status.replace('_', ' ')}
-                </span>
+                {activeBooking.status === 'pending_payment' ? (
+                  <Link
+                    to={`/checkout?bookingId=${activeBooking._id}`}
+                    className="px-3 py-1 rounded-xl bg-emerald-500 hover:bg-emerald-455 text-black text-[10px] font-black transition-all shadow-md shadow-emerald-500/10 hover:scale-[1.02] flex items-center gap-1 cursor-pointer"
+                  >
+                    <CreditCard size={12} />
+                    <span>Pay Now</span>
+                  </Link>
+                ) : (
+                  <span className="text-[10px] uppercase font-extrabold tracking-wider bg-brand-50 text-brand-500 border border-brand-100 px-2.5 py-0.5 rounded-full">
+                    {activeBooking.status.replace('_', ' ')}
+                  </span>
+                )}
               </div>
 
-              <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 py-4">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 py-4">
                 {[
                   { name: 'pending_payment', label: 'Payment' },
                   { name: 'scheduled', label: 'Scheduled' },
@@ -480,30 +501,36 @@ export const PatientDashboard: React.FC = () => {
                   { name: 'report_ready', label: 'Ready' }
                 ].map((step, index, arr) => {
                   const status = getStepStatus(activeBooking.status, step.name);
+                  const StepIcon = stepIcons[step.name];
                   return (
                     <React.Fragment key={step.name}>
                       <div className="flex items-center gap-3 md:flex-col md:text-center flex-1">
-                        <div className={`w-9 h-9 rounded-full flex items-center justify-center font-bold text-xs shrink-0 transition-all duration-300 ${
+                        <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 transition-all duration-300 ${
                           status === 'completed'
-                            ? 'bg-gradient-to-br from-brand-500 to-brand-600 text-white shadow-lg shadow-brand-500/25 scale-105'
+                            ? 'bg-gradient-to-br from-brand-500 to-accent-400 text-white shadow-lg shadow-brand-500/25 scale-105'
                             : status === 'active'
                             ? 'bg-brand-50 border-2 border-brand-500 text-brand-500 animate-pulse shadow-md shadow-brand-500/15 ring-4 ring-brand-500/10 scale-110'
-                            : 'bg-slate-50 border border-slate-200 text-slate-400'
+                            : 'bg-slate-50 border border-slate-200/80 text-slate-400'
                         }`}>
-                          {status === 'completed' ? '✓' : index + 1}
+                          <StepIcon size={16} />
                         </div>
-                        <div>
-                          <span className={`text-[10px] font-extrabold uppercase tracking-wider block mt-1 ${
-                            status === 'active' ? 'text-brand-500 font-black' : status === 'completed' ? 'text-slate-700' : 'text-slate-400'
+                        <div className="md:mt-1">
+                          <span className={`text-[9px] font-black uppercase tracking-widest block leading-none ${
+                            status === 'active' ? 'text-brand-500 font-black animate-pulse' : status === 'completed' ? 'text-slate-800' : 'text-slate-400'
                           }`}>
                             {step.label}
                           </span>
                         </div>
                       </div>
                       {index < arr.length - 1 && (
-                        <div className={`hidden md:block h-[2px] flex-1 border-t transition-all duration-500 ${
-                          status === 'completed' ? 'border-brand-500 border-solid' : 'border-slate-200 border-dashed'
-                        }`} />
+                        <div className="hidden md:block flex-1 h-1.5 bg-slate-100 rounded-full relative overflow-hidden min-w-[30px] mx-2">
+                          <div
+                            className="absolute top-0 left-0 h-full bg-gradient-to-r from-brand-500 to-accent-400 rounded-full transition-all duration-750 ease-out"
+                            style={{
+                              width: status === 'completed' ? '100%' : '0%',
+                            }}
+                          />
+                        </div>
                       )}
                     </React.Fragment>
                   );
@@ -516,51 +543,121 @@ export const PatientDashboard: React.FC = () => {
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Left side: Stats cards */}
             <div className="lg:col-span-1 flex flex-col gap-4">
-              <div className="glassmorphic-card rounded-2xl p-6 flex-1 flex flex-col justify-between group hover:shadow-lg hover:scale-[1.005] transition-all duration-300">
+              <div className="glassmorphic-card rounded-3xl p-6 flex-1 flex flex-col justify-between group hover:shadow-lg hover:scale-[1.002] transition-all duration-300 relative overflow-hidden">
+                {/* Background ambient light score indicator */}
+                <div className="absolute left-[-20px] top-[-20px] w-36 h-36 bg-brand-500/5 rounded-full blur-2xl pointer-events-none" />
+                
                 <div>
-                  <h3 className="text-base font-extrabold text-slate-800 mb-4 flex items-center gap-2">
-                    <Activity className="text-brand-500" size={18} />
-                    <span>Health Summary</span>
-                  </h3>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="bg-white/80 border border-slate-200/65 p-4 rounded-xl shadow-sm hover:shadow-md hover:scale-[1.03] hover:border-brand-200 transition-all duration-300">
-                      <div className="flex justify-between items-start mb-2">
-                        <span className="text-slate-400 text-[10px] font-bold uppercase tracking-wider">Upcoming</span>
-                        <Calendar className="text-brand-500" size={14} />
-                      </div>
-                      <p className="text-2xl font-extrabold text-slate-800">{loading ? '…' : upcomingBookingsCount}</p>
-                      <span className="text-[9px] text-slate-500 block mt-1 leading-tight font-medium">Scheduled / unpaid</span>
+                  <div className="flex items-center gap-4">
+                    {/* Glowing Circular Progress Ring */}
+                    <div className="relative flex items-center justify-center shrink-0">
+                      <svg className="w-[84px] h-[84px] drop-shadow-[0_0_12px_rgba(37,99,235,0.15)]" viewBox="0 0 90 90">
+                        <circle
+                          cx="45"
+                          cy="45"
+                          r="36"
+                          className="stroke-slate-100"
+                          strokeWidth="7"
+                          fill="transparent"
+                        />
+                        <circle
+                          cx="45"
+                          cy="45"
+                          r="36"
+                          className="stroke-brand-500 transition-all duration-1000 ease-out"
+                          strokeWidth="7"
+                          fill="transparent"
+                          strokeDasharray="226"
+                          strokeDashoffset={reports.length > 0 ? 226 - (226 * 84) / 100 : 226}
+                          strokeLinecap="round"
+                          transform="rotate(-90 45 45)"
+                        />
+                        <text x="45" y="42" className="fill-slate-800 font-extrabold text-lg text-center leading-none" textAnchor="middle" dominantBaseline="middle">
+                          {reports.length > 0 ? '84' : '--'}
+                        </text>
+                        <text x="45" y="58" className="fill-slate-400 font-extrabold text-[8px] tracking-widest uppercase text-center leading-none" textAnchor="middle" dominantBaseline="middle">
+                          SCORE
+                        </text>
+                      </svg>
                     </div>
-                    <div className="bg-white/80 border border-slate-200/65 p-4 rounded-xl shadow-sm hover:shadow-md hover:scale-[1.03] hover:border-brand-200 transition-all duration-300">
-                      <div className="flex justify-between items-start mb-2">
-                        <span className="text-slate-400 text-[10px] font-bold uppercase tracking-wider">Completed</span>
-                        <ClipboardList className="text-brand-500" size={14} />
-                      </div>
-                      <p className="text-2xl font-extrabold text-slate-800">{loading ? '…' : bookings.filter((b) => b.status === 'completed').length}</p>
-                      <span className="text-[9px] text-slate-500 block mt-1 leading-tight font-medium">Diagnostic runs</span>
+
+                    <div className="flex-1">
+                      <span className="inline-flex items-center px-2 py-0.5 text-[8px] font-black uppercase tracking-wider rounded-md bg-brand-50 text-brand-600 border border-brand-100">
+                        {reports.length > 0 ? 'Optimal Status' : 'No Data Yet'}
+                      </span>
+                      <h4 className="text-base font-extrabold text-slate-800 mt-1 tracking-tight">
+                        Biomarker Health
+                      </h4>
+                      <p className="text-[10px] text-slate-500 font-medium leading-tight mt-0.5">
+                        {reports.length > 0 
+                          ? 'All monitored physiological indicators are stable.' 
+                          : 'Complete a diagnostic run to generate health score.'}
+                      </p>
                     </div>
+                  </div>
+
+                  {/* Horizontal visual timeline divider and clean metrics */}
+                  <div className="border-t border-slate-100/80 pt-4 mt-6 flex gap-2 items-center justify-between">
+                    {/* Stat 1: Upcoming */}
+                    <div className="flex-1 flex flex-col items-center text-center">
+                      <div className="w-8 h-8 rounded-xl bg-blue-50 flex items-center justify-center text-brand-500 mb-1.5 shadow-sm">
+                        <Calendar size={14} />
+                      </div>
+                      <span className="text-[8px] font-extrabold text-slate-400 uppercase tracking-widest block">Upcoming</span>
+                      <span className="text-sm font-black text-slate-700 mt-0.5 leading-none block">
+                        {loading ? '…' : upcomingBookingsCount}
+                      </span>
+                    </div>
+
+                    {/* Divider line */}
+                    <div className="h-8 w-px bg-slate-200/60" />
+
+                    {/* Stat 2: Reports */}
+                    <button
+                      onClick={() => setActiveTab('reports')}
+                      className="flex-1 flex flex-col items-center text-center group/btn cursor-pointer"
+                    >
+                      <div className="w-8 h-8 rounded-xl bg-emerald-50 flex items-center justify-center text-emerald-500 mb-1.5 shadow-sm group-hover/btn:bg-emerald-500 group-hover/btn:text-white transition-all duration-200">
+                        <ClipboardList size={14} />
+                      </div>
+                      <span className="text-[8px] font-extrabold text-slate-400 uppercase tracking-widest block">Reports</span>
+                      <span className="text-sm font-black text-slate-700 mt-0.5 leading-none block">
+                        {reportsLoading ? '…' : reports.length}
+                      </span>
+                    </button>
+
+                    {/* Divider line */}
+                    <div className="h-8 w-px bg-slate-200/60" />
+
+                    {/* Stat 3: Wallet */}
+                    <Link
+                      to="/patient/wallet"
+                      className="flex-1 flex flex-col items-center text-center group/btn cursor-pointer"
+                    >
+                      <div className="w-8 h-8 rounded-xl bg-teal-50 flex items-center justify-center text-teal-500 mb-1.5 shadow-sm group-hover/btn:bg-teal-500 group-hover/btn:text-white transition-all duration-200">
+                        <Wallet size={14} />
+                      </div>
+                      <span className="text-[8px] font-extrabold text-slate-400 uppercase tracking-widest block">Balance</span>
+                      <span className="text-sm font-black text-slate-700 mt-0.5 leading-none block">
+                        ${walletBalance.toFixed(2)}
+                      </span>
+                    </Link>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4 mt-4">
+                {/* Pill Actions bar */}
+                <div className="mt-6 flex gap-3">
                   <button
                     onClick={() => setActiveTab('reports')}
-                    className="bg-white/80 border border-slate-200/65 p-4 rounded-xl shadow-sm hover:shadow-md hover:scale-[1.03] hover:border-brand-200 transition-all duration-300 text-left cursor-pointer group"
+                    className="flex-1 py-2.5 px-4 rounded-xl border border-slate-200 hover:border-brand-200 bg-white text-slate-700 hover:text-brand-600 text-xs font-bold transition-all duration-200 cursor-pointer shadow-sm text-center"
                   >
-                    <div className="flex justify-between items-start mb-2">
-                      <span className="text-slate-400 text-[10px] font-bold uppercase tracking-wider">Reports</span>
-                      <ClipboardList className="text-brand-500 group-hover:scale-110 transition-transform duration-300" size={14} />
-                    </div>
-                    <p className="text-2xl font-extrabold text-slate-800">{reportsLoading ? '…' : reports.length}</p>
-                    <span className="text-[9px] text-slate-500 block mt-1 leading-tight font-medium">Click to view</span>
+                    View Reports
                   </button>
-                  <Link to="/patient/wallet" className="bg-white/80 border border-slate-200/65 p-4 rounded-xl shadow-sm hover:shadow-md hover:scale-[1.03] hover:border-brand-200 transition-all duration-300 group block">
-                    <div className="flex justify-between items-start mb-2">
-                      <span className="text-slate-400 text-[10px] font-bold uppercase tracking-wider">Wallet</span>
-                      <Wallet className="text-teal-500 group-hover:scale-110 transition-transform duration-300" size={14} />
-                    </div>
-                    <p className="text-2xl font-extrabold text-slate-800">${walletBalance.toFixed(2)}</p>
-                    <span className="text-[9px] text-slate-500 block mt-1 leading-tight font-medium">Tap for ledger</span>
+                  <Link
+                    to="/patient/wallet"
+                    className="flex-1 py-2.5 px-4 rounded-xl bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold transition-all duration-200 text-center shadow-sm"
+                  >
+                    Wallet Ledger
                   </Link>
                 </div>
               </div>
@@ -658,27 +755,44 @@ export const PatientDashboard: React.FC = () => {
             </div>
 
             {/* Quick Prompts */}
-            {reports.length > 0 && (
+            {reports.length > 0 ? (
               <div className="mt-5 pt-4 border-t border-slate-100/60">
-                <p className="text-[10px] font-bold text-slate-450 uppercase tracking-widest mb-3">
-                  Quick Prompt Suggestions
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-1.5">
+                  <Sparkles size={11} className="text-brand-500 animate-pulse" />
+                  <span>Interactive AI Actions</span>
                 </p>
-                <div className="flex flex-wrap gap-2.5">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   {[
-                    { label: 'Analyze Glucose Levels', prompt: 'Please analyze my glucose levels and explain if they are within normal range.' },
-                    { label: 'Explain Cholesterol Trends', prompt: 'Explain the cholesterol trends from my reports.' },
-                    { label: 'Fasting Guidelines', prompt: 'What are the fasting guidelines for my upcoming diagnostic samples?' }
+                    { label: 'Analyze Glucose', prompt: 'Please analyze my glucose levels and explain if they are within normal range.', desc: 'Check sugar metrics & trends' },
+                    { label: 'Explain Cholesterol', prompt: 'Explain the cholesterol trends from my reports.', desc: 'Interpret HDL/LDL/Triglycerides' },
+                    { label: 'Fasting Guidelines', prompt: 'What are the fasting guidelines for my upcoming diagnostic samples?', desc: 'Preparation rules & checklist' }
                   ].map((p) => (
                     <Link
                       key={p.label}
                       to={`/patient/reports/${reports[0]._id}/ai-assistant`}
                       state={{ initialPrompt: p.prompt }}
-                      className="px-3.5 py-2 rounded-xl bg-slate-55 hover:bg-brand-50 border border-slate-200 hover:border-brand-200 text-xs text-slate-600 hover:text-brand-600 font-semibold transition-all cursor-pointer flex items-center gap-1.5"
+                      className="p-3.5 rounded-2xl bg-slate-50/50 hover:bg-brand-50/40 border border-slate-100 hover:border-brand-200 transition-all duration-200 cursor-pointer flex flex-col items-start gap-1 group text-left shadow-sm hover:shadow"
                     >
-                      <span className="w-1.5 h-1.5 rounded-full bg-brand-500/70" />
-                      <span>{p.label}</span>
+                      <span className="text-xs font-bold text-slate-700 group-hover:text-brand-600 transition-colors">
+                        {p.label}
+                      </span>
+                      <span className="text-[10px] text-slate-400 font-medium leading-normal">
+                        {p.desc}
+                      </span>
                     </Link>
                   ))}
+                </div>
+              </div>
+            ) : (
+              <div className="mt-5 pt-4 border-t border-slate-100/60">
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2 flex items-center gap-1.5">
+                  <Sparkles size={11} className="text-slate-400" />
+                  <span>Interactive AI Actions</span>
+                </p>
+                <div className="p-3.5 rounded-2xl bg-slate-50/30 border border-dashed border-slate-200 text-center">
+                  <p className="text-[10px] text-slate-400 font-semibold leading-normal">
+                    Complete your first diagnostic test run to unlock interactive AI biomarker interpreters.
+                  </p>
                 </div>
               </div>
             )}
@@ -786,7 +900,7 @@ export const PatientDashboard: React.FC = () => {
                           )}
                           {booking.status === 'pending_payment' && (
                             <Link
-                              to="/checkout"
+                              to={`/checkout?bookingId=${booking._id}`}
                               className="px-3.5 py-1.5 rounded-xl bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500 hover:text-black border border-emerald-500/20 text-xs font-semibold transition-all"
                             >
                               Pay Now

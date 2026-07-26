@@ -393,7 +393,7 @@ export const Landing: React.FC = () => {
               className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-brand-50 border border-brand-100 text-brand-500 text-[10px] font-black uppercase tracking-wider shadow-sm"
             >
               <Sparkles size={13} className="animate-pulse text-brand-500" />
-              <span>Next-Gen Smart Clinical Diagnostics</span>
+              <span>Intelligent Health, Painless Diagnostics</span>
             </motion.div>
 
             {/* Split Title Animations for Spring Bounce */}

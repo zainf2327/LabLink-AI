@@ -82,7 +82,8 @@ export const Login: React.FC = () => {
         </div>
 
         {/* Card */}
-        <div className="glassmorphic-card neon-border-glow rounded-3xl p-8 relative">
+        <div className="glassmorphic-card neon-border-glow rounded-3xl p-8 relative hover:scale-[1.01] hover:-translate-y-1 hover:shadow-[0_20px_50px_rgba(16,185,129,0.08)] hover:border-emerald-500/25 transition-all duration-500 group/card">
+          <div className="absolute inset-0 bg-gradient-to-tr from-emerald-500/0 via-emerald-500/0 to-emerald-500/5 opacity-0 group-hover/card:opacity-100 transition-opacity duration-700 pointer-events-none rounded-3xl" />
           <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-emerald-500/30 to-transparent rounded-t-3xl"></div>
 
           <h2 className="text-xl font-bold text-zinc-100 mb-6 flex items-center gap-2">
