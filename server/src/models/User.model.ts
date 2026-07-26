@@ -4,7 +4,7 @@ export interface IUser extends Document {
   name: string;
   email: string;
   passwordHash?: string; // optional for Google OAuth users
-  phone: string;
+  phone?: string;
   role: 'patient' | 'staff' | 'admin';
   isActive: boolean;
   isVerified?: boolean;
@@ -33,7 +33,13 @@ const UserSchema: Schema = new Schema(
       match: [/\S+@\S+\.\S+/, 'Please use a valid email address'],
     },
     passwordHash: { type: String }, // optional for Google login
-    phone: { type: String, required: true, trim: true },
+    phone: {
+      type: String,
+      required: function (this: any) {
+        return !this.googleId;
+      },
+      trim: true,
+    },
     role: {
       type: String,
       enum: ['patient', 'staff', 'admin'],

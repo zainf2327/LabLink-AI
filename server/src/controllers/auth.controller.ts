@@ -32,8 +32,9 @@ const setRefreshTokenCookie = (res: Response, token: string): void => {
   res.cookie('refreshToken', token, {
     httpOnly: true,
     secure: env.NODE_ENV === 'production',
-    sameSite: env.NODE_ENV === 'production' ? 'none' : 'lax',
-    maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days in milliseconds
+    sameSite: 'lax',
+    path: '/',
+    maxAge: 7 * 24 * 60 * 60 * 1000,
   });
 };
 
@@ -218,7 +219,8 @@ export const logout = asyncHandler(async (req: Request, res: Response): Promise<
   res.clearCookie('refreshToken', {
     httpOnly: true,
     secure: env.NODE_ENV === 'production',
-    sameSite: env.NODE_ENV === 'production' ? 'none' : 'lax',
+    sameSite: 'lax',
+    path: '/',
   });
 
   res.status(200).json({

@@ -10,7 +10,13 @@ const UserSchema = new Schema({
         match: [/\S+@\S+\.\S+/, 'Please use a valid email address'],
     },
     passwordHash: { type: String }, // optional for Google login
-    phone: { type: String, required: true, trim: true },
+    phone: {
+        type: String,
+        required: function () {
+            return !this.googleId;
+        },
+        trim: true,
+    },
     role: {
         type: String,
         enum: ['patient', 'staff', 'admin'],

@@ -26,6 +26,7 @@ import walletRoutes from './routes/wallet.routes.js';
 import swaggerUi from 'swagger-ui-express';
 import { swaggerSpec } from './config/swagger.js';
 const app = express();
+app.set('trust proxy', 1);
 // Global Middlewares
 if (env.NODE_ENV === 'production') {
     app.use(rateLimiter);
