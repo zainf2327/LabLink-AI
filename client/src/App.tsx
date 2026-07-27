@@ -17,6 +17,9 @@ import AdminDashboard from './pages/admin/Dashboard';
 import ProfileSettings from './pages/ProfileSettings';
 import ProtectedRoute from './components/ProtectedRoute';
 import Landing from './pages/Landing';
+import PrivacyPolicy from './pages/PrivacyPolicy';
+import TermsOfService from './pages/TermsOfService';
+import MedicalAdvisory from './pages/MedicalAdvisory';
 
 export const App: React.FC = () => {
   const { checkAuth, isCheckingAuth, isAuthenticated, user } = useAuthStore();
@@ -59,6 +62,9 @@ export const App: React.FC = () => {
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="/tests" element={<Tests />} />
+        <Route path="/privacy" element={<PrivacyPolicy />} />
+        <Route path="/terms" element={<TermsOfService />} />
+        <Route path="/medical-advisory" element={<MedicalAdvisory />} />
 
         {/* Protected Patient Routes */}
         <Route

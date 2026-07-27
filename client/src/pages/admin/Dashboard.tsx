@@ -1322,10 +1322,10 @@ export const AdminDashboard: React.FC<{ defaultTab?: 'overview' | 'bookings' | '
                                 </span>
                               </td>
                               <td className="py-3.5 px-4 text-zinc-450 text-xs">
-                                {new Date(sub.startDate).toLocaleDateString()}
+                                {sub.startDate ? new Date(sub.startDate).toLocaleDateString() : 'N/A'}
                               </td>
                               <td className="py-3.5 px-4 text-zinc-450 text-xs">
-                                {new Date(sub.renewalDate).toLocaleDateString()}
+                                {sub.expiryDate ? new Date(sub.expiryDate).toLocaleDateString() : 'N/A'}
                               </td>
                             </tr>
                           ))}

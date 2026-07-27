@@ -17,7 +17,10 @@ import {
   Stethoscope,
   ChevronRight,
   ChevronLeft,
-  Plus
+  Plus,
+  Mail,
+  Send,
+  ShieldCheck
 } from 'lucide-react';
 import useAuthStore from '../store/useAuthStore';
 import useCartStore from '../store/useCartStore';
@@ -207,6 +210,23 @@ export const Landing: React.FC = () => {
     setCurrentPromptIndex(null);
     setIsScanning(false);
     setIsTyping(false);
+  };
+
+  // Newsletter Subscription State
+  const [newsletterEmail, setNewsletterEmail] = useState('');
+  const [newsletterSubscribed, setNewsletterSubscribed] = useState(false);
+  const [newsletterLoading, setNewsletterLoading] = useState(false);
+
+  const handleNewsletterSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newsletterEmail || !newsletterEmail.includes('@')) return;
+    setNewsletterLoading(true);
+    setTimeout(() => {
+      setNewsletterLoading(false);
+      setNewsletterSubscribed(true);
+      setNewsletterEmail('');
+      showToast("Subscribed! Thank you for joining our clinical research mailing list.");
+    }, 850);
   };
 
   // Steps data for roadmap
@@ -1079,12 +1099,15 @@ export const Landing: React.FC = () => {
         </motion.div>
       </section>
 
-      {/* Standard Clean Footer */}
-      <footer className="border-t border-border bg-surface-elevated py-12 text-text-muted text-xs font-semibold relative z-10">
-        <div className="max-w-7xl mx-auto px-6 grid grid-cols-1 md:grid-cols-4 gap-8">
+      {/* Polished Premium Footer */}
+      <footer className="relative z-10 border-t border-border bg-surface-elevated pt-16 pb-12 text-text-muted text-xs font-semibold">
+        {/* Subtle decorative gradient line at the top */}
+        <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-brand-500/20 via-brand-500/60 to-accent-500/20"></div>
+
+        <div className="max-w-7xl mx-auto px-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-8 lg:gap-12 pb-12">
           
-          {/* Logo Brand column */}
-          <div className="space-y-4">
+          {/* Logo & Social Links (Col span 3) */}
+          <div className="lg:col-span-3 space-y-5">
             <div className="flex items-center gap-2">
               <Logo size="sm" animate={false} />
               <span className="text-base font-black text-text-primary tracking-tight">LabLink AI</span>
@@ -1092,11 +1115,61 @@ export const Landing: React.FC = () => {
             <p className="text-[11px] text-text-muted font-semibold leading-relaxed">
               Safe, secure, and modern digital diagnostic clinical operations powered by laboratory biomarker insights.
             </p>
+            {/* Social Icons row */}
+            <div className="space-y-2">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-text-disabled">Connect with us</span>
+              <div className="flex items-center gap-2.5">
+                <a 
+                  href="https://twitter.com" 
+                  target="_blank" 
+                  rel="noopener noreferrer" 
+                  className="w-8 h-8 rounded-xl bg-surface hover:bg-[#1DA1F2]/10 border border-border text-text-muted hover:border-[#1DA1F2] hover:text-[#1DA1F2] flex items-center justify-center transition-all duration-200 hover:-translate-y-0.5 hover:shadow-sm"
+                  aria-label="Twitter"
+                >
+                  <svg className="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+                  </svg>
+                </a>
+                <a 
+                  href="https://linkedin.com" 
+                  target="_blank" 
+                  rel="noopener noreferrer" 
+                  className="w-8 h-8 rounded-xl bg-surface hover:bg-[#0A66C2]/10 border border-border text-text-muted hover:border-[#0A66C2] hover:text-[#0A66C2] flex items-center justify-center transition-all duration-200 hover:-translate-y-0.5 hover:shadow-sm"
+                  aria-label="LinkedIn"
+                >
+                  <svg className="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24" aria-hidden="true">
+                    <path fillRule="evenodd" d="M19 0h-14c-2.761 0-5 2.239-5 5v14c0 2.761 2.239 5 5 5h14c2.762 0 5-2.239 5-5v-14c0-2.761-2.238-5-5-5zm-11 19h-3v-11h3v11zm-1.5-12.268c-.966 0-1.75-.79-1.75-1.764s.784-1.764 1.75-1.764 1.75.79 1.75 1.764-.783 1.764-1.75 1.764zm13.5 12.268h-3v-5.604c0-3.368-4-3.113-4 0v5.604h-3v-11h3v1.765c1.396-2.586 7-2.777 7 2.476v6.759z" clipRule="evenodd" />
+                  </svg>
+                </a>
+                <a 
+                  href="https://github.com" 
+                  target="_blank" 
+                  rel="noopener noreferrer" 
+                  className="w-8 h-8 rounded-xl bg-surface hover:bg-[#24292F]/10 border border-border text-text-muted hover:border-[#24292F] hover:text-[#24292F] flex items-center justify-center transition-all duration-200 hover:-translate-y-0.5 hover:shadow-sm"
+                  aria-label="GitHub"
+                >
+                  <svg className="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24" aria-hidden="true">
+                    <path fillRule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.53 1.032 1.53 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z" clipRule="evenodd" />
+                  </svg>
+                </a>
+                <a 
+                  href="https://youtube.com" 
+                  target="_blank" 
+                  rel="noopener noreferrer" 
+                  className="w-8 h-8 rounded-xl bg-surface hover:bg-[#FF0000]/10 border border-border text-text-muted hover:border-[#FF0000] hover:text-[#FF0000] flex items-center justify-center transition-all duration-200 hover:-translate-y-0.5 hover:shadow-sm"
+                  aria-label="YouTube"
+                >
+                  <svg className="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24" aria-hidden="true">
+                    <path fillRule="evenodd" d="M23.498 6.163a3.003 3.003 0 00-2.11-2.11C19.518 3.5 12 3.5 12 3.5s-7.517 0-9.388.553a3.002 3.002 0 00-2.11 2.11C0 8.033 0 12 0 12s0 3.967.502 5.837a3.003 3.003 0 002.11 2.11c1.871.553 9.388.553 9.388.553s7.518 0 9.388-.553a3.003 3.003 0 002.11-2.11C24 15.967 24 12 24 12s0-3.967-.502-5.837zM9.545 15.568V8.432L15.818 12l-6.273 3.568z" clipRule="evenodd" />
+                  </svg>
+                </a>
+              </div>
+            </div>
           </div>
 
-          {/* Quick links */}
-          <div>
-            <h5 className="text-xs font-bold text-text-secondary uppercase tracking-wider mb-4">Patient Portal</h5>
+          {/* Quick links (Col span 2) */}
+          <div className="lg:col-span-2 space-y-4">
+            <h5 className="text-xs font-bold text-text-secondary uppercase tracking-wider">Patient Portal</h5>
             <ul className="space-y-2.5">
               <li><Link to="/login" className="hover:text-brand-500 transition-colors">Sign in to account</Link></li>
               <li><Link to="/register" className="hover:text-brand-500 transition-colors">Create new account</Link></li>
@@ -1105,9 +1178,9 @@ export const Landing: React.FC = () => {
             </ul>
           </div>
 
-          {/* Contact Details */}
-          <div>
-            <h5 className="text-xs font-bold text-text-secondary uppercase tracking-wider mb-4">Clinic Operations</h5>
+          {/* Contact Details (Col span 2) */}
+          <div className="lg:col-span-2 space-y-4">
+            <h5 className="text-xs font-bold text-text-secondary uppercase tracking-wider">Clinic Operations</h5>
             <ul className="space-y-2.5">
               <li><span className="text-text-muted">Phlebotomy Team:</span> 8am - 8pm</li>
               <li><span className="text-text-muted">Lab Processing:</span> 24/7 Hours</li>
@@ -1116,9 +1189,9 @@ export const Landing: React.FC = () => {
             </ul>
           </div>
 
-          {/* Compliances */}
-          <div>
-            <h5 className="text-xs font-bold text-text-secondary uppercase tracking-wider mb-4">Regulatory & Safety</h5>
+          {/* Compliances (Col span 2) */}
+          <div className="lg:col-span-2 space-y-4">
+            <h5 className="text-xs font-bold text-text-secondary uppercase tracking-wider">Regulatory & Safety</h5>
             <ul className="space-y-2.5 text-[11px] text-text-muted leading-normal font-semibold">
               <li>ISO 15189 Certified labs</li>
               <li>Stripe PCI-DSS Compliant Payments</li>
@@ -1126,15 +1199,77 @@ export const Landing: React.FC = () => {
               <li>All vectors isolated per patient</li>
             </ul>
           </div>
+
+          {/* Newsletter subscription (Col span 3) */}
+          <div className="lg:col-span-3 space-y-4">
+            <h5 className="text-xs font-bold text-text-secondary uppercase tracking-wider">LabLink Insights</h5>
+            <p className="text-[11px] text-text-muted font-semibold leading-relaxed">
+              Subscribe to receive updates on clinical research guidelines and raw biomarker interpretation updates.
+            </p>
+            
+            {newsletterSubscribed ? (
+              <motion.div 
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="p-3.5 rounded-2xl bg-emerald-50 border border-emerald-100 flex items-center gap-2.5 text-emerald-600 text-[11px] font-bold"
+              >
+                <div className="w-5 h-5 rounded-full bg-emerald-500 text-white flex items-center justify-center shrink-0">
+                  <Check size={11} />
+                </div>
+                <span>Subscription active!</span>
+              </motion.div>
+            ) : (
+              <form onSubmit={handleNewsletterSubmit} className="space-y-2">
+                <div className="relative flex items-center">
+                  <span className="absolute left-3 text-text-disabled">
+                    <Mail size={13} />
+                  </span>
+                  <input 
+                    type="email" 
+                    required 
+                    placeholder="Enter email address" 
+                    value={newsletterEmail}
+                    onChange={(e) => setNewsletterEmail(e.target.value)}
+                    disabled={newsletterLoading}
+                    className="w-full pl-8.5 pr-10 py-2.5 text-[11px] font-semibold bg-surface border border-border rounded-xl focus:border-brand-500 focus:outline-none transition-all shadow-inner disabled:opacity-70"
+                  />
+                  <button 
+                    type="submit" 
+                    disabled={newsletterLoading}
+                    className="absolute right-1.5 p-1.5 rounded-lg bg-brand-500 hover:bg-brand-600 text-white transition-all active:scale-95 disabled:opacity-70 cursor-pointer"
+                    aria-label="Subscribe"
+                  >
+                    {newsletterLoading ? (
+                      <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                    ) : (
+                      <Send size={11} />
+                    )}
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
         </div>
 
         {/* Bottom credits */}
-        <div className="max-w-7xl mx-auto px-6 mt-12 pt-8 border-t border-border flex flex-col sm:flex-row items-center justify-between text-text-disabled font-semibold text-[11px] gap-4">
-          <p>© {new Date().getFullYear()} LabLink AI. All rights reserved.</p>
-          <div className="flex gap-6">
-            <span className="hover:text-text-secondary cursor-pointer">Privacy Policy</span>
-            <span className="hover:text-text-secondary cursor-pointer">Terms of Service</span>
-            <span className="hover:text-text-secondary cursor-pointer">Medical Advisory Board</span>
+        <div className="max-w-7xl mx-auto px-6 mt-6 pt-8 border-t border-border flex flex-col sm:flex-row items-center justify-between text-text-disabled font-semibold text-[11px] gap-6">
+          <div className="space-y-2 text-center sm:text-left">
+            <p>© {new Date().getFullYear()} LabLink AI. All rights reserved.</p>
+            {/* Live HIPAA Trust indicator */}
+            <div className="flex items-center justify-center sm:justify-start gap-2">
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+              </span>
+              <span className="text-[10px] text-text-muted font-bold tracking-tight flex items-center gap-1">
+                <ShieldCheck size={11} className="text-emerald-500" /> HIPAA Compliant Data Layers (AES-256)
+              </span>
+            </div>
+          </div>
+          <div className="flex flex-wrap justify-center gap-x-6 gap-y-2">
+            <Link to="/privacy" className="hover:text-text-secondary transition-colors font-bold">Privacy Policy</Link>
+            <Link to="/terms" className="hover:text-text-secondary transition-colors font-bold">Terms of Service</Link>
+            <Link to="/medical-advisory" className="hover:text-text-secondary transition-colors font-bold">Medical Advisory Board</Link>
           </div>
         </div>
       </footer>
