@@ -32,7 +32,8 @@ export interface Booking {
     | 'in_lab'
     | 'report_ready'
     | 'completed'
-    | 'cancelled';
+    | 'cancelled'
+    | 'pending_manual_assignment';
   totalAmount: number;
   discountAmount: number;
   finalAmount: number;

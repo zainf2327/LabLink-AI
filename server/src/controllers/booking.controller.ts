@@ -211,10 +211,10 @@ export const cancelBooking = asyncHandler(async (req: Request, res: Response): P
       res.status(403).json({ success: false, message: 'Forbidden' });
       return;
     }
-    if (booking.status !== 'scheduled') {
+    if (booking.status !== 'scheduled' && booking.status !== 'pending_manual_assignment') {
       res.status(400).json({
         success: false,
-        message: 'Patients can only cancel bookings that are in "scheduled" status',
+        message: 'Patients can only cancel bookings that are in "scheduled" or "pending_manual_assignment" status',
       });
       return;
     }
@@ -238,7 +238,7 @@ export const cancelBooking = asyncHandler(async (req: Request, res: Response): P
   await booking.save();
 
   // Credit wallet if booking was already paid (scheduled or beyond)
-  const paidStatuses = ['scheduled', 'sample_collected', 'in_lab', 'report_ready'];
+  const paidStatuses = ['scheduled', 'pending_manual_assignment', 'sample_collected', 'in_lab', 'report_ready'];
   if (paidStatuses.includes(previousStatus) && booking.finalAmount > 0) {
     try {
       await paymentService.creditWalletOnCancellation(booking);
@@ -301,6 +301,10 @@ export const assignStaff = asyncHandler(async (req: Request, res: Response): Pro
   booking.homeSampling.assignedStaffId = assignedStaffId
     ? new mongoose.Types.ObjectId(assignedStaffId)
     : null;
+
+  if (booking.status === 'pending_manual_assignment' && assignedStaffId) {
+    booking.status = 'scheduled';
+  }
   
   await booking.save();
 

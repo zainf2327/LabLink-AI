@@ -273,6 +273,13 @@ export const StaffDashboard: React.FC<{ defaultTab?: 'my_assignments' | 'all_boo
             <span>Cancelled</span>
           </span>
         );
+      case 'pending_manual_assignment':
+        return (
+          <span className="px-2.5 py-0.5 rounded-full bg-rose-500/10 text-rose-400 text-[10px] font-extrabold uppercase border border-rose-500/20 flex items-center gap-1">
+            <User size={10} />
+            <span>Pending Staff Assignment</span>
+          </span>
+        );
       default:
         return (
           <span className="px-2.5 py-0.5 rounded-full bg-zinc-800 text-zinc-400 text-[10px] font-extrabold uppercase border border-zinc-700">

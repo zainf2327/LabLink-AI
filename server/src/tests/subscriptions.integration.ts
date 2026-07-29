@@ -1,7 +1,9 @@
+import { describe, it, expect, beforeAll } from 'vitest';
+import request from 'supertest';
 import mongoose from 'mongoose';
 import bcrypt from 'bcryptjs';
-import dns from 'dns';
 import Stripe from 'stripe';
+import app from '../app.js';
 import User from '../models/User.model.js';
 import SubscriptionPlan from '../models/SubscriptionPlan.model.js';
 import Subscription from '../models/Subscription.model.js';
@@ -10,24 +12,22 @@ import Booking from '../models/Booking.model.js';
 import AuditLog from '../models/AuditLog.model.js';
 import Test from '../models/Test.model.js';
 import Coupon from '../models/Coupon.model.js';
-import { env } from '../config/env.js';
 
-dns.setServers(['8.8.8.8', '1.1.1.1']);
+describe('Subscription Integration Tests', () => {
+  let adminToken: string;
+  let patientToken: string;
+  let patientUser: any;
+  let planId: string;
+  let planName: string;
+  let familyMember1Id: string;
+  let familyMember2Id: string;
+  let subId: string;
 
-const MONGODB_URI = env.MONGODB_URI;
-const API_URL = `http://127.0.0.1:${env.PORT}/api/v1`;
-
-async function runTests() {
-  console.log('--- STARTING SUBSCRIPTION INTEGRATION TESTS ---');
-  await mongoose.connect(MONGODB_URI);
-  console.log('Connected to Database.');
-
-  // Create or verify Admin in DB
-  const salt = await bcrypt.genSalt(10);
-  const passwordHash = await bcrypt.hash('password123', salt);
-  let admin = await User.findOne({ email: 'admin@lablink.com' });
-  if (!admin) {
-    admin = await User.create({
+  beforeAll(async () => {
+    // Create Admin User
+    const salt = await bcrypt.genSalt(10);
+    const passwordHash = await bcrypt.hash('password123', salt);
+    await User.create({
       name: 'Test Admin',
       email: 'admin@lablink.com',
       passwordHash,
@@ -36,333 +36,248 @@ async function runTests() {
       isVerified: true,
       isActive: true,
     });
-  }
 
-  // Create Patient directly in DB
-  const patientEmail = `patient_${Date.now()}@test.com`;
-  const patient = await User.create({
-    name: 'Test Patient',
-    email: patientEmail,
-    passwordHash,
-    phone: '+923001234567',
-    role: 'patient',
-    isVerified: true,
-    isActive: true,
-  });
-  console.log(`Created Patient user: ${patientEmail}`);
+    // Create Patient User
+    const patientEmail = `patient_${Date.now()}@test.com`;
+    patientUser = await User.create({
+      name: 'Test Patient',
+      email: patientEmail,
+      passwordHash,
+      phone: '+923001234567',
+      role: 'patient',
+      isVerified: true,
+      isActive: true,
+    });
 
-  // 1. Log in via API to get tokens
-  const adminLoginRes = await fetch(`${API_URL}/auth/login`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email: 'admin@lablink.com', password: 'password123' }),
-  });
-  const adminLogin = await adminLoginRes.json() as any;
-  if (!adminLogin.success) throw new Error('Admin login failed: ' + adminLogin.message);
-  const adminToken = adminLogin.accessToken;
+    // Log in both
+    const adminLogin = await request(app)
+      .post('/api/v1/auth/login')
+      .send({ email: 'admin@lablink.com', password: 'password123' });
+    adminToken = adminLogin.body.accessToken;
 
-  const patientLoginRes = await fetch(`${API_URL}/auth/login`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email: patientEmail, password: 'password123' }),
-  });
-  const patientLogin = await patientLoginRes.json() as any;
-  if (!patientLogin.success) throw new Error('Patient login failed: ' + patientLogin.message);
-  const patientToken = patientLogin.accessToken;
-  console.log('Logged in both Admin and Patient.');
-
-  // Verify Patient has default Free plan automatically created
-  const initialSub = await Subscription.findOne({ userId: patient._id, status: 'active' }).populate('planId');
-  if (!initialSub) throw new Error('Patient did not automatically receive Free subscription on registration');
-  console.log('Verified automatic Free subscription assignment.');
-
-  // 2. Admin creates a new plan
-  const planName = `Gold Test Plan ${Date.now()}`;
-  const createPlanRes = await fetch(`${API_URL}/subscription-plans`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${adminToken}`,
-    },
-    body: JSON.stringify({
-      name: planName,
-      price: 49.99,
-      maxFamilyMembers: 2,
-      features: ['Unlimited Lab Tests', 'Free Home Sampling'],
-    }),
-  });
-  const createPlanData = await createPlanRes.json() as any;
-  if (!createPlanData.success) throw new Error('Plan creation failed: ' + createPlanData.message);
-  const planId = createPlanData.plan._id;
-  console.log(`Admin created plan: ${planName} (${planId})`);
-
-  // Verify Audit Log for Plan Creation
-  const createAudit = await AuditLog.findOne({ action: 'CREATE_SUB_PLAN', targetId: planId });
-  if (!createAudit) throw new Error('Audit log for plan creation not found');
-  console.log('Verified CREATE_SUB_PLAN audit log.');
-
-  // 3. Patient tries to add a family member (should fail - Free plan has maxFamilyMembers: 0)
-  const addFamilyFailRes = await fetch(`${API_URL}/family-members`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${patientToken}`,
-    },
-    body: JSON.stringify({
-      name: 'Family Member 1',
-      dateOfBirth: '1990-01-01',
-      relationship: 'spouse',
-      gender: 'female',
-    }),
-  });
-  if (addFamilyFailRes.status !== 403) {
-    throw new Error('Adding family member on Free plan should have returned 403, got: ' + addFamilyFailRes.status);
-  }
-  console.log('Correctly rejected family member addition because active Free plan limit is 0.');
-
-  // 4. Patient initiates subscription checkout (POST /subscriptions/create-intent)
-  const intentRes = await fetch(`${API_URL}/subscriptions/create-intent`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${patientToken}`,
-    },
-    body: JSON.stringify({ planId }),
-  });
-  const intentData = await intentRes.json() as any;
-  if (!intentData.success) throw new Error('Creating intent failed: ' + intentData.message);
-  const clientSecret = intentData.data.clientSecret;
-  const paymentIntentId = intentData.data.stripePaymentIntentId;
-  console.log('Created subscription payment intent.');
-
-  // Confirm payment directly with Stripe SDK
-  const stripe = new Stripe(env.STRIPE_SECRET_KEY);
-  await stripe.paymentIntents.confirm(paymentIntentId, {
-    payment_method: 'pm_card_visa',
-    return_url: `${API_URL}/health`,
-  });
-  console.log('Confirmed PaymentIntent with Stripe.');
-
-  // Patient confirms subscription on backend
-  const confirmRes = await fetch(`${API_URL}/subscriptions/confirm-payment`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${patientToken}`,
-    },
-    body: JSON.stringify({ paymentIntentId }),
-  });
-  const confirmData = await confirmRes.json() as any;
-  if (!confirmData.success) throw new Error('Confirming subscription failed: ' + confirmData.message);
-  const subId = confirmData.subscription._id;
-  console.log(`Activated premium subscription: ${planName} (${subId})`);
-
-  // Verify Audit Log for Purchase
-  const subAudit = await AuditLog.findOne({
-    action: { $in: ['PURCHASE_SUBSCRIPTION', 'UPGRADE_SUBSCRIPTION'] },
-    targetId: subId
-  });
-  if (!subAudit) throw new Error('Audit log for subscription purchase/upgrade not found');
-  console.log(`Verified ${subAudit.action} audit log.`);
-
-  // 5. Patient adds family member 1 (should succeed)
-  const addFamily1Res = await fetch(`${API_URL}/family-members`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${patientToken}`,
-    },
-    body: JSON.stringify({
-      name: 'Jane Doe',
-      dateOfBirth: '1992-05-15',
-      relationship: 'spouse',
-      gender: 'female',
-    }),
-  });
-  const addFamily1 = await addFamily1Res.json() as any;
-  if (!addFamily1.success) throw new Error('Adding family member 1 failed: ' + addFamily1.message);
-  const familyMember1Id = addFamily1.familyMember._id;
-  console.log('Successfully added Family Member 1 (Jane Doe) and auto-activated.');
-
-  // 6. Patient adds family member 2 (should succeed)
-  const addFamily2Res = await fetch(`${API_URL}/family-members`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${patientToken}`,
-    },
-    body: JSON.stringify({
-      name: 'Baby Doe',
-      dateOfBirth: '2020-10-10',
-      relationship: 'child',
-      gender: 'other',
-    }),
-  });
-  const addFamily2 = await addFamily2Res.json() as any;
-  if (!addFamily2.success) throw new Error('Adding family member 2 failed: ' + addFamily2.message);
-  const familyMember2Id = addFamily2.familyMember._id;
-  console.log('Successfully added Family Member 2 (Baby Doe) and auto-activated.');
-
-  // 7. Patient adds family member 3 (should fail - max family members is 2)
-  const addFamily3Res = await fetch(`${API_URL}/family-members`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${patientToken}`,
-    },
-    body: JSON.stringify({
-      name: 'Parent Doe',
-      dateOfBirth: '1965-08-20',
-      relationship: 'parent',
-      gender: 'male',
-    }),
-  });
-  if (addFamily3Res.status !== 403) {
-    throw new Error('Adding family member 3 should have returned 403, got: ' + addFamily3Res.status);
-  }
-  console.log('Correctly rejected family member addition because active plan limit was reached.');
-
-  // 8. Test Expiry On-Demand Transition
-  // Let's set the active subscription's expiryDate in the past
-  await Subscription.updateOne({ _id: subId }, { expiryDate: new Date(Date.now() - 1000) });
-
-  // Fetch the subscription (triggers middleware resolver)
-  const getSubMeRes = await fetch(`${API_URL}/subscriptions/me`, {
-    headers: { 'Authorization': `Bearer ${patientToken}` },
-  });
-  const getSubMe = await getSubMeRes.json() as any;
-  if (!getSubMe.success) throw new Error('Fetching subscription failed');
-  const activePlanName = getSubMe.subscription.planSnapshot.name;
-  if (activePlanName !== 'Free') {
-    throw new Error('Subscription should have resolved/expired to Free plan, got: ' + activePlanName);
-  }
-  console.log('Successfully verified on-demand subscription expiry and Free auto-activation.');
-
-  // Verify Audit Log for Expiry
-  const expiryAudit = await AuditLog.findOne({ action: 'EXPIRE_SUBSCRIPTION', actorId: patient._id });
-  if (!expiryAudit) throw new Error('Audit log for subscription expiry not found');
-  console.log('Verified EXPIRE_SUBSCRIPTION audit log.');
-
-  // 9. Test Lock Restrictions (Free plan has all family members locked)
-  // Trying to edit a locked family member (should return 403)
-  const editLockedRes = await fetch(`${API_URL}/family-members/${familyMember1Id}`, {
-    method: 'PATCH',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${patientToken}`,
-    },
-    body: JSON.stringify({ name: 'Jane Doe Updated' }),
-  });
-  if (editLockedRes.status !== 403) {
-    throw new Error('Editing locked family member details should have returned 403, got: ' + editLockedRes.status);
-  }
-  console.log('Correctly rejected locked family member details modification.');
-
-  // Delete a locked family member without booking history (should succeed)
-  const deleteLockedRes = await fetch(`${API_URL}/family-members/${familyMember1Id}`, {
-    method: 'DELETE',
-    headers: { 'Authorization': `Bearer ${patientToken}` },
-  });
-  if (deleteLockedRes.status !== 200) {
-    throw new Error('Deleting locked family member without history should succeed, got status: ' + deleteLockedRes.status);
-  }
-  console.log('Successfully allowed deletion of locked family member without diagnostic history.');
-
-  // 9.5 Test Booking Subscription Discount + Coupon Calculations
-  console.log('Testing booking subscription discount and coupon calculations...');
-  // Create a dummy category and test
-  const dummyTest = await Test.create({
-    name: `Test for Discount ${Date.now()}`,
-    description: 'A test description',
-    type: 'lab',
-    categoryId: new mongoose.Types.ObjectId(),
-    price: 100,
-    duration: '24h',
-    isHomeCollectionAvailable: true,
-    isActive: true,
+    const patientLogin = await request(app)
+      .post('/api/v1/auth/login')
+      .send({ email: patientEmail, password: 'password123' });
+    patientToken = patientLogin.body.accessToken;
   });
 
-  // Ensure patient has a 20% discount on their active subscription
-  await Subscription.updateOne(
-    { userId: patient._id, status: 'active' },
-    { 'planSnapshot.testDiscountPercent': 20 }
-  );
-
-  // 1) Test booking with subscription discount only (should have 20% discount on $100 -> $80)
-  const booking1Res = await fetch(`${API_URL}/bookings`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${patientToken}`,
-    },
-    body: JSON.stringify({
-      tests: [dummyTest._id.toString()],
-      homeSampling: {
-        requested: false,
-        scheduledAt: new Date(Date.now() + 24 * 3600 * 1000).toISOString(),
-      },
-    }),
-  });
-  const booking1Data = await booking1Res.json() as any;
-  if (!booking1Data.success) throw new Error('Failed to create booking 1: ' + booking1Data.message);
-  const booking1 = booking1Data.data.booking;
-  if (booking1.discountAmount !== 20 || booking1.finalAmount !== 80) {
-    throw new Error(`Expected booking 1 to have 20% subscription discount, got discountAmount: ${booking1.discountAmount}, finalAmount: ${booking1.finalAmount}`);
-  }
-  console.log('✅ Subscription-only discount applied correctly ($20 discount, $80 total).');
-
-  // Create a coupon code giving 10% discount
-  const couponCode = `TESTSUB${Date.now()}`;
-  const dummyCoupon = await Coupon.create({
-    code: couponCode,
-    discountType: 'percentage',
-    discountValue: 10,
-    isActive: true,
+  it('should automatically assign default Free subscription on registration', async () => {
+    const initialSub = await Subscription.findOne({ userId: patientUser._id, status: 'active' }).populate('planId');
+    expect(initialSub).toBeDefined();
+    expect((initialSub!.planId as any).name).toBe('Free');
   });
 
-  // 2) Test booking with subscription discount (20%) + coupon discount (10% of remaining 80 -> 8, total discount = 28, final = 72)
-  const booking2Res = await fetch(`${API_URL}/bookings`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${patientToken}`,
-    },
-    body: JSON.stringify({
-      tests: [dummyTest._id.toString()],
-      couponCode: couponCode,
-      homeSampling: {
-        requested: false,
-        scheduledAt: new Date(Date.now() + 24 * 3600 * 1000).toISOString(),
-      },
-    }),
+  it('should allow admin to create a new subscription plan', async () => {
+    planName = `Gold Test Plan ${Date.now()}`;
+    const createPlanRes = await request(app)
+      .post('/api/v1/subscription-plans')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        name: planName,
+        price: 49.99,
+        maxFamilyMembers: 2,
+        features: ['Unlimited Lab Tests', 'Free Home Sampling'],
+      });
+
+    expect(createPlanRes.status).toBe(201);
+    expect(createPlanRes.body.success).toBe(true);
+    planId = createPlanRes.body.plan._id;
+
+    // Verify Audit Log
+    const createAudit = await AuditLog.findOne({ action: 'CREATE_SUB_PLAN', targetId: planId });
+    expect(createAudit).toBeDefined();
   });
-  const booking2Data = await booking2Res.json() as any;
-  if (!booking2Data.success) throw new Error('Failed to create booking 2: ' + booking2Data.message);
-  const booking2 = booking2Data.data.booking;
-  if (booking2.discountAmount !== 28 || booking2.finalAmount !== 72) {
-    throw new Error(`Expected booking 2 to have combined discount of 28, got discountAmount: ${booking2.discountAmount}, finalAmount: ${booking2.finalAmount}`);
-  }
-  console.log('✅ Combined subscription + coupon discount applied correctly ($28 discount, $72 total).');
 
-  // Clean up booking and dummy test/coupon
-  await Booking.deleteMany({ patientId: patient._id });
-  await Test.deleteOne({ _id: dummyTest._id });
-  await Coupon.deleteOne({ _id: dummyCoupon._id });
+  it('should fail when patient tries to add a family member on the Free plan (limit 0)', async () => {
+    const addFamilyFailRes = await request(app)
+      .post('/api/v1/family-members')
+      .set('Authorization', `Bearer ${patientToken}`)
+      .send({
+        name: 'Family Member 1',
+        dateOfBirth: '1990-01-01',
+        relationship: 'spouse',
+        gender: 'female',
+      });
 
-  // 10. Clean up test data from DB
-  await User.deleteOne({ _id: patient._id });
-  await SubscriptionPlan.deleteOne({ _id: planId });
-  await Subscription.deleteMany({ userId: patient._id });
-  await FamilyMember.deleteMany({ userId: patient._id });
-  console.log('Cleaned up integration test records.');
+    expect(addFamilyFailRes.status).toBe(403);
+  });
 
-  console.log('--- ALL INTEGRATION TESTS PASSED SUCCESSFULLY! ---');
-  await mongoose.disconnect();
-  process.exit(0);
-}
+  it('should allow patient to initiate and purchase a premium subscription plan', async () => {
+    // Initiate intent
+    const intentRes = await request(app)
+      .post('/api/v1/subscriptions/create-intent')
+      .set('Authorization', `Bearer ${patientToken}`)
+      .send({ planId });
 
-runTests().catch(err => {
-  console.error('❌ INTEGRATION TEST FAILED:', err);
-  mongoose.disconnect();
-  process.exit(1);
+    expect(intentRes.status).toBe(200);
+    expect(intentRes.body.success).toBe(true);
+    const paymentIntentId = intentRes.body.data.stripePaymentIntentId;
+
+    // Confirm payment directly with Stripe SDK (mocked in setup.ts)
+    const stripe = new Stripe('sk_test_dummy');
+    await stripe.paymentIntents.confirm(paymentIntentId, {
+      payment_method: 'pm_card_visa',
+      return_url: 'http://localhost:5001/api/health',
+    });
+
+    // Confirm payment on backend
+    const confirmRes = await request(app)
+      .post('/api/v1/subscriptions/confirm-payment')
+      .set('Authorization', `Bearer ${patientToken}`)
+      .send({ paymentIntentId });
+
+    expect(confirmRes.status).toBe(200);
+    expect(confirmRes.body.success).toBe(true);
+    subId = confirmRes.body.subscription._id;
+
+    // Verify Audit Log
+    const subAudit = await AuditLog.findOne({
+      action: { $in: ['PURCHASE_SUBSCRIPTION', 'UPGRADE_SUBSCRIPTION'] },
+      targetId: subId,
+    });
+    expect(subAudit).toBeDefined();
+  });
+
+  it('should allow family member addition under premium subscription limits', async () => {
+    // Add Member 1
+    const addFamily1Res = await request(app)
+      .post('/api/v1/family-members')
+      .set('Authorization', `Bearer ${patientToken}`)
+      .send({
+        name: 'Jane Doe',
+        dateOfBirth: '1992-05-15',
+        relationship: 'spouse',
+        gender: 'female',
+      });
+
+    expect(addFamily1Res.status).toBe(201);
+    expect(addFamily1Res.body.success).toBe(true);
+    familyMember1Id = addFamily1Res.body.familyMember._id;
+
+    // Add Member 2
+    const addFamily2Res = await request(app)
+      .post('/api/v1/family-members')
+      .set('Authorization', `Bearer ${patientToken}`)
+      .send({
+        name: 'Baby Doe',
+        dateOfBirth: '2020-10-10',
+        relationship: 'child',
+        gender: 'other',
+      });
+
+    expect(addFamily2Res.status).toBe(201);
+    expect(addFamily2Res.body.success).toBe(true);
+    familyMember2Id = addFamily2Res.body.familyMember._id;
+
+    // Add Member 3 (fails due to max limit of 2)
+    const addFamily3Res = await request(app)
+      .post('/api/v1/family-members')
+      .set('Authorization', `Bearer ${patientToken}`)
+      .send({
+        name: 'Parent Doe',
+        dateOfBirth: '1965-08-20',
+        relationship: 'parent',
+        gender: 'male',
+      });
+
+    expect(addFamily3Res.status).toBe(403);
+  });
+
+  it('should handle on-demand subscription expiry and degrade plan to Free', async () => {
+    // Expire subscription in past
+    await Subscription.updateOne({ _id: subId }, { expiryDate: new Date(Date.now() - 1000) });
+
+    // Fetch subscription
+    const getSubMeRes = await request(app)
+      .get('/api/v1/subscriptions/me')
+      .set('Authorization', `Bearer ${patientToken}`);
+
+    expect(getSubMeRes.status).toBe(200);
+    expect(getSubMeRes.body.success).toBe(true);
+    expect(getSubMeRes.body.subscription.planSnapshot.name).toBe('Free');
+
+    // Verify Audit Log
+    const expiryAudit = await AuditLog.findOne({ action: 'EXPIRE_SUBSCRIPTION', actorId: patientUser._id });
+    expect(expiryAudit).toBeDefined();
+  });
+
+  it('should enforce locking/deleting rules on Free plan (locked members)', async () => {
+    // Edit locked family member (fails)
+    const editLockedRes = await request(app)
+      .patch(`/api/v1/family-members/${familyMember1Id}`)
+      .set('Authorization', `Bearer ${patientToken}`)
+      .send({ name: 'Jane Doe Updated' });
+
+    expect(editLockedRes.status).toBe(403);
+
+    // Delete locked member without history (succeeds)
+    const deleteLockedRes = await request(app)
+      .delete(`/api/v1/family-members/${familyMember1Id}`)
+      .set('Authorization', `Bearer ${patientToken}`);
+
+    expect(deleteLockedRes.status).toBe(200);
+  });
+
+  it('should apply combined subscription discounts and coupon calculation on booking creation', async () => {
+    // Create test
+    const dummyTest = await Test.create({
+      name: `Test for Discount ${Date.now()}`,
+      description: 'A test description',
+      type: 'lab',
+      categoryId: new mongoose.Types.ObjectId(),
+      price: 100,
+      duration: '24h',
+      isHomeCollectionAvailable: true,
+      isActive: true,
+    });
+
+    // 1) Set 20% discount on patient's active subscription
+    await Subscription.updateOne(
+      { userId: patientUser._id, status: 'active' },
+      { 'planSnapshot.testDiscountPercent': 20 }
+    );
+
+    // Test booking with discount only (100 -> 80)
+    const booking1Res = await request(app)
+      .post('/api/v1/bookings')
+      .set('Authorization', `Bearer ${patientToken}`)
+      .send({
+        tests: [dummyTest._id.toString()],
+        homeSampling: {
+          requested: false,
+          scheduledAt: new Date(Date.now() + 24 * 3600 * 1000).toISOString(),
+        },
+      });
+
+    expect(booking1Res.status).toBe(201);
+    expect(booking1Res.body.success).toBe(true);
+    expect(booking1Res.body.data.booking.discountAmount).toBe(20);
+    expect(booking1Res.body.data.booking.finalAmount).toBe(80);
+
+    // 2) Test booking with subscription discount (20%) + coupon discount (10%)
+    const couponCode = `TESTSUB${Date.now()}`;
+    await Coupon.create({
+      code: couponCode,
+      discountType: 'percentage',
+      discountValue: 10,
+      isActive: true,
+    });
+
+    const booking2Res = await request(app)
+      .post('/api/v1/bookings')
+      .set('Authorization', `Bearer ${patientToken}`)
+      .send({
+        tests: [dummyTest._id.toString()],
+        couponCode: couponCode,
+        homeSampling: {
+          requested: false,
+          scheduledAt: new Date(Date.now() + 24 * 3600 * 1000).toISOString(),
+        },
+      });
+
+    expect(booking2Res.status).toBe(201);
+    expect(booking2Res.body.success).toBe(true);
+    expect(booking2Res.body.data.booking.discountAmount).toBe(28); // 20 sub discount + 8 coupon discount (10% of 80)
+    expect(booking2Res.body.data.booking.finalAmount).toBe(72);
+  });
 });

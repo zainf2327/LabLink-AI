@@ -1,6 +1,8 @@
+import { describe, it, expect, beforeAll } from 'vitest';
+import request from 'supertest';
 import mongoose from 'mongoose';
 import bcrypt from 'bcryptjs';
-import dns from 'dns';
+import app from '../app.js';
 import User from '../models/User.model.js';
 import Booking from '../models/Booking.model.js';
 import Region from '../models/Region.model.js';
@@ -8,13 +10,7 @@ import Test from '../models/Test.model.js';
 import TestCategory from '../models/TestCategory.model.js';
 import SubscriptionPlan from '../models/SubscriptionPlan.model.js';
 import Subscription from '../models/Subscription.model.js';
-import { env } from '../config/env.js';
 import { autoAssignStaff } from '../services/autoAssign.service.js';
-
-dns.setServers(['8.8.8.8', '1.1.1.1']);
-
-const MONGODB_URI = env.MONGODB_URI;
-const API_URL = `http://127.0.0.1:${env.PORT}/api/v1`;
 
 async function waitForAssignment(bookingId: string): Promise<any> {
   for (let i = 0; i < 20; i++) {
@@ -22,32 +18,22 @@ async function waitForAssignment(bookingId: string): Promise<any> {
     if (booking && (booking.homeSampling.assignedStaffId || booking.status === 'pending_manual_assignment')) {
       return booking;
     }
-    await new Promise((resolve) => setTimeout(resolve, 300));
+    await new Promise((resolve) => setTimeout(resolve, 100));
   }
   return await Booking.findById(bookingId);
 }
 
-async function runTests() {
-  console.log('--- STARTING AUTO-ASSIGN STAFF INTEGRATION TESTS ---');
-  await mongoose.connect(MONGODB_URI);
-  console.log('Connected to Database.');
+describe('Auto-Assign Staff Integration Tests', () => {
+  let adminToken: string;
+  let patientToken: string;
+  let staffA: any;
+  let staffB: any;
+  let staffC: any;
+  let patient: any;
+  let admin: any;
+  let testDoc: any;
+  let mondayDate: Date;
 
-  // Clean up existing test data
-  console.log('Cleaning up previous test data...');
-  await User.deleteMany({ email: /test_auto_/ });
-  await TestCategory.deleteMany({ name: /Test Category Auto/ });
-  await Test.deleteMany({ name: /Test Auto/ });
-  await Booking.deleteMany({ notes: /Test Auto/ });
-
-  // 1. Create Regions if they don't exist
-  await Region.findByIdAndUpdate('lahore_johar_town', { city: 'Lahore', name: 'Johar Town', country: 'Pakistan' }, { upsert: true });
-  await Region.findByIdAndUpdate('lahore_gulberg', { city: 'Lahore', name: 'Gulberg', country: 'Pakistan' }, { upsert: true });
-  await Region.findByIdAndUpdate('lahore_dha_lahore', { city: 'Lahore', name: 'DHA Lahore', country: 'Pakistan' }, { upsert: true });
-
-  const salt = await bcrypt.genSalt(10);
-  const passwordHash = await bcrypt.hash('password123', salt);
-
-  // 2. Create Staff members
   const defaultShifts = [
     { dayOfWeek: 1, startTime: '09:00', endTime: '17:00' },
     { dayOfWeek: 2, startTime: '09:00', endTime: '17:00' },
@@ -56,92 +42,103 @@ async function runTests() {
     { dayOfWeek: 5, startTime: '09:00', endTime: '17:00' },
   ];
 
-  console.log('Creating staff members...');
-  // Staff A: Johar Town & Gulberg (low workload initially)
-  const staffA = await User.create({
-    name: 'Staff A Johar',
-    email: 'test_auto_staffA@test.com',
-    passwordHash,
-    phone: '+923000000001',
-    role: 'staff',
-    isVerified: true,
-    isActive: true,
-    assignedRegions: ['lahore_johar_town', 'lahore_gulberg'],
-    shifts: defaultShifts,
-  });
+  beforeAll(async () => {
+    // 1. Create Regions
+    await Region.findByIdAndUpdate('test_auto_region_johar', { city: 'Lahore', name: 'Johar Town', country: 'Pakistan', isActive: true }, { upsert: true });
+    await Region.findByIdAndUpdate('test_auto_region_gulberg', { city: 'Lahore', name: 'Gulberg', country: 'Pakistan', isActive: true }, { upsert: true });
+    await Region.findByIdAndUpdate('test_auto_region_dha', { city: 'Lahore', name: 'DHA Lahore', country: 'Pakistan', isActive: true }, { upsert: true });
 
-  // Staff B: Johar Town only (starts with daily workload = 1)
-  const staffB = await User.create({
-    name: 'Staff B Johar Only',
-    email: 'test_auto_staffB@test.com',
-    passwordHash,
-    phone: '+923000000002',
-    role: 'staff',
-    isVerified: true,
-    isActive: true,
-    assignedRegions: ['lahore_johar_town'],
-    shifts: defaultShifts,
-  });
+    const salt = await bcrypt.genSalt(10);
+    const passwordHash = await bcrypt.hash('password123', salt);
 
-  // Staff C: Gulberg only
-  const staffC = await User.create({
-    name: 'Staff C Gulberg',
-    email: 'test_auto_staffC@test.com',
-    passwordHash,
-    phone: '+923000000003',
-    role: 'staff',
-    isVerified: true,
-    isActive: true,
-    assignedRegions: ['lahore_gulberg'],
-    shifts: defaultShifts,
-  });
+    // 2. Create Staff members
+    staffA = await User.create({
+      name: 'Staff A Johar',
+      email: 'test_auto_staffA@test.com',
+      passwordHash,
+      phone: '+923000000001',
+      role: 'staff',
+      isVerified: true,
+      isActive: true,
+      assignedRegions: ['test_auto_region_johar', 'test_auto_region_gulberg'],
+      shifts: defaultShifts,
+    });
 
-  // 3. Create Admin & Patient
-  console.log('Creating admin & patient...');
-  const admin = await User.create({
-    name: 'Test Admin',
-    email: 'test_auto_admin@test.com',
-    passwordHash,
-    phone: '+923000000000',
-    role: 'admin',
-    isVerified: true,
-    isActive: true,
-  });
+    staffB = await User.create({
+      name: 'Staff B Johar Only',
+      email: 'test_auto_staffB@test.com',
+      passwordHash,
+      phone: '+923000000002',
+      role: 'staff',
+      isVerified: true,
+      isActive: true,
+      assignedRegions: ['test_auto_region_johar'],
+      shifts: defaultShifts,
+    });
 
-  const patient = await User.create({
-    name: 'Test Patient',
-    email: 'test_auto_patient@test.com',
-    passwordHash,
-    phone: '+923000000004',
-    role: 'patient',
-    isVerified: true,
-    isActive: true,
-  });
+    staffC = await User.create({
+      name: 'Staff C Gulberg',
+      email: 'test_auto_staffC@test.com',
+      passwordHash,
+      phone: '+923000000003',
+      role: 'staff',
+      isVerified: true,
+      isActive: true,
+      assignedRegions: ['test_auto_region_gulberg'],
+      shifts: defaultShifts,
+    });
 
-  // Login
-  const loginRes = await fetch(`${API_URL}/auth/login`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email: 'test_auto_patient@test.com', password: 'password123' }),
-  });
-  const loginData = await loginRes.json() as any;
-  if (!loginData.success) throw new Error('Patient login failed: ' + loginData.message);
-  const patientToken = loginData.accessToken;
+    // 3. Create Admin & Patient
+    admin = await User.create({
+      name: 'Test Admin',
+      email: 'test_auto_admin@test.com',
+      passwordHash,
+      phone: '+923000000000',
+      role: 'admin',
+      isVerified: true,
+      isActive: true,
+    });
 
-  const adminLoginRes = await fetch(`${API_URL}/auth/login`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email: 'test_auto_admin@test.com', password: 'password123' }),
-  });
-  const adminLoginData = await adminLoginRes.json() as any;
-  if (!adminLoginData.success) throw new Error('Admin login failed: ' + adminLoginData.message);
-  const adminToken = adminLoginData.accessToken;
+    patient = await User.create({
+      name: 'Test Patient',
+      email: 'test_auto_patient@test.com',
+      passwordHash,
+      phone: '+923000000004',
+      role: 'patient',
+      isVerified: true,
+      isActive: true,
+    });
 
-  // Create active subscription for patient if they do not have one (required for booking)
-  let sub = await Subscription.findOne({ userId: patient._id, status: 'active' });
-  if (!sub) {
-    const freePlan = await SubscriptionPlan.findOne({ price: 0 });
-    if (freePlan) {
+    // Login
+    const patientLogin = await request(app)
+      .post('/api/v1/auth/login')
+      .send({ email: 'test_auto_patient@test.com', password: 'password123' });
+    patientToken = patientLogin.body.accessToken;
+
+    const adminLogin = await request(app)
+      .post('/api/v1/auth/login')
+      .send({ email: 'test_auto_admin@test.com', password: 'password123' });
+    adminToken = adminLogin.body.accessToken;
+
+    // Get or Create Subscription Plan & Subscription
+    let freePlan = await SubscriptionPlan.findOne({ name: 'Free' });
+    if (!freePlan) {
+      freePlan = await SubscriptionPlan.create({
+        name: 'Free',
+        price: 0,
+        maxFamilyMembers: 0,
+        features: ['Single user dashboard'],
+        isActive: true,
+        durationMonths: null,
+        isDefault: true,
+        testDiscountPercent: 0,
+        freeHomeCollections: false,
+        aiQuestionsPerMonth: 5,
+      });
+    }
+
+    let activeSub = await Subscription.findOne({ userId: patient._id, status: 'active' });
+    if (!activeSub) {
       await Subscription.create({
         userId: patient._id,
         planId: freePlan._id,
@@ -151,252 +148,227 @@ async function runTests() {
         planSnapshot: {
           name: freePlan.name,
           price: freePlan.price,
-          durationMonths: freePlan.durationMonths ?? null,
-          testDiscountPercent: freePlan.testDiscountPercent ?? 0,
-          freeHomeCollections: freePlan.freeHomeCollections ?? false,
-          aiQuestionsPerMonth: freePlan.aiQuestionsPerMonth ?? 0,
-          maxFamilyMembers: freePlan.maxFamilyMembers,
+          durationMonths: null,
+          testDiscountPercent: 0,
+          freeHomeCollections: false,
+          aiQuestionsPerMonth: 5,
+          maxFamilyMembers: 0,
         },
       });
     }
-  }
 
-  // Create a test
-  const category = await TestCategory.create({ name: 'Test Category Auto' });
-  const test = await Test.create({
-    name: 'Test Auto',
-    description: 'Auto assign integration test',
-    type: 'lab',
-    categoryId: category._id,
-    price: 0, // 0 price bypasses Stripe payments instantly!
-    isHomeCollectionAvailable: true,
-    isActive: true,
-    duration: '24 hours',
+    // Create a test
+    const category = await TestCategory.create({ name: 'Test Category Auto' });
+    testDoc = await Test.create({
+      name: 'Test Auto',
+      description: 'Auto assign integration test',
+      type: 'lab',
+      categoryId: category._id,
+      price: 0,
+      isHomeCollectionAvailable: true,
+      isActive: true,
+      duration: '24 hours',
+    });
+
+    mondayDate = new Date();
+    mondayDate.setDate(mondayDate.getDate() + ((1 + 7 - mondayDate.getDay()) % 7 || 7)); // Next Monday
+    mondayDate.setHours(10, 0, 0, 0); // 10:00 AM
   });
 
-  // --- TEST 1: WORKLOAD BALANCING ---
-  // Create booking 1 for Monday (dayOfWeek: 1) at 10:00 AM in Johar Town
-  // Both Staff A and Staff B cover Johar Town. Initially, both have 0 workload.
-  // We'll manually give Staff B one booking on Monday to check if Staff A gets assigned.
-  console.log('\n--- Running Test 1: Workload Balancing ---');
-  
-  const mondayDate = new Date();
-  mondayDate.setDate(mondayDate.getDate() + ((1 + 7 - mondayDate.getDay()) % 7 || 7)); // Next Monday
-  mondayDate.setHours(10, 0, 0, 0); // 10:00 AM
-
-  // Manually pre-assign a booking to Staff B
-  const preBooking = await Booking.create({
-    patientId: patient._id,
-    tests: [{ testId: test._id, name: test.name, price: test.price }],
-    status: 'scheduled',
-    totalAmount: 0,
-    discountAmount: 0,
-    finalAmount: 0,
-    walletAmountUsed: 0,
-    homeSampling: {
-      requested: true,
-      address: 'House B, Street B, Lahore',
-      scheduledAt: new Date(mondayDate.getTime() - 2 * 60 * 60 * 1000), // Monday at 8:00 AM
-      region: 'lahore_johar_town',
-      assignedStaffId: staffB._id,
-    },
-    notes: 'Test Auto - Preassigned to B',
-  });
-
-  // Create booking 1 via API at 10:00 AM
-  const booking1Res = await fetch(`${API_URL}/bookings`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${patientToken}`,
-    },
-    body: JSON.stringify({
-      tests: [test._id.toString()],
+  it('Test 1: should balance workload and assign to staff with lowest workload', async () => {
+    // Manually pre-assign a booking to Staff B so Staff B has workload = 1
+    await Booking.create({
+      patientId: patient._id,
+      tests: [{ testId: testDoc._id, name: testDoc.name, price: testDoc.price }],
+      status: 'scheduled',
+      totalAmount: 0,
+      discountAmount: 0,
+      finalAmount: 0,
+      walletAmountUsed: 0,
       homeSampling: {
         requested: true,
-        region: 'lahore_johar_town',
-        streetAddress: 'House 1',
-        blockNumber: 'Block X',
-        landmark: 'Main Gate',
-        city: 'Lahore',
-        country: 'Pakistan',
-        scheduledAt: mondayDate.toISOString(),
+        address: 'House B, Street B, Lahore',
+        scheduledAt: new Date(mondayDate.getTime() - 2 * 60 * 60 * 1000), // Monday at 8:00 AM
+        region: 'test_auto_region_johar',
+        assignedStaffId: staffB._id,
       },
-      notes: 'Test Auto - Booking 1',
-    }),
+      notes: 'Test Auto - Preassigned to B',
+    });
+
+    // Create booking via API at 10:00 AM in Johar Town
+    const bookingRes = await request(app)
+      .post('/api/v1/bookings')
+      .set('Authorization', `Bearer ${patientToken}`)
+      .send({
+        tests: [testDoc._id.toString()],
+        homeSampling: {
+          requested: true,
+          region: 'test_auto_region_johar',
+          streetAddress: 'House 1',
+          blockNumber: 'Block X',
+          landmark: 'Main Gate',
+          city: 'Lahore',
+          country: 'Pakistan',
+          scheduledAt: mondayDate.toISOString(),
+        },
+        notes: 'Test Auto - Booking 1',
+      });
+
+    expect(bookingRes.status).toBe(201);
+    const updatedBooking = await waitForAssignment(bookingRes.body.data.booking._id);
+    expect(updatedBooking.homeSampling.assignedStaffId.toString()).toBe(staffA._id.toString());
   });
 
-  const booking1Data = await booking1Res.json() as any;
-  if (!booking1Data.success) throw new Error('Create booking 1 failed: ' + booking1Data.message);
-  
-  const updatedBooking1 = await waitForAssignment(booking1Data.data.booking._id);
-  console.log(`Booking 1 assigned staff: ${updatedBooking1?.homeSampling.assignedStaffId}`);
-  if (updatedBooking1?.homeSampling.assignedStaffId?.toString() !== staffA._id.toString()) {
-    throw new Error(`Expected Booking 1 to be auto-assigned to Staff A (workload 0) instead of Staff B (workload 1) or Staff C (different region). Got: ${updatedBooking1?.homeSampling.assignedStaffId}`);
-  }
-  console.log('✅ Test 1 Passed: Correctly assigned to staff with lowest workload.');
+  it('Test 2: should respect region travel buffer and reject staff with conflicts', async () => {
+    // Staff A is busy at 10:00 AM in Johar Town (Booking 1).
+    // Booking 2 is scheduled at 10:30 AM in Gulberg (different region).
+    // Gulberg requires 45 mins travel from Johar Town. Staff A cannot make it.
+    // Staff C covers Gulberg and is free, so Staff C should be assigned.
+    const bookingRes = await request(app)
+      .post('/api/v1/bookings')
+      .set('Authorization', `Bearer ${patientToken}`)
+      .send({
+        tests: [testDoc._id.toString()],
+        homeSampling: {
+          requested: true,
+          region: 'test_auto_region_gulberg',
+          streetAddress: 'House 2',
+          city: 'Lahore',
+          country: 'Pakistan',
+          scheduledAt: new Date(mondayDate.getTime() + 30 * 60 * 1000).toISOString(), // 10:30 AM
+        },
+        notes: 'Test Auto - Booking 2',
+      });
 
-  // --- TEST 2: TRAVEL TIME BUFFER CONFLICT ---
-  // Create booking 2 for Monday at 10:30 AM in Gulberg (different region)
-  // Staff A is currently at Johar Town at 10:00 AM (Booking 1).
-  // Finishing collection at 10:30 AM, travel to Gulberg takes 45 minutes (different region), so earliest arrival is 11:15 AM.
-  // This means Staff A should be rejected for 10:30 AM due to travel conflict.
-  // Staff C covers Gulberg, has 0 workload, and is free. Staff C should be assigned.
-  console.log('\n--- Running Test 2: Travel Buffer Conflict ---');
-  
-  const booking2Res = await fetch(`${API_URL}/bookings`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${patientToken}`,
-    },
-    body: JSON.stringify({
-      tests: [test._id.toString()],
+    expect(bookingRes.status).toBe(201);
+    const updatedBooking = await waitForAssignment(bookingRes.body.data.booking._id);
+    expect(updatedBooking.homeSampling.assignedStaffId.toString()).toBe(staffC._id.toString());
+  });
+
+  it('Test 3: should fallback to pending_manual_assignment if no staff covers the region', async () => {
+    // DHA Lahore is not covered by any active staff initially
+    const bookingRes = await request(app)
+      .post('/api/v1/bookings')
+      .set('Authorization', `Bearer ${patientToken}`)
+      .send({
+        tests: [testDoc._id.toString()],
+        homeSampling: {
+          requested: true,
+          region: 'test_auto_region_dha',
+          streetAddress: 'House 3',
+          city: 'Lahore',
+          country: 'Pakistan',
+          scheduledAt: mondayDate.toISOString(),
+        },
+        notes: 'Test Auto - Booking 3',
+      });
+
+    expect(bookingRes.status).toBe(201);
+    const updatedBooking = await waitForAssignment(bookingRes.body.data.booking._id);
+    expect(updatedBooking.status).toBe('pending_manual_assignment');
+    expect(updatedBooking.homeSampling.assignedStaffId).toBeNull();
+  });
+
+  it('Test 4: should handle concurrency and prevent double-booking single staff member', async () => {
+    // Let Staff A also cover DHA Lahore
+    await User.findByIdAndUpdate(staffA._id, { $push: { assignedRegions: 'test_auto_region_dha' } });
+
+    const timeSlot = new Date(mondayDate);
+    timeSlot.setHours(14, 0, 0, 0); // 2:00 PM
+
+    const cBooking1 = await Booking.create({
+      patientId: patient._id,
+      tests: [{ testId: testDoc._id, name: testDoc.name, price: testDoc.price }],
+      status: 'scheduled',
+      totalAmount: 0,
+      discountAmount: 0,
+      finalAmount: 0,
+      walletAmountUsed: 0,
       homeSampling: {
         requested: true,
-        region: 'lahore_gulberg',
-        streetAddress: 'House 2',
-        city: 'Lahore',
-        country: 'Pakistan',
-        scheduledAt: new Date(mondayDate.getTime() + 30 * 60 * 1000).toISOString(), // 10:30 AM
+        address: 'House C1, DHA Lahore',
+        scheduledAt: timeSlot,
+        region: 'test_auto_region_dha',
+        assignedStaffId: null,
       },
-      notes: 'Test Auto - Booking 2',
-    }),
-  });
+      notes: 'Test Auto - Concurrent 1',
+    });
 
-  const booking2Data = await booking2Res.json() as any;
-  if (!booking2Data.success) throw new Error('Create booking 2 failed: ' + booking2Data.message);
-
-  const updatedBooking2 = await waitForAssignment(booking2Data.data.booking._id);
-  console.log(`Booking 2 assigned staff: ${updatedBooking2?.homeSampling.assignedStaffId}`);
-  if (updatedBooking2?.homeSampling.assignedStaffId?.toString() !== staffC._id.toString()) {
-    throw new Error(`Expected Booking 2 to be assigned to Staff C (free) because Staff A has travel conflict. Got: ${updatedBooking2?.homeSampling.assignedStaffId}`);
-  }
-  console.log('✅ Test 2 Passed: Travel buffer correctly rejected candidate and matched free staff.');
-
-  // --- TEST 3: FALLBACK TO PENDING MANUAL ASSIGNMENT ---
-  // Create booking 3 for DHA Lahore (covered by Staff B, but wait: Staff B doesn't cover DHA Lahore. Only Staff A covers Gulberg/Johar, Staff B covers Johar, Staff C covers Gulberg. DHA Lahore is not covered by any staff).
-  // Status should transition to pending_manual_assignment.
-  console.log('\n--- Running Test 3: Fallback when no candidates ---');
-
-  const booking3Res = await fetch(`${API_URL}/bookings`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${patientToken}`,
-    },
-    body: JSON.stringify({
-      tests: [test._id.toString()],
+    const cBooking2 = await Booking.create({
+      patientId: patient._id,
+      tests: [{ testId: testDoc._id, name: testDoc.name, price: testDoc.price }],
+      status: 'scheduled',
+      totalAmount: 0,
+      discountAmount: 0,
+      finalAmount: 0,
+      walletAmountUsed: 0,
       homeSampling: {
         requested: true,
-        region: 'lahore_dha_lahore', // No active staff assigned to DHA
-        streetAddress: 'House 3',
-        city: 'Lahore',
-        country: 'Pakistan',
-        scheduledAt: mondayDate.toISOString(),
+        address: 'House C2, DHA Lahore',
+        scheduledAt: timeSlot,
+        region: 'test_auto_region_dha',
+        assignedStaffId: null,
       },
-      notes: 'Test Auto - Booking 3',
-    }),
+      notes: 'Test Auto - Concurrent 2',
+    });
+
+    // Run autoAssignStaff concurrently
+    await Promise.allSettled([
+      autoAssignStaff(cBooking1._id.toString()),
+      autoAssignStaff(cBooking2._id.toString()),
+    ]);
+
+    const finalC1 = await Booking.findById(cBooking1._id);
+    const finalC2 = await Booking.findById(cBooking2._id);
+
+    const isC1Assigned = finalC1?.homeSampling.assignedStaffId?.toString() === staffA._id.toString();
+    const isC2Assigned = finalC2?.homeSampling.assignedStaffId?.toString() === staffA._id.toString();
+
+    // Verify Staff A was NOT double-booked
+    expect(isC1Assigned && isC2Assigned).toBe(false);
   });
 
-  const booking3Data = await booking3Res.json() as any;
-  if (!booking3Data.success) throw new Error('Create booking 3 failed: ' + booking3Data.message);
+  it('Test 5: should allow manual assignment by admin and cancellation by patient', async () => {
+    const manualBooking = await Booking.create({
+      patientId: patient._id,
+      tests: [{ testId: testDoc._id, name: testDoc.name, price: 100 }],
+      status: 'pending_manual_assignment',
+      totalAmount: 100,
+      discountAmount: 0,
+      finalAmount: 100,
+      walletAmountUsed: 0,
+      homeSampling: {
+        requested: true,
+        address: 'House 5, Johar Town',
+        scheduledAt: new Date(mondayDate.getTime() + 6 * 60 * 60 * 1000),
+        region: 'test_auto_region_johar',
+        assignedStaffId: null,
+      },
+      notes: 'Test Auto - Booking 5',
+    });
 
-  const updatedBooking3 = await waitForAssignment(booking3Data.data.booking._id);
-  console.log(`Booking 3 status: ${updatedBooking3?.status}, assigned staff: ${updatedBooking3?.homeSampling.assignedStaffId}`);
-  if (updatedBooking3?.status !== 'pending_manual_assignment' || updatedBooking3?.homeSampling.assignedStaffId !== null) {
-    throw new Error(`Expected Booking 3 to have status 'pending_manual_assignment' and no staff. Got status: ${updatedBooking3?.status}`);
-  }
-  console.log('✅ Test 3 Passed: Fallback to pending_manual_assignment succeeded.');
+    // Admin manually assigns staff
+    const assignRes = await request(app)
+      .patch(`/api/v1/bookings/${manualBooking._id}/assign-staff`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        assignedStaffId: staffA._id.toString(),
+      });
 
-  // --- TEST 4: CONCURRENCY TRANSACTIONS ---
-  // We will trigger multiple concurrent autoAssignStaff calls for a single slot.
-  // There is only 1 staff member covering DHA Lahore (let's assign Staff A to DHA Lahore).
-  // If we call autoAssignStaff concurrently on 2 different bookings for the same time slot,
-  // the database transaction must ensure that only one booking gets assigned, and the other transitions to pending_manual_assignment (or throws/fails and is retried/handled).
-  console.log('\n--- Running Test 4: Concurrency & Transaction safety ---');
+    expect(assignRes.status).toBe(200);
 
-  // Let Staff A also cover DHA Lahore
-  await User.findByIdAndUpdate(staffA._id, { $push: { assignedRegions: 'lahore_dha_lahore' } });
+    const postAssignBooking = await Booking.findById(manualBooking._id);
+    expect(postAssignBooking!.status).toBe('scheduled');
+    expect(postAssignBooking!.homeSampling.assignedStaffId!.toString()).toBe(staffA._id.toString());
 
-  // Create two unassigned bookings at the same time: Monday 2:00 PM in DHA Lahore
-  const timeSlot = new Date(mondayDate);
-  timeSlot.setHours(14, 0, 0, 0); // 2:00 PM
+    // Patient cancels scheduled booking
+    const cancelRes = await request(app)
+      .patch(`/api/v1/bookings/${manualBooking._id}/cancel`)
+      .set('Authorization', `Bearer ${patientToken}`);
 
-  const cBooking1 = await Booking.create({
-    patientId: patient._id,
-    tests: [{ testId: test._id, name: test.name, price: test.price }],
-    status: 'scheduled',
-    totalAmount: 0,
-    discountAmount: 0,
-    finalAmount: 0,
-    walletAmountUsed: 0,
-    homeSampling: {
-      requested: true,
-      address: 'House C1, DHA Lahore',
-      scheduledAt: timeSlot,
-      region: 'lahore_dha_lahore',
-      assignedStaffId: null,
-    },
-    notes: 'Test Auto - Concurrent 1',
+    expect(cancelRes.status).toBe(200);
+
+    const postCancelBooking = await Booking.findById(manualBooking._id);
+    expect(postCancelBooking!.status).toBe('cancelled');
   });
-
-  const cBooking2 = await Booking.create({
-    patientId: patient._id,
-    tests: [{ testId: test._id, name: test.name, price: test.price }],
-    status: 'scheduled',
-    totalAmount: 0,
-    discountAmount: 0,
-    finalAmount: 0,
-    walletAmountUsed: 0,
-    homeSampling: {
-      requested: true,
-      address: 'House C2, DHA Lahore',
-      scheduledAt: timeSlot,
-      region: 'lahore_dha_lahore',
-      assignedStaffId: null,
-    },
-    notes: 'Test Auto - Concurrent 2',
-  });
-
-  // Run autoAssignStaff concurrently
-  console.log('Invoking autoAssignStaff concurrently...');
-  const [res1, res2] = await Promise.allSettled([
-    autoAssignStaff(cBooking1._id.toString()),
-    autoAssignStaff(cBooking2._id.toString()),
-  ]);
-
-  const finalC1 = await Booking.findById(cBooking1._id);
-  const finalC2 = await Booking.findById(cBooking2._id);
-
-  console.log(`Concurrent Booking 1 assigned: ${finalC1?.homeSampling.assignedStaffId}`);
-  console.log(`Concurrent Booking 2 assigned: ${finalC2?.homeSampling.assignedStaffId}`);
-
-  const hasDoubleBooking = 
-    finalC1?.homeSampling.assignedStaffId?.toString() === staffA._id.toString() &&
-    finalC2?.homeSampling.assignedStaffId?.toString() === staffA._id.toString();
-
-  if (hasDoubleBooking) {
-    throw new Error('❌ CONCURRENCY FAILURE: Staff A was assigned to both concurrent bookings at the exact same slot!');
-  }
-
-  console.log('✅ Test 4 Passed: Transactions successfully prevented double assignment.');
-
-  // Clean up
-  console.log('\nCleaning up database...');
-  await User.deleteMany({ email: /test_auto_/ });
-  await TestCategory.deleteMany({ name: /Test Category Auto/ });
-  await Test.deleteMany({ name: /Test Auto/ });
-  await Booking.deleteMany({ notes: /Test Auto/ });
-  await Subscription.deleteMany({ userId: patient._id });
-
-  console.log('--- ALL AUTO-ASSIGN INTEGRATION TESTS PASSED SUCCESSFULLY! ---');
-  await mongoose.disconnect();
-  process.exit(0);
-}
-
-runTests().catch((err) => {
-  console.error('❌ AUTO-ASSIGN INTEGRATION TEST FAILED:', err);
-  mongoose.disconnect();
-  process.exit(1);
 });

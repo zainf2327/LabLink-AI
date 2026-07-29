@@ -310,6 +310,7 @@ export const PatientDashboard: React.FC = () => {
     switch (status) {
       case 'pending_payment':
         return <Clock className="text-amber-400" size={16} />;
+      case 'pending_manual_assignment':
       case 'scheduled':
         return <Calendar className="text-emerald-400" size={16} />;
       case 'sample_collected':
@@ -336,6 +337,7 @@ export const PatientDashboard: React.FC = () => {
             <span>Unpaid</span>
           </span>
         );
+      case 'pending_manual_assignment':
       case 'scheduled':
         return (
           <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 text-[10px] font-extrabold uppercase border border-emerald-500/20 flex items-center gap-1.5">
@@ -388,7 +390,7 @@ export const PatientDashboard: React.FC = () => {
   };
 
   const upcomingBookingsCount = bookings.filter(
-    (b) => b.status === 'scheduled' || b.status === 'pending_payment'
+    (b) => b.status === 'scheduled' || b.status === 'pending_payment' || b.status === 'pending_manual_assignment'
   ).length;
 
   const mockChartData = [
@@ -405,7 +407,8 @@ export const PatientDashboard: React.FC = () => {
 
   const getStepStatus = (currentStatus: string, stepName: string) => {
     const statusOrder = ['pending_payment', 'scheduled', 'sample_collected', 'in_lab', 'report_ready'];
-    const currentIndex = statusOrder.indexOf(currentStatus);
+    const normalizedStatus = currentStatus === 'pending_manual_assignment' ? 'scheduled' : currentStatus;
+    const currentIndex = statusOrder.indexOf(normalizedStatus);
     const stepIndex = statusOrder.indexOf(stepName);
 
     if (currentIndex > stepIndex) return 'completed';
@@ -462,7 +465,7 @@ export const PatientDashboard: React.FC = () => {
                   </Link>
                 ) : (
                   <span className="text-[10px] uppercase font-extrabold tracking-wider bg-brand-50 text-brand-500 border border-brand-100 px-2.5 py-0.5 rounded-full">
-                    {activeBooking.status.replace('_', ' ')}
+                    {(activeBooking.status === 'pending_manual_assignment' ? 'scheduled' : activeBooking.status).replace('_', ' ')}
                   </span>
                 )}
               </div>
@@ -865,7 +868,7 @@ export const PatientDashboard: React.FC = () => {
 
                         <div className="flex items-center gap-3 self-end sm:self-center">
                           {getStatusBadge(booking.status)}
-                          {booking.status === 'scheduled' && (
+                          {(booking.status === 'scheduled' || booking.status === 'pending_manual_assignment') && (
                             <button
                               onClick={() => handleCancelBooking(booking._id, true)}
                               className="px-3.5 py-1.5 rounded-xl border border-zinc-800 hover:border-red-500/20 bg-slate-50 text-xs font-semibold text-slate-500 hover:text-red-400 transition-all cursor-pointer"
