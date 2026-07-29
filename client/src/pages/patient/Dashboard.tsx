@@ -10,7 +10,7 @@ import type { Booking } from '../../services/booking.service';
 import AppLayout from '../../components/layout/AppLayout';
 import { ReportDisclosure } from '../../components/ReportDisclosure';
 import { buildReportFilename } from '../../utils/reportFilename';
-import { ConfirmModal } from '../../components/ConfirmModal';
+import { useConfirm } from '../../hooks/useConfirm';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import Logo from '../../components/Logo';
 
@@ -34,6 +34,7 @@ import {
 
 export const PatientDashboard: React.FC = () => {
   const { user } = useAuthStore();
+  const { confirm } = useConfirm();
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [reports, setReports] = useState<Report[]>([]);
   const [loading, setLoading] = useState(true);
@@ -51,33 +52,7 @@ export const PatientDashboard: React.FC = () => {
   const [downloadingReportId, setDownloadingReportId] = useState<string | null>(null);
   const [downloadProgress, setDownloadProgress] = useState<number>(0);
 
-  // Confirm modal configurations
-  const [confirmConfig, setConfirmConfig] = useState<{
-    isOpen: boolean;
-    title: string;
-    message: string;
-    onConfirm: () => void;
-    isDanger?: boolean;
-  }>({
-    isOpen: false,
-    title: '',
-    message: '',
-    onConfirm: () => {},
-    isDanger: false,
-  });
 
-  const triggerConfirm = (title: string, message: string, onConfirm: () => void, isDanger = false) => {
-    setConfirmConfig({
-      isOpen: true,
-      title,
-      message,
-      onConfirm: () => {
-        onConfirm();
-        setConfirmConfig((prev) => ({ ...prev, isOpen: false }));
-      },
-      isDanger,
-    });
-  };
 
 
 
@@ -173,10 +148,11 @@ export const PatientDashboard: React.FC = () => {
   }, []);
 
   const handleCancelBooking = (bookingId: string, wasPaid: boolean) => {
-    triggerConfirm(
-      'Cancel Diagnostic Booking',
-      'Are you sure you want to cancel this booking? If you have paid, the amount will be fully refunded to your wallet.',
-      async () => {
+    confirm({
+      title: 'Cancel Diagnostic Booking',
+      message: 'Are you sure you want to cancel this booking? If you have paid, the amount will be fully refunded to your wallet.',
+      variant: 'danger',
+      onConfirm: async () => {
         try {
           const res = await bookingService.cancelBooking(bookingId);
           if (res.success) {
@@ -189,11 +165,10 @@ export const PatientDashboard: React.FC = () => {
             fetchBookings();
           }
         } catch (err: any) {
-          alert(err.response?.data?.message || 'Failed to cancel booking.');
+          console.error(err);
         }
       },
-      true // isDanger
-    );
+    });
   };
 
   const openReportForBooking = (bookingId: string) => {
@@ -1152,15 +1127,6 @@ export const PatientDashboard: React.FC = () => {
           </div>
         </div>
       )}
-      {/* Reusable Confirm Dialogue Popup */}
-      <ConfirmModal
-        isOpen={confirmConfig.isOpen}
-        title={confirmConfig.title}
-        message={confirmConfig.message}
-        onConfirm={confirmConfig.onConfirm}
-        onCancel={() => setConfirmConfig((prev) => ({ ...prev, isOpen: false }))}
-        isDanger={confirmConfig.isDanger}
-      />
     </AppLayout>
   );
 };

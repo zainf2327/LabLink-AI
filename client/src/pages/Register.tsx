@@ -183,7 +183,7 @@ export const Register: React.FC = () => {
       }
     } catch (err: any) {
       if (!err.response) {
-        setError('Cannot connect to the server. Please verify that the backend server is running on port 5001.');
+        setError('Our servers are temporarily unavailable. Please try again in a moment.');
       } else {
         setError(err.response?.data?.message || 'Registration failed. Please check your credentials.');
       }

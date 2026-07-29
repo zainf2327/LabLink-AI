@@ -20,6 +20,7 @@ import Landing from './pages/Landing';
 import PrivacyPolicy from './pages/PrivacyPolicy';
 import TermsOfService from './pages/TermsOfService';
 import MedicalAdvisory from './pages/MedicalAdvisory';
+import ConfirmModal from './components/ConfirmModal';
 
 export const App: React.FC = () => {
   const { checkAuth, isCheckingAuth, isAuthenticated, user } = useAuthStore();
@@ -54,6 +55,7 @@ export const App: React.FC = () => {
 
   return (
     <BrowserRouter>
+      <ConfirmModal />
       <Routes>
         {/* Public Routes */}
         <Route path="/login" element={<Login />} />
@@ -164,6 +166,22 @@ export const App: React.FC = () => {
           element={
             <ProtectedRoute allowedRoles={['admin']}>
               <AdminDashboard defaultTab="subscriptions" />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/regions"
+          element={
+            <ProtectedRoute allowedRoles={['admin']}>
+              <AdminDashboard defaultTab="regions" />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/staff"
+          element={
+            <ProtectedRoute allowedRoles={['admin']}>
+              <AdminDashboard defaultTab="staff" />
             </ProtectedRoute>
           }
         />

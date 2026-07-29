@@ -1,7 +1,8 @@
 import mongoose from 'mongoose';
-import { env } from './env.js';
 import dns from 'dns';
+import { env } from './env.js';
 import SubscriptionPlan from '../models/SubscriptionPlan.model.js';
+import logger from '../utils/logger.js';
 // Override DNS servers to Google and Cloudflare public DNS.
 // This prevents MongoDB Atlas connection issues caused by DNS resolution failures in some local ISP/network or docker environments.
 dns.setServers(['8.8.8.8', '1.1.1.1']);
@@ -21,20 +22,20 @@ const seedDefaultSubscriptionPlan = async () => {
                 freeHomeCollections: false,
                 aiQuestionsPerMonth: 5,
             });
-            console.log('Default Free subscription plan seeded successfully.');
+            logger.info('[db] Default Free subscription plan seeded successfully.');
         }
     }
     catch (err) {
-        console.error('Failed to seed default subscription plan:', err);
+        logger.error('[db] Failed to seed default subscription plan:', err);
     }
 };
 const connectDB = async () => {
     try {
         await mongoose.connect(env.MONGODB_URI);
-        console.log('MongoDB connected successfully');
+        logger.info('[db] MongoDB connected successfully.');
     }
     catch (error) {
-        console.error('MongoDB connection failed:', error);
+        logger.error('[db] MongoDB connection failed:', error);
         process.exit(1);
     }
 };

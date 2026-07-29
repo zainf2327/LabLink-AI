@@ -10,6 +10,7 @@ import SubscriptionPlan from '../models/SubscriptionPlan.model.js';
 import Subscription from '../models/Subscription.model.js';
 import Booking from '../models/Booking.model.js';
 import Payment from '../models/Payment.model.js';
+import Region from '../models/Region.model.js';
 
 import dns from 'dns';
 
@@ -40,6 +41,17 @@ async function runTests() {
   await Coupon.deleteMany({ code: { $in: ['SAVE10', 'FREEBIE', 'EXPIRED', 'MAXED'] } });
   await SubscriptionPlan.deleteMany({ name: 'Premium Plan' });
   await Booking.deleteMany({ notes: { $regex: /TEST_SCENARIO/ } });
+  await Region.deleteMany({ name: 'Test E2E Region' });
+
+  // Seed Region
+  const regionId = `region_test_${Date.now()}`;
+  await Region.create({
+    _id: regionId,
+    city: 'Lahore',
+    name: 'Test E2E Region',
+    country: 'Pakistan',
+    isActive: true,
+  });
 
   // Seed Subscription Plan
   const plan = new SubscriptionPlan({
@@ -182,11 +194,23 @@ async function runTests() {
   });
   await familyMember.save();
 
+  // Delete any existing active subscription automatically created during registration
+  await Subscription.deleteMany({ userId: new mongoose.Types.ObjectId(patientId) });
+
   const activeSub = new Subscription({
     userId: new mongoose.Types.ObjectId(patientId),
     planId: plan._id,
     status: 'active',
     renewalDate: new Date(Date.now() + 30 * 24 * 3600 * 1000), // 30 days
+    planSnapshot: {
+      name: plan.name,
+      price: plan.price,
+      maxFamilyMembers: plan.maxFamilyMembers,
+      durationMonths: null,
+      testDiscountPercent: 0,
+      freeHomeCollections: false,
+      aiQuestionsPerMonth: 5,
+    },
   });
   await activeSub.save();
 
@@ -378,12 +402,17 @@ async function runTests() {
       homeSampling: {
         requested: true,
         address: '742 Evergreen Terrace',
+        region: regionId,
         scheduledAt: new Date(Date.now() + 86400000).toISOString(),
       },
       notes: 'TEST_SCENARIO_FREE',
     }),
   });
   const createFreeBookingData = await createFreeBookingRes.json();
+  if (createFreeBookingRes.status !== 201) {
+    console.error('Zero-value booking creation failed. Status:', createFreeBookingRes.status);
+    console.error('Response data:', JSON.stringify(createFreeBookingData, null, 2));
+  }
   assert(createFreeBookingRes.status === 201, 'Zero-value booking creation should succeed');
   const freeBooking = createFreeBookingData.data.booking;
   assert(freeBooking.status === 'scheduled', 'Should transition directly to scheduled');
@@ -411,6 +440,8 @@ async function runTests() {
   });
   assert(cancelAgainRes.status === 400, 'Patient cancelling a cancelled booking should fail');
   console.log(`${green}✔ Patient cancellation limits verified!${reset}`);
+
+  await Region.deleteOne({ _id: regionId });
 
   console.log(`\n${cyan}====================================================${reset}`);
   console.log(`${green}🎉 ALL FEATURE 4 BOOKING FLOW TEST CASES PASSED SUCCESSFULLY! 🎉${reset}`);

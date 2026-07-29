@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { createBooking, getMyBookings, getBookingById, getAllBookings, updateBookingStatus, cancelBooking, assignStaff } from '../controllers/booking.controller.js';
+import { createBooking, getMyBookings, getBookingById, getAllBookings, updateBookingStatus, cancelBooking, assignStaff, autoAssignBooking, autoAssignAllBookings } from '../controllers/booking.controller.js';
 import { authenticate } from '../middleware/auth.middleware.js';
 import { authorize } from '../middleware/role.middleware.js';
 import { validate } from '../middleware/validate.middleware.js';
@@ -20,6 +20,8 @@ router.get('/:id', authorize('patient', 'staff', 'admin'), getBookingById);
 
 // Staff/Admin actions
 router.get('/', authorize('staff', 'admin'), getAllBookings);
+router.post('/auto-assign-all', authorize('admin'), autoAssignAllBookings);
+router.post('/:id/auto-assign', authorize('admin', 'staff'), autoAssignBooking);
 router.patch('/:id/status', authorize('staff'), validate(updateBookingStatusSchema), updateBookingStatus);
 router.patch('/:id/assign-staff', authorize('admin'), validate(assignStaffSchema), assignStaff);
 

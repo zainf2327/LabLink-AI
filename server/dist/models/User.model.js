@@ -13,7 +13,7 @@ const UserSchema = new Schema({
     phone: {
         type: String,
         required: function () {
-            return !this.googleId;
+            return !this.googleId && this.role !== 'staff';
         },
         trim: true,
     },
@@ -34,6 +34,17 @@ const UserSchema = new Schema({
     googleRefreshToken: { type: String },
     googleCalendarConnected: { type: Boolean, default: false, required: true },
     walletBalance: { type: Number, default: 0, min: 0, required: true },
+    assignedRegions: { type: [String], default: [] },
+    shifts: {
+        type: [
+            {
+                dayOfWeek: { type: Number, required: true, min: 0, max: 6 },
+                startTime: { type: String, required: true },
+                endTime: { type: String, required: true },
+            },
+        ],
+        default: [],
+    },
 }, {
     timestamps: true,
 });

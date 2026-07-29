@@ -1,19 +1,8 @@
-import { SESClient, SendEmailCommand } from '@aws-sdk/client-ses';
+import { Resend } from 'resend';
 import { env } from '../config/env.js';
-let sesClient = null;
-const fromEmail = env.AWS_SES_FROM_EMAIL || 'no-reply@lablink.com';
-if (env.AWS_ACCESS_KEY_ID && env.AWS_SECRET_ACCESS_KEY && env.AWS_REGION) {
-    sesClient = new SESClient({
-        region: env.AWS_REGION,
-        credentials: {
-            accessKeyId: env.AWS_ACCESS_KEY_ID,
-            secretAccessKey: env.AWS_SECRET_ACCESS_KEY,
-        },
-    });
-}
-else {
-    console.warn('⚠️ AWS SES credentials are not fully configured. Email service will run in MOCK mode.');
-}
+import logger from '../utils/logger.js';
+const resendClient = new Resend(env.RESEND_API_KEY);
+const fromEmail = env.RESEND_FROM_EMAIL || 'LabLink AI <no-reply@mail.zainch.me>';
 export const emailService = {
     async sendVerificationEmail(email, code) {
         const subject = 'Verify your LabLink AI Account';
@@ -30,43 +19,22 @@ export const emailService = {
       </div>
     `;
         const textContent = `Welcome to LabLink AI! Your 6-digit verification code is: ${code}. It expires in 15 minutes.`;
-        if (!sesClient) {
-            console.log('====================================');
-            console.log(`[MOCK EMAIL] To: ${email}`);
-            console.log(`[MOCK EMAIL] Subject: ${subject}`);
-            console.log(`[MOCK EMAIL] Verification Code: ${code}`);
-            console.log('====================================');
-            return;
-        }
         try {
-            const command = new SendEmailCommand({
-                Source: fromEmail,
-                Destination: {
-                    ToAddresses: [email],
-                },
-                Message: {
-                    Subject: {
-                        Data: subject,
-                    },
-                    Body: {
-                        Html: {
-                            Data: htmlContent,
-                        },
-                        Text: {
-                            Data: textContent,
-                        },
-                    },
-                },
+            await resendClient.emails.send({
+                from: fromEmail,
+                to: email,
+                subject: subject,
+                html: htmlContent,
+                text: textContent,
             });
-            await sesClient.send(command);
-            console.log(`Verification email sent to ${email} via AWS SES.`);
+            logger.info(`Verification email sent to ${email} via Resend.`);
         }
         catch (err) {
-            console.error(`Failed to send verification email to ${email} via AWS SES:`, err);
+            logger.error(`Failed to send verification email to ${email} via Resend:`, err);
             if (env.NODE_ENV === 'production') {
                 throw err;
             }
-            console.warn('⚠️ Proceeding in non-production environment despite email send failure.');
+            logger.warn('⚠️ Proceeding in non-production environment despite email send failure.');
         }
     },
     async sendPasswordResetEmail(email, token) {
@@ -87,43 +55,91 @@ export const emailService = {
       </div>
     `;
         const textContent = `Reset your LabLink AI Password by visiting this link: ${resetUrl}. It expires in 1 hour.`;
-        if (!sesClient) {
-            console.log('====================================');
-            console.log(`[MOCK EMAIL] To: ${email}`);
-            console.log(`[MOCK EMAIL] Subject: ${subject}`);
-            console.log(`[MOCK EMAIL] Reset Link: ${resetUrl}`);
-            console.log('====================================');
-            return;
-        }
         try {
-            const command = new SendEmailCommand({
-                Source: fromEmail,
-                Destination: {
-                    ToAddresses: [email],
-                },
-                Message: {
-                    Subject: {
-                        Data: subject,
-                    },
-                    Body: {
-                        Html: {
-                            Data: htmlContent,
-                        },
-                        Text: {
-                            Data: textContent,
-                        },
-                    },
-                },
+            await resendClient.emails.send({
+                from: fromEmail,
+                to: email,
+                subject: subject,
+                html: htmlContent,
+                text: textContent,
             });
-            await sesClient.send(command);
-            console.log(`Password reset email sent to ${email} via AWS SES.`);
+            logger.info(`Password reset email sent to ${email} via Resend.`);
         }
         catch (err) {
-            console.error(`Failed to send password reset email to ${email} via AWS SES:`, err);
+            logger.error(`Failed to send password reset email to ${email} via Resend:`, err);
             if (env.NODE_ENV === 'production') {
                 throw err;
             }
-            console.warn('⚠️ Proceeding in non-production environment despite email send failure.');
+            logger.warn('⚠️ Proceeding in non-production environment despite email send failure.');
+        }
+    },
+    async sendStaffWelcomeEmail(email, name, password) {
+        const subject = 'Welcome to LabLink AI - Staff Account Created';
+        const htmlContent = `
+      <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 8px;">
+        <h2 style="color: #2563eb;">Welcome, ${name}!</h2>
+        <p>An administrative staff account has been created for you at LabLink AI.</p>
+        <p>Please use the following credentials to log in:</p>
+        <div style="padding: 15px; background-color: #f1f5f9; border-radius: 6px; margin: 20px 0; color: #0f172a;">
+          <p style="margin: 5px 0;"><strong>Email:</strong> ${email}</p>
+          <p style="margin: 5px 0;"><strong>Password:</strong> ${password}</p>
+        </div>
+        <p>For security, we recommend that you change your password after logging in.</p>
+        <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 20px 0;" />
+        <p style="font-size: 12px; color: #64748b;">If you did not request this account, please contact the administrator.</p>
+      </div>
+    `;
+        const textContent = `Welcome, ${name}! Your LabLink AI staff account has been created.\nEmail: ${email}\nPassword: ${password}\nWe recommend changing your password after logging in.`;
+        try {
+            await resendClient.emails.send({
+                from: fromEmail,
+                to: email,
+                subject: subject,
+                html: htmlContent,
+                text: textContent,
+            });
+            logger.info(`Staff welcome email sent to ${email} via Resend.`);
+        }
+        catch (err) {
+            logger.error(`Failed to send staff welcome email to ${email} via Resend:`, err);
+            if (env.NODE_ENV === 'production') {
+                throw err;
+            }
+            logger.warn('⚠️ Proceeding in non-production environment despite email send failure.');
+        }
+    },
+    async sendStaffPasswordResetEmail(email, name, password) {
+        const subject = 'Your LabLink AI Password Has Been Reset';
+        const htmlContent = `
+      <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 8px;">
+        <h2 style="color: #2563eb;">Password Reset by Administrator</h2>
+        <p>Hello, ${name}. Your LabLink AI staff account password has been reset by an administrator.</p>
+        <p>Your new temporary password is:</p>
+        <div style="font-size: 24px; font-weight: bold; padding: 15px; background-color: #f1f5f9; border-radius: 6px; text-align: center; margin: 20px 0; color: #0f172a; letter-spacing: 1px;">
+          ${password}
+        </div>
+        <p>Please log in using this temporary password and update it from your profile settings as soon as possible.</p>
+        <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 20px 0;" />
+        <p style="font-size: 12px; color: #64748b;">If you did not request a password reset, please contact the administrator immediately.</p>
+      </div>
+    `;
+        const textContent = `Hello, ${name}. Your LabLink AI staff account password has been reset by an administrator. Your new temporary password is: ${password}. Please update your password after logging in.`;
+        try {
+            await resendClient.emails.send({
+                from: fromEmail,
+                to: email,
+                subject: subject,
+                html: htmlContent,
+                text: textContent,
+            });
+            logger.info(`Staff password reset email sent to ${email} via Resend.`);
+        }
+        catch (err) {
+            logger.error(`Failed to send staff password reset email to ${email} via Resend:`, err);
+            if (env.NODE_ENV === 'production') {
+                throw err;
+            }
+            logger.warn('⚠️ Proceeding in non-production environment despite email send failure.');
         }
     },
 };

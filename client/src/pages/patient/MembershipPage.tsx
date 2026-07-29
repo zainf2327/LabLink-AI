@@ -4,9 +4,10 @@ import type { SubscriptionPlan, Subscription } from '../../services/subscription
 import { familyService } from '../../services/family.service';
 import type { FamilyMember } from '../../services/family.service';
 import AppLayout from '../../components/layout/AppLayout';
-import { ConfirmModal } from '../../components/ConfirmModal';
+import { useConfirm } from '../../hooks/useConfirm';
 import { loadStripe } from '@stripe/stripe-js';
 import { Elements, CardElement, useStripe, useElements } from '@stripe/react-stripe-js';
+import { useToast } from '../../hooks/useToast';
 import {
   Shield,
   Check,
@@ -16,7 +17,6 @@ import {
   Trash2,
   Users,
   AlertCircle,
-  CheckCircle2,
   Sparkles,
   Calendar,
   Heart,
@@ -38,10 +38,9 @@ const MembershipPageContent: React.FC = () => {
   const [familyMembers, setFamilyMembers] = useState<FamilyMember[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
-  
-  // Alert/Message states
-  const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
+
+  const toast = useToast();
+  const { confirm } = useConfirm();
 
   // Modal states
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -67,37 +66,10 @@ const MembershipPageContent: React.FC = () => {
   const [isFamilySelectModalOpen, setIsFamilySelectModalOpen] = useState(false);
   const [selectedFamilyIds, setSelectedFamilyIds] = useState<string[]>([]);
 
-  // Confirm modal configurations
-  const [confirmConfig, setConfirmConfig] = useState<{
-    isOpen: boolean;
-    title: string;
-    message: string;
-    onConfirm: () => void;
-    isDanger?: boolean;
-  }>({
-    isOpen: false,
-    title: '',
-    message: '',
-    onConfirm: () => {},
-    isDanger: false,
-  });
 
-  const triggerConfirm = (title: string, message: string, onConfirm: () => void, isDanger = false) => {
-    setConfirmConfig({
-      isOpen: true,
-      title,
-      message,
-      onConfirm: () => {
-        onConfirm();
-        setConfirmConfig((prev) => ({ ...prev, isOpen: false }));
-      },
-      isDanger,
-    });
-  };
 
   const fetchData = async () => {
     setLoading(true);
-    setError(null);
     try {
       const [plansRes, subRes, familyRes] = await Promise.all([
         subscriptionService.getAllPlans(),
@@ -116,7 +88,7 @@ const MembershipPageContent: React.FC = () => {
       }
       if (familyRes.success) setFamilyMembers(familyRes.data);
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Failed to fetch membership data.');
+      toast.error(err.response?.data?.message || 'Failed to fetch membership data.');
     } finally {
       setLoading(false);
     }
@@ -125,16 +97,6 @@ const MembershipPageContent: React.FC = () => {
   useEffect(() => {
     fetchData();
   }, []);
-
-  const displaySuccess = (msg: string) => {
-    setSuccess(msg);
-    setTimeout(() => setSuccess(null), 4000);
-  };
-
-  const displayError = (msg: string) => {
-    setError(msg);
-    setTimeout(() => setError(null), 5000);
-  };
 
   const handleSubscribeClick = async (plan: SubscriptionPlan) => {
     setPaymentError(null);
@@ -155,7 +117,7 @@ const MembershipPageContent: React.FC = () => {
           // Zero-price or fully wallet covered bypass
           const confirmRes = await subscriptionService.confirmSubscriptionPayment(stripePaymentIntentId);
           if (confirmRes.success) {
-            displaySuccess(confirmRes.message || 'Subscribed successfully!');
+            toast.success(confirmRes.message || 'Subscribed successfully!');
             await fetchData();
           }
           setSubmitting(false);
@@ -165,7 +127,7 @@ const MembershipPageContent: React.FC = () => {
         }
       }
     } catch (err: any) {
-      displayError(err.response?.data?.message || 'Failed to initiate purchase intent.');
+      toast.error(err.response?.data?.message || 'Failed to initiate purchase intent.');
       setSubmitting(false);
     }
   };
@@ -210,7 +172,7 @@ const MembershipPageContent: React.FC = () => {
       if (stripeResult.paymentIntent && stripeResult.paymentIntent.status === 'succeeded') {
         const confirmRes = await subscriptionService.confirmSubscriptionPayment(stripeIntentId);
         if (confirmRes.success) {
-          displaySuccess('Subscription activated successfully!');
+          toast.success('Subscription activated successfully!');
           setIsPaymentModalOpen(false);
           await fetchData();
         }
@@ -223,25 +185,25 @@ const MembershipPageContent: React.FC = () => {
   };
 
   const handleCancelSub = () => {
-    triggerConfirm(
-      'Cancel Membership',
-      'Are you sure you want to cancel your subscription? Your access will revert to the Free plan immediately.',
-      async () => {
+    confirm({
+      title: 'Cancel Membership',
+      message: 'Are you sure you want to cancel your subscription? Your access will revert to the Free plan immediately.',
+      variant: 'danger',
+      onConfirm: async () => {
         setSubmitting(true);
         try {
           const res = await subscriptionService.cancelMySubscription();
           if (res.success) {
-            displaySuccess('Subscription cancelled successfully.');
+            toast.success('Subscription cancelled successfully.');
             await fetchData();
           }
         } catch (err: any) {
-          displayError(err.response?.data?.message || 'Failed to cancel subscription.');
+          toast.error(err.response?.data?.message || 'Failed to cancel subscription.');
         } finally {
           setSubmitting(false);
         }
       },
-      true // isDanger
-    );
+    });
   };
 
   const handleOpenAddModal = () => {
@@ -266,8 +228,8 @@ const MembershipPageContent: React.FC = () => {
 
   const handleModalSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formName.trim()) return displayError('Name is required.');
-    if (!formDOB) return displayError('Date of Birth is required.');
+    if (!formName.trim()) { toast.error('Name is required.'); return; }
+    if (!formDOB) { toast.error('Date of Birth is required.'); return; }
 
     setSubmitting(true);
     try {
@@ -279,7 +241,7 @@ const MembershipPageContent: React.FC = () => {
           gender: formGender,
         });
         if (res.success) {
-          displaySuccess('Family member updated successfully.');
+          toast.success('Family member updated successfully.');
           setIsModalOpen(false);
           await fetchData();
         }
@@ -291,35 +253,35 @@ const MembershipPageContent: React.FC = () => {
           gender: formGender,
         });
         if (res.success) {
-          displaySuccess('Family member added successfully.');
+          toast.success('Family member added successfully.');
           setIsModalOpen(false);
           await fetchData();
         }
       }
     } catch (err: any) {
-      displayError(err.response?.data?.message || 'Failed to save family member.');
+      toast.error(err.response?.data?.message || 'Failed to save family member.');
     } finally {
       setSubmitting(false);
     }
   };
 
   const handleDeleteMember = (memberId: string) => {
-    triggerConfirm(
-      'Remove Family Member',
-      'Are you sure you want to remove this family member profile? Any diagnostic records linked to this member will remain, but you will not be able to schedule new tests for them.',
-      async () => {
+    confirm({
+      title: 'Remove Family Member',
+      message: 'Are you sure you want to remove this family member profile? Any diagnostic records linked to this member will remain, but you will not be able to schedule new tests for them.',
+      variant: 'danger',
+      onConfirm: async () => {
         try {
           const res = await familyService.deleteFamilyMember(memberId);
           if (res.success) {
-            displaySuccess('Family member removed successfully.');
+            toast.success('Family member removed successfully.');
             await fetchData();
           }
         } catch (err: any) {
-          displayError(err.response?.data?.message || 'Failed to remove family member.');
+          toast.error(err.response?.data?.message || 'Failed to remove family member.');
         }
       },
-      true // isDanger
-    );
+    });
   };
 
   const handleFamilySelectionCheckbox = (memberId: string) => {
@@ -328,7 +290,7 @@ const MembershipPageContent: React.FC = () => {
       setSelectedFamilyIds(selectedFamilyIds.filter((id) => id !== memberId));
     } else {
       if (selectedFamilyIds.length >= limit) {
-        alert(`You can only select up to ${limit} active family members.`);
+        toast.warning(`You can only select up to ${limit} active family members.`);
         return;
       }
       setSelectedFamilyIds([...selectedFamilyIds, memberId]);
@@ -340,12 +302,12 @@ const MembershipPageContent: React.FC = () => {
     try {
       const res = await subscriptionService.updateActiveFamilyMembers(selectedFamilyIds);
       if (res.success) {
-        displaySuccess('Active family members selection updated.');
+        toast.success('Active family members selection updated.');
         setIsFamilySelectModalOpen(false);
         await fetchData();
       }
     } catch (err: any) {
-      displayError(err.response?.data?.message || 'Failed to update active members selection.');
+      toast.error(err.response?.data?.message || 'Failed to update active members selection.');
     } finally {
       setSubmitting(false);
     }
@@ -374,20 +336,6 @@ const MembershipPageContent: React.FC = () => {
     <AppLayout pageTitle="Membership & Family">
       <div className="p-6 max-w-7xl mx-auto space-y-8">
         
-        {/* Messages */}
-        {error && (
-          <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 flex items-center gap-3 animate-fadeIn">
-            <AlertCircle className="shrink-0" size={18} />
-            <span className="text-sm font-medium">{error}</span>
-          </div>
-        )}
-        {success && (
-          <div className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex items-center gap-3 animate-fadeIn">
-            <CheckCircle2 className="shrink-0" size={18} />
-            <span className="text-sm font-medium">{success}</span>
-          </div>
-        )}
-
         {/* 1. Header Intro */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
@@ -973,15 +921,6 @@ const MembershipPageContent: React.FC = () => {
         )}
 
       </div>
-      {/* Reusable Confirm Dialogue Popup */}
-      <ConfirmModal
-        isOpen={confirmConfig.isOpen}
-        title={confirmConfig.title}
-        message={confirmConfig.message}
-        onConfirm={confirmConfig.onConfirm}
-        onCancel={() => setConfirmConfig((prev) => ({ ...prev, isOpen: false }))}
-        isDanger={confirmConfig.isDanger}
-      />
     </AppLayout>
   );
 };

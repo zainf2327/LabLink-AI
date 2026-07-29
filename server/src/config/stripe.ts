@@ -1,4 +1,5 @@
 import { env } from './env.js';
+import logger from '../utils/logger.js';
 
 // Stub Stripe configuration
 export const stripeConfig = {
@@ -6,4 +7,4 @@ export const stripeConfig = {
   webhookSecret: env.STRIPE_WEBHOOK_SECRET || '',
 };
 
-console.log('Stripe Config initialized (Test mode)');
+logger.info('Stripe Config initialized (Test mode)');

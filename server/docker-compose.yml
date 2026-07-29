@@ -1,9 +1,6 @@
-
 services:
-  backend:
-    build:
-      context: .
-      dockerfile: Dockerfile
+  server:
+    image: ghcr.io/zainf2327/lablink-server:latest
     container_name: lablink-backend
     restart: unless-stopped
     ports:

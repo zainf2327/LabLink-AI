@@ -72,13 +72,22 @@ export const paymentService = {
                     await coupon.save();
                 }
             }
-            // Sync to Google Calendar
-            try {
-                const { bookingService: bService } = await import('./booking.service.js');
-                await bService.syncBookingToCalendar(booking);
+            // Trigger automatic staff assignment or sync to calendar
+            if (booking.homeSampling.requested) {
+                import('./autoAssign.service.js').then(({ autoAssignStaff }) => {
+                    autoAssignStaff(booking._id.toString()).catch((err) => {
+                        console.error('[paymentService Intent] Failed auto assign staff:', err);
+                    });
+                });
             }
-            catch (err) {
-                console.error('Failed to sync to Google Calendar on zero payment:', err);
+            else {
+                try {
+                    const { bookingService: bService } = await import('./booking.service.js');
+                    await bService.syncBookingToCalendar(booking);
+                }
+                catch (err) {
+                    console.error('Failed to sync to Google Calendar on zero payment:', err);
+                }
             }
             return { clientSecret: null, paymentId: payment._id.toString(), walletAmountUsed: walletCover, stripeAmount: 0 };
         }
@@ -239,8 +248,15 @@ export const paymentService = {
             booking.status = 'scheduled';
             await booking.save();
         }
-        // 4. Sync home-sampling bookings to Google Calendar after scheduling
+        // 4. Trigger automatic staff assignment or sync to calendar
         if (booking.homeSampling.requested) {
+            import('./autoAssign.service.js').then(({ autoAssignStaff }) => {
+                autoAssignStaff(booking._id.toString()).catch((err) => {
+                    console.error('[paymentService Successful] Failed auto assign staff:', err);
+                });
+            });
+        }
+        else {
             try {
                 const { bookingService } = await import('./booking.service.js');
                 await bookingService.syncBookingToCalendar(booking);

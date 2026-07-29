@@ -6,6 +6,11 @@ import { bookingService } from '../../services/booking.service';
 import type { Booking } from '../../services/booking.service';
 import { authService } from '../../services/auth.service';
 import { subscriptionService } from '../../services/subscription.service';
+import { regionService } from '../../services/region.service';
+import type { Region } from '../../services/region.service';
+import { staffService } from '../../services/staff.service';
+import type { StaffMember } from '../../services/staff.service';
+import { useConfirm } from '../../hooks/useConfirm';
 import {
   ResponsiveContainer,
   AreaChart,
@@ -43,13 +48,15 @@ import {
   FileCheck,
   XCircle,
   X,
-  TrendingUp
+  TrendingUp,
+  Key,
+  ShieldAlert
 } from 'lucide-react';
 
-export const AdminDashboard: React.FC<{ defaultTab?: 'overview' | 'bookings' | 'tests' | 'categories' | 'subscriptions' }> = ({
+export const AdminDashboard: React.FC<{ defaultTab?: 'overview' | 'bookings' | 'tests' | 'categories' | 'subscriptions' | 'regions' | 'staff' }> = ({
   defaultTab = 'overview',
 }) => {
-  const [activeTab, setActiveTab] = useState<'overview' | 'bookings' | 'tests' | 'categories' | 'subscriptions'>(defaultTab);
+  const [activeTab, setActiveTab] = useState<'overview' | 'bookings' | 'tests' | 'categories' | 'subscriptions' | 'regions' | 'staff'>(defaultTab);
 
   useEffect(() => {
     setActiveTab(defaultTab);
@@ -127,6 +134,45 @@ export const AdminDashboard: React.FC<{ defaultTab?: 'overview' | 'bookings' | '
     maxFamilyMembers: 0,
     features: [''],
   });
+
+  // Regions management states
+  const [regions, setRegions] = useState<Region[]>([]);
+  const [regionsCount, setRegionsCount] = useState(0);
+  const [regionPage, setRegionPage] = useState(1);
+  const [regionPages, setRegionPages] = useState(1);
+  const [regionLoading, setRegionLoading] = useState(false);
+  const [regionSearchQuery, setRegionSearchQuery] = useState('');
+  const [regionStatusFilter, setRegionStatusFilter] = useState('');
+
+  const [isRegionModalOpen, setIsRegionModalOpen] = useState(false);
+  const [editingRegion, setEditingRegion] = useState<Region[] | any | null>(null);
+  const [regionForm, setRegionForm] = useState({
+    city: '',
+    name: '',
+    country: 'Pakistan',
+    isActive: true,
+  });
+  const [regionModalError, setRegionModalError] = useState<string | null>(null);
+
+  // Staff management states
+  const [staffMembers, setStaffMembers] = useState<StaffMember[]>([]);
+  const [staffCount, setStaffCount] = useState(0);
+  const [staffPage, setStaffPage] = useState(1);
+  const [staffPages, setStaffPages] = useState(1);
+  const [staffLoading, setStaffLoading] = useState(false);
+
+  const [isStaffModalOpen, setIsStaffModalOpen] = useState(false);
+  const [staffForm, setStaffForm] = useState({ name: '', email: '' });
+  const [staffModalError, setStaffModalError] = useState<string | null>(null);
+
+  const [isStaffRegionsModalOpen, setIsStaffRegionsModalOpen] = useState(false);
+  const [selectedStaffForRegions, setSelectedStaffForRegions] = useState<StaffMember | null>(null);
+  const [staffRegionsForm, setStaffRegionsForm] = useState<string[]>([]);
+  const [staffRegionsModalError, setStaffRegionsModalError] = useState<string | null>(null);
+
+  const [allActiveRegions, setAllActiveRegions] = useState<Region[]>([]);
+
+  const { confirm } = useConfirm();
 
   // Display Alerts
   const displaySuccess = (msg: string) => {
@@ -321,16 +367,219 @@ export const AdminDashboard: React.FC<{ defaultTab?: 'overview' | 'bookings' | '
     }
   };
 
-  const handleSubPlanDeactivate = async (planId: string) => {
-    if (!window.confirm('Are you sure you want to deactivate this subscription plan?')) return;
+  const handleSubPlanDeactivate = (planId: string) => {
+    confirm({
+      title: 'Deactivate Plan',
+      message: 'Are you sure you want to deactivate this subscription plan?',
+      variant: 'danger',
+      onConfirm: async () => {
+        try {
+          const res = await subscriptionService.deactivatePlan(planId);
+          if (res.success) {
+            displaySuccess('Plan deactivated successfully');
+            fetchSubPlans();
+          }
+        } catch (err: any) {
+          displayError(err.response?.data?.message || 'Failed to deactivate plan');
+        }
+      },
+    });
+  };
+
+  // Fetch Regions
+  const fetchRegions = useCallback(async () => {
+    setRegionLoading(true);
     try {
-      const res = await subscriptionService.deactivatePlan(planId);
-      if (res.success) {
-        displaySuccess('Plan deactivated successfully');
-        fetchSubPlans();
+      const res = await regionService.getRegions({
+        page: regionPage,
+        limit: 8,
+        search: regionSearchQuery.trim() || undefined,
+        status: regionStatusFilter || undefined,
+      });
+      if (res.success && res.regions) {
+        setRegions(res.regions);
+        setRegionsCount(res.total || res.regions.length);
+        setRegionPages(res.pages || 1);
       }
     } catch (err: any) {
-      displayError(err.response?.data?.message || 'Failed to deactivate plan');
+      console.error('Error fetching regions:', err);
+      displayError(err.response?.data?.message || 'Failed to load regions');
+    } finally {
+      setRegionLoading(false);
+    }
+  }, [regionPage, regionSearchQuery, regionStatusFilter]);
+
+  // Create or Update Region
+  const handleRegionSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!regionForm.city.trim() || !regionForm.name.trim() || !regionForm.country.trim()) {
+      setRegionModalError('City, Name and Country are required');
+      return;
+    }
+
+    setRegionModalError(null);
+    try {
+      if (editingRegion && editingRegion._id) {
+        const res = await regionService.updateRegion(editingRegion._id, regionForm);
+        if (res.success) {
+          displaySuccess('Region updated successfully');
+          setIsRegionModalOpen(false);
+          setEditingRegion(null);
+          fetchRegions();
+        }
+      } else {
+        const res = await regionService.createRegion(regionForm);
+        if (res.success) {
+          displaySuccess('Region created successfully');
+          setIsRegionModalOpen(false);
+          fetchRegions();
+        }
+      }
+    } catch (err: any) {
+      console.error('Error saving region:', err);
+      if (err.response?.data?.errors && Array.isArray(err.response.data.errors)) {
+        const errorList = err.response.data.errors.map((e: any) => e.message).join('. ');
+        setRegionModalError(errorList);
+      } else {
+        setRegionModalError(err.response?.data?.message || 'Failed to save region');
+      }
+    }
+  };
+
+  // Deactivate Region
+  const handleRegionDeactivate = (regionId: string) => {
+    confirm({
+      title: 'Deactivate Region',
+      message: 'Are you sure you want to deactivate this region?',
+      variant: 'danger',
+      onConfirm: async () => {
+        try {
+          const res = await regionService.deleteRegion(regionId);
+          if (res.success) {
+            displaySuccess('Region deactivated successfully');
+            fetchRegions();
+          }
+        } catch (err: any) {
+          console.error('Error deactivating region:', err);
+          displayError(err.response?.data?.message || 'Failed to deactivate region');
+        }
+      },
+    });
+  };
+
+  // Fetch Staff
+  const fetchStaff = useCallback(async () => {
+    setStaffLoading(true);
+    try {
+      const res = await staffService.getStaff({
+        page: staffPage,
+        limit: 8,
+      });
+      if (res.success && res.data) {
+        setStaffMembers(res.data.users);
+        setStaffCount(res.data.pagination.total);
+        setStaffPages(Math.ceil(res.data.pagination.total / res.data.pagination.limit) || 1);
+      }
+    } catch (err: any) {
+      console.error('Error fetching staff members:', err);
+      displayError(err.response?.data?.message || 'Failed to load staff members');
+    } finally {
+      setStaffLoading(false);
+    }
+  }, [staffPage]);
+
+  // Fetch all active regions (for region selection)
+  const fetchAllActiveRegions = async () => {
+    try {
+      const res = await regionService.getRegions({ limit: 100, status: 'active' });
+      if (res.success && res.regions) {
+        setAllActiveRegions(res.regions);
+      }
+    } catch (err) {
+      console.error('Error fetching active regions list:', err);
+    }
+  };
+
+  // Submit staff creation
+  const handleStaffSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!staffForm.name.trim() || !staffForm.email.trim()) {
+      setStaffModalError('Name and Email are required');
+      return;
+    }
+    setStaffModalError(null);
+    try {
+      const res = await staffService.createStaff(staffForm);
+      if (res.success) {
+        displaySuccess('Staff member created successfully. Welcome email sent!');
+        setIsStaffModalOpen(false);
+        setStaffForm({ name: '', email: '' });
+        fetchStaff();
+      }
+    } catch (err: any) {
+      console.error('Error creating staff:', err);
+      setStaffModalError(err.response?.data?.message || 'Failed to create staff member');
+    }
+  };
+
+  // Toggle staff active/inactive status
+  const handleStaffStatusToggle = (id: string, currentStatus: boolean) => {
+    const action = currentStatus ? 'deactivate' : 'activate';
+    confirm({
+      title: `${currentStatus ? 'Deactivate' : 'Activate'} Staff Member`,
+      message: `Are you sure you want to ${action} this staff member?`,
+      variant: 'danger',
+      onConfirm: async () => {
+        try {
+          const res = await staffService.updateStaffStatus(id, !currentStatus);
+          if (res.success) {
+            displaySuccess(`Staff member ${action}d successfully`);
+            fetchStaff();
+          }
+        } catch (err: any) {
+          console.error('Error updating staff status:', err);
+          displayError(err.response?.data?.message || 'Failed to update staff status');
+        }
+      },
+    });
+  };
+
+  // Reset staff password
+  const handleStaffPasswordReset = (id: string, name: string) => {
+    confirm({
+      title: 'Reset Password',
+      message: `Are you sure you want to reset the password for ${name}? A new secure password will be generated and emailed to them.`,
+      variant: 'warning',
+      onConfirm: async () => {
+        try {
+          const res = await staffService.resetStaffPassword(id);
+          if (res.success) {
+            displaySuccess(`Password reset successfully. Credentials sent to ${name}'s email.`);
+          }
+        } catch (err: any) {
+          console.error('Error resetting staff password:', err);
+          displayError(err.response?.data?.message || 'Failed to reset password');
+        }
+      },
+    });
+  };
+
+  // Submit regions update for staff
+  const handleStaffRegionsSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedStaffForRegions) return;
+    setStaffRegionsModalError(null);
+    try {
+      const res = await staffService.updateStaffRegions(selectedStaffForRegions._id, staffRegionsForm);
+      if (res.success) {
+        displaySuccess('Staff regions updated successfully');
+        setIsStaffRegionsModalOpen(false);
+        setSelectedStaffForRegions(null);
+        fetchStaff();
+      }
+    } catch (err: any) {
+      console.error('Error updating staff regions:', err);
+      setStaffRegionsModalError(err.response?.data?.message || 'Failed to update staff regions');
     }
   };
 
@@ -350,8 +599,13 @@ export const AdminDashboard: React.FC<{ defaultTab?: 'overview' | 'bookings' | '
     } else if (activeTab === 'subscriptions') {
       fetchSubPlans();
       fetchAdminSubscriptions();
+    } else if (activeTab === 'regions') {
+      fetchRegions();
+    } else if (activeTab === 'staff') {
+      fetchStaff();
+      fetchAllActiveRegions();
     }
-  }, [activeTab, testPage, dateRangePreset, bookingPage, bookingStatusFilter, bookingTypeFilter, bookingDateFilter, bookingSearchQuery, adminSubPage, fetchTests, fetchSubPlans, fetchAdminSubscriptions]);
+  }, [activeTab, testPage, dateRangePreset, bookingPage, bookingStatusFilter, bookingTypeFilter, bookingDateFilter, bookingSearchQuery, adminSubPage, regionPage, regionSearchQuery, regionStatusFilter, staffPage, fetchTests, fetchSubPlans, fetchAdminSubscriptions, fetchRegions, fetchStaff]);
 
   // Create or Update Category
   const handleCategorySubmit = async (e: React.FormEvent) => {
@@ -386,17 +640,23 @@ export const AdminDashboard: React.FC<{ defaultTab?: 'overview' | 'bookings' | '
   };
 
   // Delete Category
-  const handleCategoryDelete = async (id: string) => {
-    if (!window.confirm('Are you sure you want to delete this category?')) return;
-    try {
-      const res = await catalogService.deleteCategory(id);
-      if (res.success) {
-        displaySuccess('Category deleted successfully');
-        fetchCategories();
-      }
-    } catch (err: any) {
-      displayError(err.response?.data?.message || 'Cannot delete category: tests are still associated with it');
-    }
+  const handleCategoryDelete = (id: string) => {
+    confirm({
+      title: 'Delete Category',
+      message: 'Are you sure you want to delete this category?',
+      variant: 'danger',
+      onConfirm: async () => {
+        try {
+          const res = await catalogService.deleteCategory(id);
+          if (res.success) {
+            displaySuccess('Category deleted successfully');
+            fetchCategories();
+          }
+        } catch (err: any) {
+          displayError(err.response?.data?.message || 'Cannot delete category: tests are still associated with it');
+        }
+      },
+    });
   };
 
   const openEditCategory = (cat: Category) => {
@@ -431,15 +691,21 @@ export const AdminDashboard: React.FC<{ defaultTab?: 'overview' | 'bookings' | '
   };
 
   // Soft Deactivate Test
-  const handleTestDeactivate = async (id: string) => {
-    if (!window.confirm('Are you sure you want to deactivate this test? It will be hidden from public catalog.')) return;
-    try {
-      await catalogService.deactivateTest(id);
-      displaySuccess('Test deactivated successfully');
-      fetchTests();
-    } catch (err: any) {
-      displayError(err.response?.data?.message || 'Error deactivating test');
-    }
+  const handleTestDeactivate = (id: string) => {
+    confirm({
+      title: 'Deactivate Test',
+      message: 'Are you sure you want to deactivate this test? It will be hidden from public catalog.',
+      variant: 'danger',
+      onConfirm: async () => {
+        try {
+          await catalogService.deactivateTest(id);
+          displaySuccess('Test deactivated successfully');
+          fetchTests();
+        } catch (err: any) {
+          displayError(err.response?.data?.message || 'Error deactivating test');
+        }
+      },
+    });
   };
 
   const openEditTest = (test: Test) => {
@@ -495,20 +761,26 @@ export const AdminDashboard: React.FC<{ defaultTab?: 'overview' | 'bookings' | '
     }
   };
 
-  const handleCancelBooking = async (bookingId: string) => {
-    if (!window.confirm('Are you sure you want to cancel this booking?')) return;
-    setActionLoading(bookingId);
-    try {
-      const res = await bookingService.cancelBooking(bookingId);
-      if (res.success) {
-        displaySuccess('Booking cancelled and calendar entries removed successfully');
-        fetchBookingsQueue();
-      }
-    } catch (err: any) {
-      displayError(err.response?.data?.message || 'Failed to cancel booking.');
-    } finally {
-      setActionLoading(null);
-    }
+  const handleCancelBooking = (bookingId: string) => {
+    confirm({
+      title: 'Cancel Booking',
+      message: 'Are you sure you want to cancel this booking?',
+      variant: 'danger',
+      onConfirm: async () => {
+        setActionLoading(bookingId);
+        try {
+          const res = await bookingService.cancelBooking(bookingId);
+          if (res.success) {
+            displaySuccess('Booking cancelled and calendar entries removed successfully');
+            fetchBookingsQueue();
+          }
+        } catch (err: any) {
+          displayError(err.response?.data?.message || 'Failed to cancel booking.');
+        } finally {
+          setActionLoading(null);
+        }
+      },
+    });
   };
 
   const getStatusBadge = (status: string) => {
@@ -646,6 +918,28 @@ export const AdminDashboard: React.FC<{ defaultTab?: 'overview' | 'bookings' | '
           >
             <Shield size={18} />
             <span>Subscriptions</span>
+          </button>
+          <button
+            onClick={() => setActiveTab('regions')}
+            className={`px-5 py-3 text-sm font-semibold border-b-2 transition-all flex items-center gap-2 cursor-pointer shrink-0 ${
+              activeTab === 'regions'
+                ? 'border-purple-500 text-purple-400'
+                : 'border-transparent text-zinc-400 hover:text-zinc-200'
+            }`}
+          >
+            <MapPin size={18} />
+            <span>Regions</span>
+          </button>
+          <button
+            onClick={() => setActiveTab('staff')}
+            className={`px-5 py-3 text-sm font-semibold border-b-2 transition-all flex items-center gap-2 cursor-pointer shrink-0 ${
+              activeTab === 'staff'
+                ? 'border-purple-500 text-purple-400'
+                : 'border-transparent text-zinc-400 hover:text-zinc-200'
+            }`}
+          >
+            <UserPlus size={18} />
+            <span>Staff Management</span>
           </button>
         </div>
 
@@ -1037,40 +1331,91 @@ export const AdminDashboard: React.FC<{ defaultTab?: 'overview' | 'bookings' | '
                     No tests in the catalog database yet. Click "Add New Test" to begin.
                   </div>
                 ) : (
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left text-sm border-collapse">
-                      <thead>
-                        <tr className="border-b border-zinc-800 text-zinc-450 text-xs uppercase tracking-wider font-semibold">
-                          <th className="py-3 px-4">Name</th>
-                          <th className="py-3 px-4">Type</th>
-                          <th className="py-3 px-4">Category</th>
-                          <th className="py-3 px-4">Price</th>
-                          <th className="py-3 px-4">Status</th>
-                          <th className="py-3 px-4 text-right">Actions</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {tests.map((test) => (
-                          <tr key={test._id} className="border-b border-zinc-850/50 hover:bg-zinc-900/30 transition-colors">
-                            <td className="py-3.5 px-4 font-semibold text-zinc-200">{test.name}</td>
-                            <td className="py-3.5 px-4 capitalize text-zinc-400 text-xs">{test.type}</td>
-                            <td className="py-3.5 px-4 text-zinc-450 text-xs">
-                              {typeof test.categoryId === 'object' ? test.categoryId.name : 'Unknown'}
-                            </td>
-                            <td className="py-3.5 px-4 font-bold text-emerald-400">${test.price.toFixed(2)}</td>
-                            <td className="py-3.5 px-4">
-                              <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${
-                                test.isActive !== false
-                                  ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
-                                  : 'bg-red-500/10 text-red-400 border-red-500/20'
-                              }`}>
-                                {test.isActive !== false ? 'Active' : 'Inactive'}
-                              </span>
-                            </td>
-                            <td className="py-3.5 px-4 text-right space-x-1 shrink-0">
+                  <div className="space-y-4">
+                    {/* Desktop View */}
+                    <div className="hidden md:block overflow-x-auto">
+                      <table className="w-full text-left text-sm border-collapse">
+                        <thead>
+                          <tr className="border-b border-zinc-800 text-zinc-450 text-xs uppercase tracking-wider font-semibold">
+                            <th className="py-3 px-4">Name</th>
+                            <th className="py-3 px-4">Type</th>
+                            <th className="py-3 px-4">Category</th>
+                            <th className="py-3 px-4">Price</th>
+                            <th className="py-3 px-4">Status</th>
+                            <th className="py-3 px-4 text-right">Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {tests.map((test) => (
+                            <tr key={test._id} className="border-b border-zinc-850/50 hover:bg-zinc-900/30 transition-colors">
+                              <td className="py-3.5 px-4 font-semibold text-zinc-200">{test.name}</td>
+                              <td className="py-3.5 px-4 capitalize text-zinc-400 text-xs">{test.type}</td>
+                              <td className="py-3.5 px-4 text-zinc-450 text-xs">
+                                {typeof test.categoryId === 'object' ? test.categoryId.name : 'Unknown'}
+                              </td>
+                              <td className="py-3.5 px-4 font-bold text-emerald-400">${test.price.toFixed(2)}</td>
+                              <td className="py-3.5 px-4">
+                                <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${
+                                  test.isActive !== false
+                                    ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                                    : 'bg-red-500/10 text-red-400 border-red-500/20'
+                                }`}>
+                                  {test.isActive !== false ? 'Active' : 'Inactive'}
+                                </span>
+                              </td>
+                              <td className="py-3.5 px-4 text-right space-x-1 shrink-0">
+                                <button
+                                  onClick={() => openEditTest(test)}
+                                  className="p-1.5 rounded-lg border border-zinc-800 hover:border-zinc-700 bg-zinc-900 text-zinc-400 hover:text-white transition-colors cursor-pointer"
+                                  title="Edit"
+                                >
+                                  <Pencil size={14} />
+                                </button>
+                                {test.isActive !== false && (
+                                  <button
+                                    onClick={() => handleTestDeactivate(test._id || '')}
+                                    className="p-1.5 rounded-lg border border-zinc-800 hover:border-red-900/40 bg-zinc-900 text-zinc-400 hover:text-red-400 transition-colors cursor-pointer"
+                                    title="Deactivate"
+                                  >
+                                    <ShieldX size={14} />
+                                  </button>
+                                )}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    {/* Mobile Card View */}
+                    <div className="md:hidden space-y-3">
+                      {tests.map((test) => (
+                        <div key={test._id} className="p-4 bg-zinc-900/40 border border-zinc-850/60 rounded-xl space-y-3">
+                          <div className="flex justify-between items-start">
+                            <div>
+                              <div className="font-bold text-zinc-200 text-sm">{test.name}</div>
+                              <div className="text-[10px] text-zinc-500 flex items-center gap-1.5 mt-0.5">
+                                <span className="capitalize">{test.type} visit</span>
+                                <span>•</span>
+                                <span>{typeof test.categoryId === 'object' ? test.categoryId.name : 'Unknown'}</span>
+                              </div>
+                            </div>
+                            <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold border ${
+                              test.isActive !== false
+                                ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                                : 'bg-red-500/10 text-red-400 border-red-500/20'
+                            }`}>
+                              {test.isActive !== false ? 'Active' : 'Inactive'}
+                            </span>
+                          </div>
+
+                          <div className="flex justify-between items-center border-t border-zinc-850/40 pt-3">
+                            <span className="font-bold text-emerald-400 text-sm">${test.price.toFixed(2)}</span>
+                            
+                            <div className="flex gap-1.5">
                               <button
                                 onClick={() => openEditTest(test)}
-                                className="p-1.5 rounded-lg border border-zinc-800 hover:border-zinc-700 bg-zinc-900 text-zinc-400 hover:text-white transition-colors cursor-pointer"
+                                className="p-1.5 rounded-lg border border-zinc-800 bg-zinc-900 text-zinc-400 hover:text-white transition-colors cursor-pointer"
                                 title="Edit"
                               >
                                 <Pencil size={14} />
@@ -1078,17 +1423,17 @@ export const AdminDashboard: React.FC<{ defaultTab?: 'overview' | 'bookings' | '
                               {test.isActive !== false && (
                                 <button
                                   onClick={() => handleTestDeactivate(test._id || '')}
-                                  className="p-1.5 rounded-lg border border-zinc-800 hover:border-red-900/40 bg-zinc-900 text-zinc-400 hover:text-red-400 transition-colors cursor-pointer"
+                                  className="p-1.5 rounded-lg border border-zinc-800 bg-zinc-900 text-zinc-400 hover:text-red-400 transition-colors cursor-pointer"
                                   title="Deactivate"
                                 >
                                   <ShieldX size={14} />
                                 </button>
                               )}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 )}
 
@@ -1203,43 +1548,110 @@ export const AdminDashboard: React.FC<{ defaultTab?: 'overview' | 'bookings' | '
                       No subscription plans found in the database.
                     </div>
                   ) : (
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-left text-sm border-collapse">
-                        <thead>
-                          <tr className="border-b border-zinc-800 text-zinc-450 text-xs uppercase tracking-wider font-semibold">
-                            <th className="py-3 px-4">Name</th>
-                            <th className="py-3 px-4">Price</th>
-                            <th className="py-3 px-4">Max Family Members</th>
-                            <th className="py-3 px-4">Features</th>
-                            <th className="py-3 px-4">Status</th>
-                            <th className="py-3 px-4 text-right">Actions</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {subPlans.map((plan) => (
-                            <tr key={plan._id} className="border-b border-zinc-850/50 hover:bg-zinc-900/30 transition-colors">
-                              <td className="py-3.5 px-4 font-semibold text-zinc-200">{plan.name}</td>
-                              <td className="py-3.5 px-4 font-bold text-emerald-400">${plan.price.toFixed(2)}/mo</td>
-                              <td className="py-3.5 px-4 text-zinc-350 text-xs font-semibold">{plan.maxFamilyMembers}</td>
-                              <td className="py-3.5 px-4 text-zinc-450 text-xs">
-                                <div className="flex flex-wrap gap-1">
-                                  {plan.features.map((feat: string, i: number) => (
-                                    <span key={i} className="px-1.5 py-0.5 bg-zinc-850 border border-zinc-800 text-[10px] text-zinc-400 rounded">
-                                      {feat}
-                                    </span>
-                                  ))}
-                                </div>
-                              </td>
-                              <td className="py-3.5 px-4">
-                                <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${
-                                  plan.isActive
-                                    ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
-                                    : 'bg-red-500/10 text-red-400 border-red-500/20'
-                                }`}>
-                                  {plan.isActive ? 'Active' : 'Inactive'}
-                                </span>
-                              </td>
-                              <td className="py-3.5 px-4 text-right space-x-1">
+                    <div className="space-y-4">
+                      {/* Desktop View */}
+                      <div className="hidden md:block overflow-x-auto">
+                        <table className="w-full text-left text-sm border-collapse">
+                          <thead>
+                            <tr className="border-b border-zinc-800 text-zinc-450 text-xs uppercase tracking-wider font-semibold">
+                              <th className="py-3 px-4">Name</th>
+                              <th className="py-3 px-4">Price</th>
+                              <th className="py-3 px-4">Max Family Members</th>
+                              <th className="py-3 px-4">Features</th>
+                              <th className="py-3 px-4">Status</th>
+                              <th className="py-3 px-4 text-right">Actions</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {subPlans.map((plan) => (
+                              <tr key={plan._id} className="border-b border-zinc-850/50 hover:bg-zinc-900/30 transition-colors">
+                                <td className="py-3.5 px-4 font-semibold text-zinc-200">{plan.name}</td>
+                                <td className="py-3.5 px-4 font-bold text-emerald-400">${plan.price.toFixed(2)}/mo</td>
+                                <td className="py-3.5 px-4 text-zinc-350 text-xs font-semibold">{plan.maxFamilyMembers}</td>
+                                <td className="py-3.5 px-4 text-zinc-450 text-xs">
+                                  <div className="flex flex-wrap gap-1">
+                                    {plan.features.map((feat: string, i: number) => (
+                                      <span key={i} className="px-1.5 py-0.5 bg-zinc-850 border border-zinc-800 text-[10px] text-zinc-400 rounded">
+                                        {feat}
+                                      </span>
+                                    ))}
+                                  </div>
+                                </td>
+                                <td className="py-3.5 px-4">
+                                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${
+                                    plan.isActive
+                                      ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                                      : 'bg-red-500/10 text-red-400 border-red-500/20'
+                                  }`}>
+                                    {plan.isActive ? 'Active' : 'Inactive'}
+                                  </span>
+                                </td>
+                                <td className="py-3.5 px-4 text-right space-x-1">
+                                  <button
+                                    onClick={() => {
+                                      setEditingSubPlan(plan);
+                                      setSubPlanForm({
+                                        name: plan.name,
+                                        price: plan.price,
+                                        maxFamilyMembers: plan.maxFamilyMembers,
+                                        features: plan.features.length > 0 ? plan.features : [''],
+                                      });
+                                      setIsSubPlanModalOpen(true);
+                                    }}
+                                    className="p-1.5 rounded-lg border border-zinc-800 hover:border-zinc-700 bg-zinc-900 text-zinc-400 hover:text-white transition-colors cursor-pointer"
+                                    title="Edit"
+                                  >
+                                    <Pencil size={12} />
+                                  </button>
+                                  {plan.isActive && (
+                                    <button
+                                      onClick={() => handleSubPlanDeactivate(plan._id)}
+                                      className="p-1.5 rounded-lg border border-zinc-800 hover:border-red-900/40 bg-zinc-900 text-zinc-400 hover:text-red-400 transition-colors cursor-pointer"
+                                      title="Deactivate"
+                                    >
+                                      <ShieldX size={12} />
+                                    </button>
+                                  )}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+
+                      {/* Mobile Card View */}
+                      <div className="md:hidden space-y-3">
+                        {subPlans.map((plan) => (
+                          <div key={plan._id} className="p-4 bg-zinc-900/40 border border-zinc-850/60 rounded-xl space-y-3">
+                            <div className="flex justify-between items-start">
+                              <div>
+                                <div className="font-bold text-zinc-200 text-sm">{plan.name}</div>
+                                <div className="text-[10px] text-zinc-450 mt-0.5">Max family members: {plan.maxFamilyMembers}</div>
+                              </div>
+                              <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold border ${
+                                plan.isActive
+                                  ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                                  : 'bg-red-500/10 text-red-400 border-red-500/20'
+                              }`}>
+                                {plan.isActive ? 'Active' : 'Inactive'}
+                              </span>
+                            </div>
+
+                            <div>
+                              <span className="text-[9px] uppercase font-bold text-zinc-500 block mb-1">Features</span>
+                              <div className="flex flex-wrap gap-1">
+                                {plan.features.map((feat: string, i: number) => (
+                                  <span key={i} className="px-1.5 py-0.5 bg-zinc-850 border border-zinc-800 text-[10px] text-zinc-400 rounded">
+                                    {feat}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+
+                            <div className="flex justify-between items-center border-t border-zinc-850/40 pt-3">
+                              <span className="font-bold text-emerald-400 text-sm">${plan.price.toFixed(2)}/mo</span>
+                              
+                              <div className="flex gap-1.5">
                                 <button
                                   onClick={() => {
                                     setEditingSubPlan(plan);
@@ -1251,7 +1663,7 @@ export const AdminDashboard: React.FC<{ defaultTab?: 'overview' | 'bookings' | '
                                     });
                                     setIsSubPlanModalOpen(true);
                                   }}
-                                  className="p-1.5 rounded-lg border border-zinc-800 hover:border-zinc-700 bg-zinc-900 text-zinc-400 hover:text-white transition-colors cursor-pointer"
+                                  className="p-1.5 rounded-lg border border-zinc-800 bg-zinc-900 text-zinc-400 hover:text-white transition-colors cursor-pointer"
                                   title="Edit"
                                 >
                                   <Pencil size={12} />
@@ -1259,17 +1671,17 @@ export const AdminDashboard: React.FC<{ defaultTab?: 'overview' | 'bookings' | '
                                 {plan.isActive && (
                                   <button
                                     onClick={() => handleSubPlanDeactivate(plan._id)}
-                                    className="p-1.5 rounded-lg border border-zinc-800 hover:border-red-900/40 bg-zinc-900 text-zinc-400 hover:text-red-400 transition-colors cursor-pointer"
+                                    className="p-1.5 rounded-lg border border-zinc-800 bg-zinc-900 text-zinc-400 hover:text-red-400 transition-colors cursor-pointer"
                                     title="Deactivate"
                                   >
                                     <ShieldX size={12} />
                                   </button>
                                 )}
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   )}
                 </div>
@@ -1287,50 +1699,95 @@ export const AdminDashboard: React.FC<{ defaultTab?: 'overview' | 'bookings' | '
                       No patient subscription agreements found in the database.
                     </div>
                   ) : (
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-left text-sm border-collapse">
-                        <thead>
-                          <tr className="border-b border-zinc-800 text-zinc-450 text-xs uppercase tracking-wider font-semibold">
-                            <th className="py-3 px-4">Sub ID</th>
-                            <th className="py-3 px-4">Patient</th>
-                            <th className="py-3 px-4">Plan Name</th>
-                            <th className="py-3 px-4">Status</th>
-                            <th className="py-3 px-4">Start Date</th>
-                            <th className="py-3 px-4">Renewal Date</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {adminSubscriptions.map((sub) => (
-                            <tr key={sub._id} className="border-b border-zinc-850/50 hover:bg-zinc-900/30 transition-colors">
-                              <td className="py-3.5 px-4 font-mono text-zinc-400 text-xs">{sub._id.substring(18).toUpperCase()}</td>
-                              <td className="py-3.5 px-4">
-                                <div className="text-zinc-200 font-semibold">{sub.userId?.name || 'N/A'}</div>
-                                <div className="text-zinc-550 text-[10px]">{sub.userId?.email || 'N/A'}</div>
-                              </td>
-                              <td className="py-3.5 px-4 font-bold text-zinc-350 text-xs">
-                                {sub.planId?.name || 'Unknown'}
-                              </td>
-                              <td className="py-3.5 px-4">
-                                <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${
-                                  sub.status === 'active'
-                                    ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
-                                    : sub.status === 'cancelled'
-                                    ? 'bg-amber-500/10 text-amber-400 border-amber-500/20'
-                                    : 'bg-red-500/10 text-red-400 border-red-500/20'
-                                }`}>
-                                  {sub.status}
-                                </span>
-                              </td>
-                              <td className="py-3.5 px-4 text-zinc-450 text-xs">
-                                {sub.startDate ? new Date(sub.startDate).toLocaleDateString() : 'N/A'}
-                              </td>
-                              <td className="py-3.5 px-4 text-zinc-450 text-xs">
-                                {sub.expiryDate ? new Date(sub.expiryDate).toLocaleDateString() : 'N/A'}
-                              </td>
+                    <div className="space-y-4">
+                      {/* Desktop View */}
+                      <div className="hidden md:block overflow-x-auto">
+                        <table className="w-full text-left text-sm border-collapse">
+                          <thead>
+                            <tr className="border-b border-zinc-800 text-zinc-450 text-xs uppercase tracking-wider font-semibold">
+                              <th className="py-3 px-4">Sub ID</th>
+                              <th className="py-3 px-4">Patient</th>
+                              <th className="py-3 px-4">Plan Name</th>
+                              <th className="py-3 px-4">Status</th>
+                              <th className="py-3 px-4">Start Date</th>
+                              <th className="py-3 px-4">Renewal Date</th>
                             </tr>
-                          ))}
-                        </tbody>
-                      </table>
+                          </thead>
+                          <tbody>
+                            {adminSubscriptions.map((sub) => (
+                              <tr key={sub._id} className="border-b border-zinc-850/50 hover:bg-zinc-900/30 transition-colors">
+                                <td className="py-3.5 px-4 font-mono text-zinc-400 text-xs">{sub._id.substring(18).toUpperCase()}</td>
+                                <td className="py-3.5 px-4">
+                                  <div className="text-zinc-200 font-semibold">{sub.userId?.name || 'N/A'}</div>
+                                  <div className="text-zinc-550 text-[10px]">{sub.userId?.email || 'N/A'}</div>
+                                </td>
+                                <td className="py-3.5 px-4 font-bold text-zinc-350 text-xs">
+                                  {sub.planId?.name || 'Unknown'}
+                                </td>
+                                <td className="py-3.5 px-4">
+                                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${
+                                    sub.status === 'active'
+                                      ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                                      : sub.status === 'cancelled'
+                                      ? 'bg-amber-500/10 text-amber-400 border-amber-500/20'
+                                      : 'bg-red-500/10 text-red-400 border-red-500/20'
+                                  }`}>
+                                    {sub.status}
+                                  </span>
+                                </td>
+                                <td className="py-3.5 px-4 text-zinc-450 text-xs">
+                                  {sub.startDate ? new Date(sub.startDate).toLocaleDateString() : 'N/A'}
+                                </td>
+                                <td className="py-3.5 px-4 text-zinc-450 text-xs">
+                                  {sub.expiryDate ? new Date(sub.expiryDate).toLocaleDateString() : 'N/A'}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+
+                      {/* Mobile Card View */}
+                      <div className="md:hidden space-y-3">
+                        {adminSubscriptions.map((sub) => (
+                          <div key={sub._id} className="p-4 bg-zinc-900/40 border border-zinc-850/60 rounded-xl space-y-3 text-xs">
+                            <div className="flex justify-between items-start">
+                              <div>
+                                <div className="font-bold text-zinc-200">{sub.userId?.name || 'N/A'}</div>
+                                <div className="text-[10px] text-zinc-550">{sub.userId?.email || 'N/A'}</div>
+                              </div>
+                              <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold border ${
+                                sub.status === 'active'
+                                  ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                                  : sub.status === 'cancelled'
+                                  ? 'bg-amber-500/10 text-amber-400 border-amber-500/20'
+                                  : 'bg-red-500/10 text-red-400 border-red-500/20'
+                              }`}>
+                                {sub.status}
+                              </span>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-2 text-[10px] pt-1">
+                              <div>
+                                <span className="text-zinc-500 block uppercase font-bold text-[8px]">Plan Name</span>
+                                <span className="text-zinc-300 font-semibold">{sub.planId?.name || 'Unknown'}</span>
+                              </div>
+                              <div>
+                                <span className="text-zinc-500 block uppercase font-bold text-[8px]">Sub ID</span>
+                                <span className="text-zinc-400 font-mono">{sub._id.substring(18).toUpperCase()}</span>
+                              </div>
+                              <div>
+                                <span className="text-zinc-550 block uppercase font-bold text-[8px]">Start Date</span>
+                                <span className="text-zinc-400">{sub.startDate ? new Date(sub.startDate).toLocaleDateString() : 'N/A'}</span>
+                              </div>
+                              <div>
+                                <span className="text-zinc-550 block uppercase font-bold text-[8px]">Renewal Date</span>
+                                <span className="text-zinc-400">{sub.expiryDate ? new Date(sub.expiryDate).toLocaleDateString() : 'N/A'}</span>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   )}
 
@@ -1359,6 +1816,424 @@ export const AdminDashboard: React.FC<{ defaultTab?: 'overview' | 'bookings' | '
                     </div>
                   )}
                 </div>
+              </div>
+            )}
+
+            {/* Regions Tab */}
+            {activeTab === 'regions' && (
+              <div className="glassmorphic-card rounded-2xl p-6 space-y-6">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-lg font-bold text-zinc-100 font-sans tracking-wide">Sampling Regions</h3>
+                  <button
+                    onClick={() => {
+                      setEditingRegion(null);
+                      setRegionForm({ city: '', name: '', country: 'Pakistan', isActive: true });
+                      setRegionModalError(null);
+                      setIsRegionModalOpen(true);
+                    }}
+                    className="px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold transition-all flex items-center gap-1 cursor-pointer"
+                  >
+                    <Plus size={16} />
+                    <span>Add Region</span>
+                  </button>
+                </div>
+
+                {/* Filters & Search */}
+                <div className="flex flex-col md:flex-row gap-4 items-center justify-between">
+                  <div className="relative w-full md:max-w-xs">
+                    <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-500" size={16} />
+                    <input
+                      type="text"
+                      placeholder="Search by city, name..."
+                      value={regionSearchQuery}
+                      onChange={(e) => {
+                        setRegionSearchQuery(e.target.value);
+                        setRegionPage(1);
+                      }}
+                      className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-zinc-800 bg-zinc-900/40 text-zinc-250 placeholder:text-zinc-650 text-xs focus:outline-none focus:border-purple-550 transition-colors"
+                    />
+                  </div>
+
+                  <div className="flex gap-2 w-full md:w-auto">
+                    <select
+                      value={regionStatusFilter}
+                      onChange={(e) => {
+                        setRegionStatusFilter(e.target.value);
+                        setRegionPage(1);
+                      }}
+                      className="px-4 py-2.5 rounded-xl border border-zinc-800 bg-zinc-900/40 text-zinc-400 text-xs focus:outline-none bg-zinc-950 cursor-pointer"
+                    >
+                      <option value="">All Statuses</option>
+                      <option value="active">Active Only</option>
+                      <option value="inactive">Inactive Only</option>
+                    </select>
+                  </div>
+                </div>
+
+                {regionLoading ? (
+                  <div className="py-12 flex justify-center items-center">
+                    <div className="w-8 h-8 rounded-full border-4 border-purple-500/20 border-t-purple-450 animate-spin"></div>
+                  </div>
+                ) : regions.length === 0 ? (
+                  <div className="py-12 text-center text-zinc-550 text-sm">
+                    No sampling regions found matching filters.
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {/* Desktop View */}
+                    <div className="hidden md:block overflow-x-auto">
+                      <table className="w-full text-left text-sm border-collapse">
+                        <thead>
+                          <tr className="border-b border-zinc-800 text-zinc-450 text-xs uppercase tracking-wider font-semibold">
+                            <th className="py-3 px-4">Region ID</th>
+                            <th className="py-3 px-4">Name</th>
+                            <th className="py-3 px-4">City</th>
+                            <th className="py-3 px-4">Country</th>
+                            <th className="py-3 px-4">Status</th>
+                            <th className="py-3 px-4 text-right">Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {regions.map((reg) => (
+                            <tr key={reg._id} className="border-b border-zinc-850/50 hover:bg-zinc-900/30 transition-colors">
+                              <td className="py-3.5 px-4 font-mono text-zinc-400 text-xs">{reg._id}</td>
+                              <td className="py-3.5 px-4 font-semibold text-zinc-200">{reg.name}</td>
+                              <td className="py-3.5 px-4 text-zinc-350 text-xs font-semibold">{reg.city}</td>
+                              <td className="py-3.5 px-4 text-zinc-350 text-xs">{reg.country}</td>
+                              <td className="py-3.5 px-4">
+                                <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${
+                                  reg.isActive
+                                    ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                                    : 'bg-red-500/10 text-red-400 border-red-500/20'
+                                }`}>
+                                  {reg.isActive ? 'Active' : 'Inactive'}
+                                </span>
+                              </td>
+                              <td className="py-3.5 px-4 text-right space-x-1">
+                                <button
+                                  onClick={() => {
+                                    setEditingRegion(reg);
+                                    setRegionForm({
+                                      city: reg.city,
+                                      name: reg.name,
+                                      country: reg.country,
+                                      isActive: reg.isActive,
+                                    });
+                                    setRegionModalError(null);
+                                    setIsRegionModalOpen(true);
+                                  }}
+                                  className="p-1.5 rounded-lg border border-zinc-800 hover:border-zinc-700 bg-zinc-900 text-zinc-400 hover:text-white transition-colors cursor-pointer"
+                                  title="Edit"
+                                >
+                                  <Pencil size={12} />
+                                </button>
+                                {reg.isActive && (
+                                  <button
+                                    onClick={() => handleRegionDeactivate(reg._id)}
+                                    className="p-1.5 rounded-lg border border-zinc-800 hover:border-red-900/40 bg-zinc-900 text-zinc-400 hover:text-red-400 transition-colors cursor-pointer"
+                                    title="Deactivate"
+                                  >
+                                    <ShieldX size={12} />
+                                  </button>
+                                )}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    {/* Mobile Card View */}
+                    <div className="md:hidden space-y-3">
+                      {regions.map((reg) => (
+                        <div key={reg._id} className="p-4 bg-zinc-900/40 border border-zinc-850/60 rounded-xl space-y-3">
+                          <div className="flex justify-between items-start">
+                            <div>
+                              <div className="font-bold text-zinc-200 text-sm">{reg.name}</div>
+                              <div className="text-[10px] text-zinc-500 font-mono mt-0.5">{reg._id}</div>
+                            </div>
+                            <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold border ${
+                              reg.isActive
+                                ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                                : 'bg-red-500/10 text-red-400 border-red-500/20'
+                            }`}>
+                              {reg.isActive ? 'Active' : 'Inactive'}
+                            </span>
+                          </div>
+
+                          <div className="flex justify-between items-center border-t border-zinc-850/40 pt-3">
+                            <div className="text-[10px] text-zinc-400">
+                              {reg.city}, {reg.country}
+                            </div>
+                            
+                            <div className="flex gap-1.5">
+                              <button
+                                  onClick={() => {
+                                    setEditingRegion(reg);
+                                    setRegionForm({
+                                      city: reg.city,
+                                      name: reg.name,
+                                      country: reg.country,
+                                      isActive: reg.isActive,
+                                    });
+                                    setRegionModalError(null);
+                                    setIsRegionModalOpen(true);
+                                  }}
+                                className="p-1.5 rounded-lg border border-zinc-800 bg-zinc-900 text-zinc-400 hover:text-white transition-colors cursor-pointer"
+                                title="Edit"
+                              >
+                                <Pencil size={12} />
+                              </button>
+                              {reg.isActive && (
+                                <button
+                                  onClick={() => handleRegionDeactivate(reg._id)}
+                                  className="p-1.5 rounded-lg border border-zinc-800 bg-zinc-900 text-zinc-400 hover:text-red-400 transition-colors cursor-pointer"
+                                  title="Deactivate"
+                                >
+                                  <ShieldX size={12} />
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Pagination */}
+                {regionPages > 1 && (
+                  <div className="flex items-center justify-between border-t border-zinc-850 pt-4 mt-2">
+                    <button
+                      onClick={() => setRegionPage((prev) => Math.max(prev - 1, 1))}
+                      disabled={regionPage === 1 || regionLoading}
+                      className="flex items-center gap-1 px-3 py-1.5 rounded-lg border border-zinc-800 bg-zinc-900 hover:bg-zinc-850 text-xs font-semibold text-zinc-400 hover:text-zinc-200 transition-all cursor-pointer disabled:opacity-40"
+                    >
+                      <ChevronLeft size={14} />
+                      <span>Previous</span>
+                    </button>
+                    <span className="text-zinc-550 text-xs font-extrabold uppercase">
+                      Page {regionPage} of {regionPages} (Total {regionsCount})
+                    </span>
+                    <button
+                      onClick={() => setRegionPage((prev) => Math.min(prev + 1, regionPages))}
+                      disabled={regionPage === regionPages || regionLoading}
+                      className="flex items-center gap-1 px-3 py-1.5 rounded-lg border border-zinc-800 bg-zinc-900 hover:bg-zinc-850 text-xs font-semibold text-zinc-400 hover:text-zinc-200 transition-all cursor-pointer disabled:opacity-40"
+                    >
+                      <span>Next</span>
+                      <ChevronRight size={14} />
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Staff Management Tab */}
+            {activeTab === 'staff' && (
+              <div className="glassmorphic-card rounded-2xl p-6 space-y-6">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-lg font-bold text-zinc-100 font-sans tracking-wide">Staff Management</h3>
+                  <button
+                    onClick={() => {
+                      setStaffForm({ name: '', email: '' });
+                      setStaffModalError(null);
+                      setIsStaffModalOpen(true);
+                    }}
+                    className="px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold transition-all flex items-center gap-1 cursor-pointer"
+                  >
+                    <Plus size={16} />
+                    <span>Create Staff Account</span>
+                  </button>
+                </div>
+
+                {staffLoading ? (
+                  <div className="py-12 flex justify-center items-center">
+                    <div className="w-8 h-8 rounded-full border-4 border-purple-500/20 border-t-purple-450 animate-spin"></div>
+                  </div>
+                ) : staffMembers.length === 0 ? (
+                  <div className="py-12 text-center text-zinc-550 text-sm">
+                    No staff members found in the database.
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {/* Desktop View */}
+                    <div className="hidden md:block overflow-x-auto">
+                      <table className="w-full text-left text-sm border-collapse">
+                        <thead>
+                          <tr className="border-b border-zinc-800 text-zinc-450 text-xs uppercase tracking-wider font-semibold">
+                            <th className="py-3 px-4">Name</th>
+                            <th className="py-3 px-4">Email</th>
+                            <th className="py-3 px-4">Assigned Regions</th>
+                            <th className="py-3 px-4">Status</th>
+                            <th className="py-3 px-4 text-right">Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {staffMembers.map((member) => (
+                            <tr key={member._id} className="border-b border-zinc-850/50 hover:bg-zinc-900/30 transition-colors">
+                              <td className="py-3.5 px-4 font-semibold text-zinc-200">
+                                {member.name}
+                              </td>
+                              <td className="py-3.5 px-4 text-zinc-350 text-xs">{member.email}</td>
+                              <td className="py-3.5 px-4 text-zinc-450 text-xs">
+                                <div className="flex flex-wrap gap-1">
+                                  {member.assignedRegions.length === 0 ? (
+                                    <span className="text-zinc-600 italic">None</span>
+                                  ) : (
+                                    member.assignedRegions.map((regId) => (
+                                      <span key={regId} className="px-1.5 py-0.5 bg-zinc-850 border border-zinc-800 text-[10px] text-purple-300 rounded font-mono">
+                                        {regId}
+                                      </span>
+                                    ))
+                                  )}
+                                </div>
+                              </td>
+                              <td className="py-3.5 px-4">
+                                <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${
+                                  member.isActive
+                                    ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                                    : 'bg-red-500/10 text-red-400 border-red-500/20'
+                                }`}>
+                                  {member.isActive ? 'Active' : 'Inactive'}
+                                </span>
+                              </td>
+                              <td className="py-3.5 px-4 text-right space-x-1">
+                                {member.isActive && (
+                                  <button
+                                    onClick={() => {
+                                      setSelectedStaffForRegions(member);
+                                      setStaffRegionsForm(member.assignedRegions);
+                                      setStaffRegionsModalError(null);
+                                      setIsStaffRegionsModalOpen(true);
+                                    }}
+                                    className="p-1.5 rounded-lg border border-zinc-800 hover:border-zinc-700 bg-zinc-900 text-zinc-400 hover:text-purple-450 transition-colors cursor-pointer inline-flex items-center justify-center"
+                                    title="Assign Regions"
+                                  >
+                                    <MapPin size={12} />
+                                  </button>
+                                )}
+                                <button
+                                  onClick={() => handleStaffPasswordReset(member._id, member.name)}
+                                  className="p-1.5 rounded-lg border border-zinc-800 hover:border-zinc-700 bg-zinc-900 text-zinc-400 hover:text-white transition-colors cursor-pointer inline-flex items-center justify-center"
+                                  title="Reset Password"
+                                >
+                                  <Key size={12} />
+                                </button>
+                                <button
+                                  onClick={() => handleStaffStatusToggle(member._id, member.isActive)}
+                                  className={`p-1.5 rounded-lg border transition-colors cursor-pointer inline-flex items-center justify-center ${
+                                    member.isActive
+                                      ? 'border-zinc-800 hover:border-red-950/40 bg-zinc-900 text-zinc-400 hover:text-red-400'
+                                      : 'border-zinc-800 hover:border-emerald-950/40 bg-zinc-900 text-zinc-400 hover:text-emerald-400'
+                                  }`}
+                                  title={member.isActive ? 'Deactivate' : 'Activate'}
+                                >
+                                  {member.isActive ? <ShieldAlert size={12} /> : <ShieldCheck size={12} />}
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    {/* Mobile Card View */}
+                    <div className="md:hidden space-y-3">
+                      {staffMembers.map((member) => (
+                        <div key={member._id} className="p-4 bg-zinc-900/40 border border-zinc-850/60 rounded-xl space-y-3">
+                          <div className="flex justify-between items-start">
+                            <div>
+                              <div className="font-bold text-zinc-200 text-sm">{member.name}</div>
+                              <div className="text-[10px] text-zinc-500 mt-0.5">{member.email}</div>
+                            </div>
+                            <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold border ${
+                              member.isActive
+                                ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                                : 'bg-red-500/10 text-red-400 border-red-500/20'
+                            }`}>
+                              {member.isActive ? 'Active' : 'Inactive'}
+                            </span>
+                          </div>
+
+                          <div>
+                            <span className="text-[9px] uppercase font-bold text-zinc-500 block mb-1">Assigned Regions</span>
+                            <div className="flex flex-wrap gap-1">
+                              {member.assignedRegions.length === 0 ? (
+                                <span className="text-zinc-650 text-xs italic">None</span>
+                              ) : (
+                                member.assignedRegions.map((regId) => (
+                                  <span key={regId} className="px-1.5 py-0.5 bg-zinc-850 border border-zinc-800 text-[10px] text-purple-300 rounded font-mono">
+                                    {regId}
+                                  </span>
+                                ))
+                              )}
+                            </div>
+                          </div>
+
+                          <div className="flex justify-end gap-2 border-t border-zinc-850/40 pt-3">
+                            {member.isActive && (
+                              <button
+                                onClick={() => {
+                                  setSelectedStaffForRegions(member);
+                                  setStaffRegionsForm(member.assignedRegions);
+                                  setStaffRegionsModalError(null);
+                                  setIsStaffRegionsModalOpen(true);
+                                }}
+                                className="p-2 rounded-lg border border-zinc-800 bg-zinc-900 text-zinc-400 hover:text-purple-450 transition-colors cursor-pointer inline-flex items-center justify-center"
+                                title="Assign Regions"
+                              >
+                                <MapPin size={14} />
+                              </button>
+                            )}
+                            <button
+                              onClick={() => handleStaffPasswordReset(member._id, member.name)}
+                              className="p-2 rounded-lg border border-zinc-800 bg-zinc-900 text-zinc-400 hover:text-white transition-colors cursor-pointer inline-flex items-center justify-center"
+                              title="Reset Password"
+                            >
+                              <Key size={14} />
+                            </button>
+                            <button
+                              onClick={() => handleStaffStatusToggle(member._id, member.isActive)}
+                              className={`p-2 rounded-lg border transition-colors cursor-pointer inline-flex items-center justify-center ${
+                                member.isActive
+                                  ? 'border-zinc-800 hover:border-red-950/40 bg-zinc-900 text-zinc-400 hover:text-red-400'
+                                  : 'border-zinc-800 hover:border-emerald-950/40 bg-zinc-900 text-zinc-400 hover:text-emerald-400'
+                              }`}
+                              title={member.isActive ? 'Deactivate' : 'Activate'}
+                            >
+                              {member.isActive ? <ShieldAlert size={14} /> : <ShieldCheck size={14} />}
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Pagination */}
+                {staffPages > 1 && (
+                  <div className="flex items-center justify-between border-t border-zinc-850 pt-4 mt-2">
+                    <button
+                      onClick={() => setStaffPage((prev) => Math.max(prev - 1, 1))}
+                      disabled={staffPage === 1 || staffLoading}
+                      className="flex items-center gap-1 px-3 py-1.5 rounded-lg border border-zinc-800 bg-zinc-900 hover:bg-zinc-850 text-xs font-semibold text-zinc-400 hover:text-zinc-200 transition-all cursor-pointer disabled:opacity-40"
+                    >
+                      <ChevronLeft size={14} />
+                      <span>Previous</span>
+                    </button>
+                    <span className="text-zinc-550 text-xs font-extrabold uppercase">
+                      Page {staffPage} of {staffPages} (Total {staffCount})
+                    </span>
+                    <button
+                      onClick={() => setStaffPage((prev) => Math.min(prev + 1, staffPages))}
+                      disabled={staffPage === staffPages || staffLoading}
+                      className="flex items-center gap-1 px-3 py-1.5 rounded-lg border border-zinc-800 bg-zinc-900 hover:bg-zinc-850 text-xs font-semibold text-zinc-400 hover:text-zinc-200 transition-all cursor-pointer disabled:opacity-40"
+                    >
+                      <span>Next</span>
+                      <ChevronRight size={14} />
+                    </button>
+                  </div>
+                )}
               </div>
             )}
            </div>
@@ -1414,6 +2289,117 @@ export const AdminDashboard: React.FC<{ defaultTab?: 'overview' | 'bookings' | '
                   className="px-5 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold transition-colors cursor-pointer"
                 >
                   {editingCategory ? 'Save Changes' : 'Create Category'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Region Creation / Edit Modal */}
+      {isRegionModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="w-full max-w-md glassmorphic-card rounded-3xl p-6 relative">
+            <h3 className="text-lg font-bold text-zinc-100 mb-6 font-sans">
+              {editingRegion ? 'Edit Region' : 'Create Sampling Region'}
+            </h3>
+            
+            {regionModalError && (
+              <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-xl text-red-400 text-xs flex items-center gap-2 mb-4">
+                <AlertTriangle size={14} className="shrink-0" />
+                <span>{regionModalError}</span>
+              </div>
+            )}
+            
+            <form onSubmit={handleRegionSubmit} className="space-y-4">
+              {editingRegion && (
+                <div>
+                  <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-400 mb-1.5">
+                    Region ID (Immutable)
+                  </label>
+                  <input
+                    type="text"
+                    value={editingRegion._id}
+                    disabled
+                    className="w-full px-4 py-2.5 rounded-xl bg-zinc-950 border border-zinc-900 text-zinc-500 text-sm focus:outline-none opacity-60 font-mono"
+                  />
+                </div>
+              )}
+
+              <div>
+                <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-400 mb-1.5">
+                  Region Name / Neighborhood
+                </label>
+                <input
+                  type="text"
+                  value={regionForm.name}
+                  onChange={(e) => setRegionForm({ ...regionForm, name: e.target.value })}
+                  placeholder="e.g. Johar Town, Gulberg, Manhattan"
+                  className="w-full px-4 py-2.5 rounded-xl glassmorphic-input text-zinc-200 text-sm placeholder:text-zinc-650 focus:outline-none"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-400 mb-1.5">
+                  City
+                </label>
+                <input
+                  type="text"
+                  value={regionForm.city}
+                  onChange={(e) => setRegionForm({ ...regionForm, city: e.target.value })}
+                  placeholder="e.g. Lahore, Karachi, New York"
+                  className="w-full px-4 py-2.5 rounded-xl glassmorphic-input text-zinc-200 text-sm placeholder:text-zinc-650 focus:outline-none"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-400 mb-1.5">
+                  Country
+                </label>
+                <input
+                  type="text"
+                  value={regionForm.country}
+                  onChange={(e) => setRegionForm({ ...regionForm, country: e.target.value })}
+                  placeholder="e.g. Pakistan, United States"
+                  className="w-full px-4 py-2.5 rounded-xl glassmorphic-input text-zinc-200 text-sm placeholder:text-zinc-650 focus:outline-none"
+                  required
+                />
+              </div>
+
+              {editingRegion && (
+                <div className="flex items-center gap-3 p-3 bg-zinc-900/20 border border-zinc-850 rounded-2xl">
+                  <input
+                    type="checkbox"
+                    id="region-is-active"
+                    checked={regionForm.isActive}
+                    onChange={(e) => setRegionForm({ ...regionForm, isActive: e.target.checked })}
+                    className="w-4 h-4 rounded border-zinc-800 bg-zinc-900 text-emerald-500 focus:ring-emerald-500/30 accent-emerald-500 cursor-pointer"
+                  />
+                  <label htmlFor="region-is-active" className="text-xs font-bold text-zinc-350 cursor-pointer">
+                    Region is Active (Available for selection on checkout)
+                  </label>
+                </div>
+              )}
+
+              <div className="flex gap-3 justify-end pt-4 border-t border-zinc-900 mt-6">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsRegionModalOpen(false);
+                    setEditingRegion(null);
+                    setRegionModalError(null);
+                  }}
+                  className="px-4 py-2 rounded-xl border border-zinc-800 bg-zinc-900 text-xs font-bold text-zinc-400 hover:text-zinc-200 transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold transition-colors cursor-pointer"
+                >
+                  {editingRegion ? 'Save Changes' : 'Create Region'}
                 </button>
               </div>
             </form>
@@ -1699,6 +2685,152 @@ export const AdminDashboard: React.FC<{ defaultTab?: 'overview' | 'bookings' | '
                   className="px-5 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold transition-colors cursor-pointer"
                 >
                   {editingSubPlan ? 'Save Changes' : 'Create Plan'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Create Staff Modal */}
+      {isStaffModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="w-full max-w-md glassmorphic-card rounded-3xl p-6 relative">
+            <h3 className="text-lg font-bold text-zinc-100 mb-6 font-sans">
+              Create Staff Account
+            </h3>
+            
+            {staffModalError && (
+              <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-xl text-red-400 text-xs flex items-center gap-2 mb-4">
+                <AlertTriangle size={14} className="shrink-0" />
+                <span>{staffModalError}</span>
+              </div>
+            )}
+            
+            <form onSubmit={handleStaffSubmit} className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-400 mb-1.5">
+                  Name
+                </label>
+                <input
+                  type="text"
+                  value={staffForm.name}
+                  onChange={(e) => setStaffForm({ ...staffForm, name: e.target.value })}
+                  placeholder="e.g. John Doe"
+                  className="w-full px-4 py-2.5 rounded-xl glassmorphic-input text-zinc-200 text-sm placeholder:text-zinc-650 focus:outline-none"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-400 mb-1.5">
+                  Email Address
+                </label>
+                <input
+                  type="email"
+                  value={staffForm.email}
+                  onChange={(e) => setStaffForm({ ...staffForm, email: e.target.value })}
+                  placeholder="e.g. john@lablink.com"
+                  className="w-full px-4 py-2.5 rounded-xl glassmorphic-input text-zinc-200 text-sm placeholder:text-zinc-650 focus:outline-none"
+                  required
+                />
+              </div>
+
+              <div className="p-3 bg-purple-500/5 border border-purple-500/10 rounded-2xl text-[11px] text-purple-300 leading-relaxed">
+                <strong>Notice:</strong> The password will be automatically generated and shared with the staff member by email. They can update it from their profile at any time.
+              </div>
+
+              <div className="flex gap-3 justify-end pt-4 border-t border-zinc-900 mt-6">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsStaffModalOpen(false);
+                    setStaffModalError(null);
+                  }}
+                  className="px-4 py-2 rounded-xl border border-zinc-800 bg-zinc-900 text-xs font-bold text-zinc-400 hover:text-zinc-200 transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold transition-colors cursor-pointer"
+                >
+                  Create Account
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Assign Regions Modal */}
+      {isStaffRegionsModalOpen && selectedStaffForRegions && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="w-full max-w-md glassmorphic-card rounded-3xl p-6 relative">
+            <h3 className="text-lg font-bold text-zinc-100 mb-2 font-sans">
+              Assign Regions
+            </h3>
+            <p className="text-xs text-zinc-450 mb-6">
+              Select the active sampling regions for <strong>{selectedStaffForRegions.name}</strong>.
+            </p>
+
+            {staffRegionsModalError && (
+              <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-xl text-red-400 text-xs flex items-center gap-2 mb-4">
+                <AlertTriangle size={14} className="shrink-0" />
+                <span>{staffRegionsModalError}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleStaffRegionsSubmit} className="space-y-4">
+              <div className="max-h-60 overflow-y-auto border border-zinc-850 rounded-2xl p-3 space-y-2.5 bg-zinc-950/40">
+                {allActiveRegions.length === 0 ? (
+                  <div className="text-center text-zinc-550 text-xs py-6">
+                    No active regions available. Activate them first in the Regions tab.
+                  </div>
+                ) : (
+                  allActiveRegions.map((reg) => {
+                    const isChecked = staffRegionsForm.includes(reg._id);
+                    return (
+                      <label key={reg._id} className="flex items-center gap-3 cursor-pointer p-2 hover:bg-zinc-900/40 rounded-lg transition-colors">
+                        <input
+                          type="checkbox"
+                          checked={isChecked}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setStaffRegionsForm([...staffRegionsForm, reg._id]);
+                            } else {
+                              setStaffRegionsForm(staffRegionsForm.filter((id) => id !== reg._id));
+                            }
+                          }}
+                          className="w-4 h-4 rounded border-zinc-800 bg-zinc-900 text-purple-650 focus:ring-purple-500/30 accent-purple-600 cursor-pointer"
+                        />
+                        <div className="text-xs">
+                          <div className="font-bold text-zinc-350">{reg.name}</div>
+                          <div className="text-[10px] text-zinc-500">{reg.city}, {reg.country}</div>
+                        </div>
+                      </label>
+                    );
+                  })
+                )}
+              </div>
+
+              <div className="flex gap-3 justify-end pt-4 border-t border-zinc-900 mt-6">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsStaffRegionsModalOpen(false);
+                    setSelectedStaffForRegions(null);
+                    setStaffRegionsModalError(null);
+                  }}
+                  className="px-4 py-2 rounded-xl border border-zinc-800 bg-zinc-900 text-xs font-bold text-zinc-400 hover:text-zinc-200 transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold transition-colors cursor-pointer"
+                >
+                  Save Assignments
                 </button>
               </div>
             </form>

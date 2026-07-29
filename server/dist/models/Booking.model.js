@@ -10,6 +10,12 @@ const BookingHomeSamplingSchema = new Schema({
     scheduledAt: { type: Date },
     assignedStaffId: { type: Schema.Types.ObjectId, ref: 'User', default: null },
     calendarEventId: { type: String, default: null }, // deprecated
+    region: { type: String, trim: true },
+    streetAddress: { type: String, trim: true },
+    blockNumber: { type: String, trim: true },
+    landmark: { type: String, trim: true },
+    city: { type: String, trim: true },
+    country: { type: String, trim: true },
 });
 const BookingGoogleCalendarSchema = new Schema({
     patientEventId: { type: String, default: null },
@@ -28,7 +34,7 @@ const BookingSchema = new Schema({
     },
     status: {
         type: String,
-        enum: ['pending_payment', 'scheduled', 'sample_collected', 'in_lab', 'report_ready', 'completed', 'cancelled'],
+        enum: ['pending_payment', 'scheduled', 'sample_collected', 'in_lab', 'report_ready', 'completed', 'cancelled', 'pending_manual_assignment'],
         default: 'pending_payment',
         required: true,
     },
@@ -47,6 +53,7 @@ const BookingSchema = new Schema({
 BookingSchema.index({ patientId: 1 });
 BookingSchema.index({ status: 1 });
 BookingSchema.index({ 'homeSampling.assignedStaffId': 1 });
+BookingSchema.index({ 'homeSampling.assignedStaffId': 1, 'homeSampling.scheduledAt': 1 });
 BookingSchema.index({ status: 1, 'homeSampling.scheduledAt': 1 });
 BookingSchema.index({ patientId: 1, status: 1 });
 const Booking = mongoose.model('Booking', BookingSchema);

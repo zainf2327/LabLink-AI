@@ -56,7 +56,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({
           width={sidebarWidth}
           onWidthChange={setSidebarWidth}
           mobileOpen={false}
-          onCloseMobile={() => {}}
+          onCloseMobile={() => { }}
         />
       </div>
 
@@ -79,8 +79,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({
               key={nav.to}
               to={nav.to}
               className={({ isActive }) =>
-                `flex flex-col items-center gap-1 text-[10px] font-bold uppercase tracking-wider transition-all duration-150 ${
-                  isActive ? 'text-emerald-500' : 'text-zinc-400'
+                `flex flex-col items-center gap-1 text-[10px] font-bold uppercase tracking-wider transition-all duration-150 ${isActive ? 'text-emerald-500' : 'text-zinc-400'
                 }`
               }
             >

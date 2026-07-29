@@ -2,7 +2,6 @@ import winston from 'winston';
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
-import { env } from '../config/env.js';
 
 // Resolve logs directory relative to this file to handle varying execution directories on EC2/PM2
 const __filename = fileURLToPath(import.meta.url);
@@ -22,32 +21,27 @@ const logFormat = winston.format.combine(
 );
 
 const logger = winston.createLogger({
-  level: env.NODE_ENV === 'production' ? 'info' : 'debug',
+  level: 'debug',
   format: logFormat,
   defaultMeta: { service: 'lablink-backend' },
   transports: [
-    new winston.transports.File({ 
-      filename: path.join(logsDir, 'error.log'), 
-      level: 'error' 
+    new winston.transports.File({
+      filename: path.join(logsDir, 'error.log'),
+      level: 'error'
     }),
-    new winston.transports.File({ 
-      filename: path.join(logsDir, 'combined.log') 
+    new winston.transports.File({
+      filename: path.join(logsDir, 'combined.log')
     }),
-  ],
-});
-
-// If not in production, log to the console with format: `${timestamp} ${level}: ${message}`
-if (env.NODE_ENV !== 'production') {
-  logger.add(
     new winston.transports.Console({
       format: winston.format.combine(
         winston.format.colorize(),
         winston.format.printf(({ level, message, timestamp, stack }) => {
           return `${timestamp} ${level}: ${stack || message}`;
         })
-      ),
+      )
     })
-  );
-}
+  ],
+});
+
 
 export default logger;

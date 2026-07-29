@@ -22,11 +22,13 @@ import { authService } from '../../services/auth.service';
 import { bookingService } from '../../services/booking.service';
 import type { Booking } from '../../services/booking.service';
 import { reportService } from '../../services/report.service';
+import { useConfirm } from '../../hooks/useConfirm';
 
 export const StaffDashboard: React.FC<{ defaultTab?: 'my_assignments' | 'all_bookings' }> = ({
   defaultTab = 'my_assignments',
 }) => {
   const { user } = useAuthStore();
+  const { confirm } = useConfirm();
   
   // Google sync states
   const [syncingCalendar, setSyncingCalendar] = useState(false);
@@ -127,20 +129,26 @@ export const StaffDashboard: React.FC<{ defaultTab?: 'my_assignments' | 'all_boo
     }
   };
 
-  const handleDisconnectCalendar = async () => {
-    if (!window.confirm('Are you sure you want to disconnect Google Calendar?')) return;
-    setSyncingCalendar(true);
-    try {
-      const res = await authService.disconnectGoogleCalendar();
-      if (res.success) {
-        alert('Google Calendar disconnected successfully.');
-        window.location.reload();
-      }
-    } catch (err: any) {
-      alert(err.response?.data?.message || 'Failed to disconnect Google Calendar.');
-    } finally {
-      setSyncingCalendar(false);
-    }
+  const handleDisconnectCalendar = () => {
+    confirm({
+      title: 'Disconnect Google Calendar',
+      message: 'Are you sure you want to disconnect Google Calendar?',
+      variant: 'danger',
+      onConfirm: async () => {
+        setSyncingCalendar(true);
+        try {
+          const res = await authService.disconnectGoogleCalendar();
+          if (res.success) {
+            alert('Google Calendar disconnected successfully.');
+            window.location.reload();
+          }
+        } catch (err: any) {
+          alert(err.response?.data?.message || 'Failed to disconnect Google Calendar.');
+        } finally {
+          setSyncingCalendar(false);
+        }
+      },
+    });
   };
 
   const handleUpdateStatus = async (bookingId: string, nextStatus: string) => {
@@ -174,19 +182,25 @@ export const StaffDashboard: React.FC<{ defaultTab?: 'my_assignments' | 'all_boo
     }
   };
 
-  const handleCancelBooking = async (bookingId: string) => {
-    if (!window.confirm('Are you sure you want to cancel this booking?')) return;
-    setActionLoading(bookingId);
-    try {
-      const res = await bookingService.cancelBooking(bookingId);
-      if (res.success) {
-        fetchBookings();
-      }
-    } catch (err: any) {
-      alert(err.response?.data?.message || 'Failed to cancel booking.');
-    } finally {
-      setActionLoading(null);
-    }
+  const handleCancelBooking = (bookingId: string) => {
+    confirm({
+      title: 'Cancel Booking',
+      message: 'Are you sure you want to cancel this booking?',
+      variant: 'danger',
+      onConfirm: async () => {
+        setActionLoading(bookingId);
+        try {
+          const res = await bookingService.cancelBooking(bookingId);
+          if (res.success) {
+            fetchBookings();
+          }
+        } catch (err: any) {
+          alert(err.response?.data?.message || 'Failed to cancel booking.');
+        } finally {
+          setActionLoading(null);
+        }
+      },
+    });
   };
 
   const handleAssignStaffSubmit = async (e: React.FormEvent) => {

@@ -54,7 +54,7 @@ export const Login: React.FC = () => {
     } catch (err: any) {
       console.error('Login error caught in frontend:', err);
       if (!err.response) {
-        setError('Cannot connect to the server. Please verify that the backend server is running on port 5001.');
+        setError('Server is temporarily unavailable. Please try again in a moment.');
       } else if (err.response?.data?.isUnverified) {
         navigate('/verify-email', { state: { email } });
       } else {

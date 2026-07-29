@@ -162,8 +162,9 @@ export const updateBookingStatus = asyncHandler(async (req: Request, res: Respon
   }
 
   const validTransitions: Record<string, string[]> = {
-    pending_payment: ['scheduled', 'cancelled'],
-    scheduled: ['sample_collected', 'cancelled'],
+    pending_payment: ['scheduled', 'cancelled', 'pending_manual_assignment'],
+    pending_manual_assignment: ['scheduled', 'cancelled'],
+    scheduled: ['sample_collected', 'cancelled', 'pending_manual_assignment'],
     sample_collected: ['in_lab', 'cancelled'],
     in_lab: ['report_ready', 'cancelled'],
     report_ready: ['completed', 'cancelled'],
@@ -311,5 +312,91 @@ export const assignStaff = asyncHandler(async (req: Request, res: Response): Pro
   res.status(200).json({
     success: true,
     data: { booking },
+  });
+});
+
+export const autoAssignBooking = asyncHandler(async (req: Request, res: Response): Promise<void> => {
+  const id = req.params.id as string;
+  const booking = await Booking.findById(id);
+  if (!booking) {
+    res.status(404).json({ success: false, message: 'Booking not found' });
+    return;
+  }
+  if (!booking.homeSampling.requested) {
+    res.status(400).json({ success: false, message: 'Booking does not request home sampling' });
+    return;
+  }
+
+  const { autoAssignStaff } = await import('../services/autoAssign.service.js');
+  const staff = await autoAssignStaff(id);
+
+  if (!staff) {
+    res.status(200).json({
+      success: true,
+      message: 'No eligible staff found. Booking transitioned to pending_manual_assignment.',
+      data: { booking: await Booking.findById(id) }
+    });
+    return;
+  }
+
+  res.status(200).json({
+    success: true,
+    message: `Staff member ${staff.name} auto-assigned successfully.`,
+    data: {
+      booking: await Booking.findById(id).populate('homeSampling.assignedStaffId', 'name email phone')
+    }
+  });
+});
+
+export const autoAssignAllBookings = asyncHandler(async (req: Request, res: Response): Promise<void> => {
+  // Find all home sampling bookings that are scheduled or pending manual assignment but have no staff assigned
+  const query = {
+    'homeSampling.requested': true,
+    'homeSampling.assignedStaffId': null,
+    status: { $in: ['scheduled', 'pending_manual_assignment'] as const }
+  };
+
+  const unassignedBookings = await Booking.find(query);
+  const { autoAssignStaff } = await import('../services/autoAssign.service.js');
+
+  const results = {
+    total: unassignedBookings.length,
+    assignedCount: 0,
+    unassignedCount: 0,
+    details: [] as any[]
+  };
+
+  for (const booking of unassignedBookings) {
+    try {
+      const staff = await autoAssignStaff(booking._id.toString());
+      if (staff) {
+        results.assignedCount++;
+        results.details.push({
+          bookingId: booking._id,
+          status: 'assigned',
+          staffName: staff.name
+        });
+      } else {
+        results.unassignedCount++;
+        results.details.push({
+          bookingId: booking._id,
+          status: 'pending_manual_assignment',
+          reason: 'No eligible candidate'
+        });
+      }
+    } catch (err: any) {
+      results.unassignedCount++;
+      results.details.push({
+        bookingId: booking._id,
+        status: 'error',
+        error: err.message || err
+      });
+    }
+  }
+
+  res.status(200).json({
+    success: true,
+    message: `Processed ${results.total} unassigned bookings. Assigned: ${results.assignedCount}, Unassigned: ${results.unassignedCount}`,
+    data: results
   });
 });

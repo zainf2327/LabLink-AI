@@ -1,81 +1,90 @@
-import React from 'react';
-import { AlertTriangle, X } from 'lucide-react';
+import React, { useState } from 'react';
+import { AlertTriangle, Info, Trash2, Loader } from 'lucide-react';
+import { useConfirm } from '../hooks/useConfirm';
 
-interface ConfirmModalProps {
-  isOpen: boolean;
-  title: string;
-  message: string;
-  confirmLabel?: string;
-  cancelLabel?: string;
-  onConfirm: () => void;
-  onCancel: () => void;
-  isDanger?: boolean;
-  isSubmitting?: boolean;
-}
+const CONFIG = {
+  danger: {
+    Icon: Trash2,
+    iconClass: 'text-red-500',
+    bgIconClass: 'bg-red-50 border-red-200',
+    btnClass: 'bg-red-600 hover:bg-red-500 text-white',
+  },
+  warning: {
+    Icon: AlertTriangle,
+    iconClass: 'text-amber-500',
+    bgIconClass: 'bg-amber-50 border-amber-200',
+    btnClass: 'bg-purple-600 hover:bg-purple-500 text-white', // matched to dashboard purple accents
+  },
+  info: {
+    Icon: Info,
+    iconClass: 'text-blue-500',
+    bgIconClass: 'bg-blue-50 border-blue-200',
+    btnClass: 'bg-blue-600 hover:bg-blue-500 text-white',
+  },
+};
 
-export const ConfirmModal: React.FC<ConfirmModalProps> = ({
-  isOpen,
-  title,
-  message,
-  confirmLabel = 'Confirm',
-  cancelLabel = 'Cancel',
-  onConfirm,
-  onCancel,
-  isDanger = false,
-  isSubmitting = false,
-}) => {
+export const ConfirmModal: React.FC = () => {
+  const [loading, setLoading] = useState(false);
+  const { isOpen, title, message, variant, onConfirm, cancel } = useConfirm();
+
   if (!isOpen) return null;
 
+  const config = CONFIG[variant] || CONFIG.warning;
+  const { Icon } = config;
+
+  const handleConfirm = async () => {
+    setLoading(true);
+    try {
+      await onConfirm();
+    } catch (err) {
+      console.error('Error executing confirm callback:', err);
+    } finally {
+      setLoading(false);
+      cancel();
+    }
+  };
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-fadeIn">
-      <div className="bg-zinc-900 border border-zinc-800 rounded-3xl w-full max-w-sm overflow-hidden shadow-2xl animate-scaleIn">
-        {/* Header */}
-        <div className="p-5 border-b border-zinc-850 flex justify-between items-center bg-zinc-950/40">
-          <h3 className="text-sm font-bold text-zinc-150 flex items-center gap-2">
-            <AlertTriangle className={isDanger ? 'text-rose-500' : 'text-amber-500'} size={16} />
-            <span>{title}</span>
-          </h3>
-          <button
-            onClick={onCancel}
-            disabled={isSubmitting}
-            className="w-7 h-7 rounded-lg flex items-center justify-center text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 transition-all cursor-pointer disabled:opacity-30"
-          >
-            <X size={15} />
-          </button>
+    <div className="fixed inset-0 z-[9999] flex justify-center pointer-events-auto bg-black/10 transition-all duration-300">
+      <div className="w-full max-w-md h-fit glassmorphic-card rounded-2xl p-5 border border-zinc-200/80 shadow-2xl relative mt-4 mx-4 flex flex-col gap-4 animate-fadeIn pointer-events-auto">
+        <div className="flex gap-4 items-start">
+          <div className={`w-10 h-10 ${config.bgIconClass} border rounded-full flex items-center justify-center shrink-0`}>
+            <Icon className={config.iconClass} size={18} />
+          </div>
+
+          <div className="flex-1 min-w-0">
+            <h3 className="text-sm font-bold text-zinc-100 mb-1 font-sans">
+              {title}
+            </h3>
+            <p className="text-xs text-zinc-300 leading-relaxed">
+              {message}
+            </p>
+          </div>
         </div>
 
-        {/* Content */}
-        <div className="p-6">
-          <p className="text-xs text-zinc-400 leading-relaxed">{message}</p>
-        </div>
-
-        {/* Footer Actions */}
-        <div className="p-4 border-t border-zinc-850 bg-zinc-950/20 flex justify-end gap-3">
+        <div className="flex gap-3 justify-end border-t border-zinc-200/30 pt-3">
           <button
             type="button"
-            onClick={onCancel}
-            disabled={isSubmitting}
-            className="px-4 py-2.5 rounded-xl border border-zinc-850 text-zinc-400 hover:bg-zinc-800 text-xs font-semibold transition-all cursor-pointer disabled:opacity-30"
+            disabled={loading}
+            onClick={cancel}
+            className="px-3.5 py-1.5 rounded-lg border border-zinc-300 bg-white text-xs font-bold text-zinc-400 hover:text-zinc-200 hover:bg-zinc-50 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {cancelLabel}
+            Cancel
           </button>
+
           <button
             type="button"
-            onClick={onConfirm}
-            disabled={isSubmitting}
-            className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer shadow-xs disabled:opacity-50 flex items-center gap-1.5 ${
-              isDanger
-                ? 'bg-rose-500 hover:bg-rose-600 text-white shadow-rose-500/10'
-                : 'bg-emerald-500 hover:bg-emerald-600 text-white shadow-emerald-500/10'
-            }`}
+            disabled={loading}
+            onClick={handleConfirm}
+            className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${config.btnClass} disabled:opacity-50 disabled:cursor-not-allowed`}
           >
-            {isSubmitting && (
-              <span className="w-3.5 h-3.5 rounded-full border-2 border-white/20 border-t-white animate-spin inline-block" />
-            )}
-            <span>{isSubmitting ? 'Processing...' : confirmLabel}</span>
+            {loading && <Loader size={12} className="animate-spin" />}
+            <span>{loading ? 'Processing...' : 'Confirm'}</span>
           </button>
         </div>
       </div>
     </div>
   );
 };
+
+export default ConfirmModal;

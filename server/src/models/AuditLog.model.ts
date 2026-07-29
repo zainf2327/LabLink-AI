@@ -5,7 +5,7 @@ export interface IAuditLog extends Document {
   actorRole: string;
   action: string;
   targetModel: string;
-  targetId: mongoose.Types.ObjectId;
+  targetId: mongoose.Types.ObjectId | string;
   metadata?: Record<string, any>;
   createdAt: Date;
 }
@@ -16,7 +16,7 @@ const AuditLogSchema: Schema = new Schema(
     actorRole: { type: String, required: true, trim: true },
     action: { type: String, required: true, trim: true },
     targetModel: { type: String, required: true, trim: true },
-    targetId: { type: Schema.Types.ObjectId, required: true },
+    targetId: { type: Schema.Types.Mixed, required: true },
     metadata: { type: Schema.Types.Mixed },
     createdAt: { type: Date, default: Date.now, required: true },
   },

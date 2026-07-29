@@ -8,6 +8,8 @@ import {
   Settings,
   LogOut,
   Shield,
+  MapPin,
+  UserPlus,
 } from 'lucide-react';
 import useAuthStore from '../../store/useAuthStore';
 import Logo from '../Logo';
@@ -30,6 +32,8 @@ const NAV_ITEMS = {
     { label: 'Test Catalog', icon: FlaskConical, to: '/admin/tests' },
     { label: 'Test Categories', icon: Settings, to: '/admin/categories' },
     { label: 'Subscriptions', icon: Shield, to: '/admin/subscriptions' },
+    { label: 'Regions', icon: MapPin, to: '/admin/regions' },
+    { label: 'Staff Management', icon: UserPlus, to: '/admin/staff' },
   ],
 };
 

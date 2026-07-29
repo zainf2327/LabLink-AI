@@ -8,6 +8,8 @@ import { walletService } from '../../services/wallet.service';
 import { familyService } from '../../services/family.service';
 import type { FamilyMember } from '../../services/family.service';
 import { subscriptionService } from '../../services/subscription.service';
+import { regionService } from '../../services/region.service';
+import type { Region } from '../../services/region.service';
 import { loadStripe } from '@stripe/stripe-js';
 import { Elements, CardElement, useStripe, useElements } from '@stripe/react-stripe-js';
 import {
@@ -17,7 +19,6 @@ import {
   Tag,
   CreditCard,
   CheckCircle,
-  AlertTriangle,
   ArrowLeft,
   ArrowRight,
   Loader,
@@ -25,6 +26,7 @@ import {
   FileText,
   Wallet,
 } from 'lucide-react';
+import { useToast } from '../../hooks/useToast';
 
 // Initialize Stripe Promise
 const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY || '');
@@ -49,9 +51,24 @@ const CheckoutForm: React.FC = () => {
   const [activeSubscription, setActiveSubscription] = useState<any>(null);
   const [selectedMemberId, setSelectedMemberId] = useState<string>('');
   const [requestHomeSampling, setRequestHomeSampling] = useState(false);
-  const [address, setAddress] = useState('');
+  const [region, setRegion] = useState('lahore_johar_town');
+  const [streetAddress, setStreetAddress] = useState('House 123, Street 5');
+  const [blockNumber, setBlockNumber] = useState('Block C');
+  const [landmark, setLandmark] = useState('Near Central Park');
+  const [city, setCity] = useState('Lahore');
+  const [country, setCountry] = useState('Pakistan');
   const [scheduledAt, setScheduledAt] = useState('');
   const [notes, setNotes] = useState('');
+  const [availableRegions, setAvailableRegions] = useState<Region[]>([]);
+
+  const handleRegionChange = (selectedRegionId: string) => {
+    setRegion(selectedRegionId);
+    const found = availableRegions.find((r) => r._id === selectedRegionId);
+    if (found) {
+      setCity(found.city);
+      setCountry(found.country);
+    }
+  };
 
   // Wallet state
   const [walletBalance, setWalletBalance] = useState<number>(0);
@@ -65,11 +82,12 @@ const CheckoutForm: React.FC = () => {
   // Flow control states
   const [step, setStep] = useState<'details' | 'payment' | 'success'>('details');
   const [loading, setLoading] = useState(false);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [createdBooking, setCreatedBooking] = useState<any>(null);
   const [paymentSecret, setPaymentSecret] = useState<string | null>(null);
   const [walletAmountUsed, setWalletAmountUsed] = useState<number>(0);
   const [stripeChargeAmount, setStripeChargeAmount] = useState<number>(0);
+
+  const toast = useToast();
 
   // Credit Card states
   const [cardName, setCardName] = useState('');
@@ -100,11 +118,6 @@ const CheckoutForm: React.FC = () => {
     }
   }, [items, navigate, step, paramBookingId]);
 
-  useEffect(() => {
-    if (errorMessage) {
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-    }
-  }, [errorMessage]);
 
   useEffect(() => {
     // Fetch family members and active subscription
@@ -148,10 +161,37 @@ const CheckoutForm: React.FC = () => {
   }, []);
 
   useEffect(() => {
+    const fetchRegions = async () => {
+      try {
+        const res = await regionService.getRegions({ all: true });
+        if (res.success && res.regions) {
+          setAvailableRegions(res.regions);
+          // If the current region is not in the list of fetched active regions, select the first active region as default
+          if (res.regions.length > 0) {
+            const hasDefault = res.regions.some((r) => r._id === 'lahore_johar_town');
+            if (hasDefault) {
+              setRegion('lahore_johar_town');
+              setCity('Lahore');
+              setCountry('Pakistan');
+            } else {
+              const first = res.regions[0];
+              setRegion(first._id);
+              setCity(first.city);
+              setCountry(first.country);
+            }
+          }
+        }
+      } catch (err) {
+        console.error('Failed to load regions:', err);
+      }
+    };
+    fetchRegions();
+  }, []);
+
+  useEffect(() => {
     if (paramBookingId) {
       const loadBooking = async () => {
         setLoadingBooking(true);
-        setErrorMessage(null);
         try {
           const res = await bookingService.getBookingById(paramBookingId);
           if (res.success && res.data?.booking) {
@@ -176,7 +216,7 @@ const CheckoutForm: React.FC = () => {
             }
           }
         } catch (err: any) {
-          setErrorMessage(err.response?.data?.message || 'Failed to load booking details.');
+          toast.error(err.response?.data?.message || 'Failed to load booking details.');
         } finally {
           setLoadingBooking(false);
         }
@@ -207,15 +247,14 @@ const CheckoutForm: React.FC = () => {
 
   const handleDetailsSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setErrorMessage(null);
 
     // Validate appointment scheduling details (required for all)
     if (!scheduledAt) {
-      setErrorMessage('Please select a scheduled date and time.');
+      toast.error('Please select a scheduled date and time.');
       return;
     }
     if (parseLocalDateTime(scheduledAt) <= new Date()) {
-      setErrorMessage('Appointment slot must be in the future.');
+      toast.error('Appointment slot must be in the future.');
       return;
     }
 
@@ -223,12 +262,12 @@ const CheckoutForm: React.FC = () => {
     if (requestHomeSampling) {
       const unavailableTest = items.find((item) => !item.isHomeCollectionAvailable);
       if (unavailableTest) {
-        setErrorMessage(`Home collection is not available for test: "${unavailableTest.name}"`);
+        toast.error(`Home collection is not available for test: "${unavailableTest.name}"`);
         return;
       }
 
-      if (!address.trim()) {
-        setErrorMessage('Please enter an address for home sampling collection.');
+      if (!streetAddress.trim()) {
+        toast.error('Please enter a street address for home sampling collection.');
         return;
       }
     }
@@ -242,8 +281,13 @@ const CheckoutForm: React.FC = () => {
         couponCode: appliedCoupon ? couponCode : null,
         homeSampling: {
           requested: requestHomeSampling,
-          address: requestHomeSampling ? address : undefined,
           scheduledAt: parseLocalDateTime(scheduledAt).toISOString(),
+          region: requestHomeSampling ? region : undefined,
+          streetAddress: requestHomeSampling ? streetAddress : undefined,
+          blockNumber: requestHomeSampling ? blockNumber || undefined : undefined,
+          landmark: requestHomeSampling ? landmark || undefined : undefined,
+          city: requestHomeSampling ? city : undefined,
+          country: requestHomeSampling ? country : undefined,
         },
         notes,
       });
@@ -271,7 +315,7 @@ const CheckoutForm: React.FC = () => {
         }
       }
     } catch (err: any) {
-      setErrorMessage(err.response?.data?.message || 'Failed to create booking. Please try again.');
+      toast.error(err.response?.data?.message || 'Failed to create booking. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -279,21 +323,20 @@ const CheckoutForm: React.FC = () => {
 
   const handlePaymentSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setErrorMessage(null);
 
     if (!stripe || !elements || !paymentSecret) {
-      setErrorMessage('Stripe has not initialized. Please try again.');
+      toast.error('Stripe has not initialized. Please try again.');
       return;
     }
 
     if (!cardName.trim()) {
-      setErrorMessage('Please enter the cardholder name.');
+      toast.error('Please enter the cardholder name.');
       return;
     }
 
     const cardElement = elements.getElement(CardElement);
     if (!cardElement) {
-      setErrorMessage('Payment element missing.');
+      toast.error('Payment element missing.');
       return;
     }
 
@@ -311,7 +354,7 @@ const CheckoutForm: React.FC = () => {
       });
 
       if (stripeResult.error) {
-        setErrorMessage(stripeResult.error.message || 'Payment failed. Please check card details.');
+        toast.error(stripeResult.error.message || 'Payment failed. Please check card details.');
         setLoading(false);
         return;
       }
@@ -322,11 +365,12 @@ const CheckoutForm: React.FC = () => {
         if (confirmRes.success) {
           clearCart();
           setCreatedBooking(confirmRes.data.booking);
+          toast.success('Payment confirmed! Your booking is now scheduled.');
           setStep('success');
         }
       }
     } catch (err: any) {
-      setErrorMessage(
+      toast.error(
         err.response?.data?.message || 'Payment confirmation failed. Please check card details.'
       );
     } finally {
@@ -451,12 +495,6 @@ const CheckoutForm: React.FC = () => {
       <main className="max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-10 grid grid-cols-1 lg:grid-cols-3 gap-8 flex-1">
         {/* Left Columns: Form Steps */}
         <div className="lg:col-span-2 space-y-6">
-          {errorMessage && (
-            <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-2xl text-red-400 text-xs flex items-center gap-3">
-              <AlertTriangle size={18} className="shrink-0" />
-              <span>{errorMessage}</span>
-            </div>
-          )}
 
           {step === 'details' ? (
             <form onSubmit={handleDetailsSubmit} className="glassmorphic-card p-6 rounded-3xl space-y-6">
@@ -503,17 +541,96 @@ const CheckoutForm: React.FC = () => {
 
                 {requestHomeSampling && (
                   <div className="pt-4 border-t border-zinc-900 space-y-4 animate-fadeIn">
-                    <div className="space-y-2">
-                      <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wider block">
-                        Collection Address
-                      </label>
-                      <input
-                        type="text"
-                        value={address}
-                        onChange={(e) => setAddress(e.target.value)}
-                        placeholder="House/Apt No., Street, City"
-                        className="w-full py-3 px-4 rounded-xl border border-zinc-800/80 bg-zinc-900/40 text-zinc-200 text-sm placeholder:text-zinc-600 focus:outline-none focus:border-emerald-500/50"
-                      />
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wider block">
+                          Region
+                        </label>
+                        <select
+                          value={region}
+                          onChange={(e) => handleRegionChange(e.target.value)}
+                          className="w-full py-3 px-4 rounded-xl border border-zinc-800/80 bg-zinc-900/40 text-zinc-200 text-sm focus:outline-none focus:border-emerald-500/50 cursor-pointer"
+                        >
+                          {availableRegions.length === 0 ? (
+                            <option value="" disabled>No regions available</option>
+                          ) : (
+                            Object.entries(
+                              availableRegions.reduce((groups: Record<string, Region[]>, r) => {
+                                const groupKey = `${r.city}, ${r.country}`;
+                                if (!groups[groupKey]) groups[groupKey] = [];
+                                groups[groupKey].push(r);
+                                return groups;
+                              }, {})
+                            ).map(([groupLabel, regs]) => (
+                              <optgroup key={groupLabel} label={groupLabel}>
+                                {regs.map((r) => (
+                                  <option key={r._id} value={r._id}>
+                                    {r.name}
+                                  </option>
+                                ))}
+                              </optgroup>
+                            ))
+                          )}
+                        </select>
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wider block">
+                          Street Address
+                        </label>
+                        <input
+                          type="text"
+                          value={streetAddress}
+                          onChange={(e) => setStreetAddress(e.target.value)}
+                          placeholder="e.g. House 123, Street 5"
+                          className="w-full py-3 px-4 rounded-xl border border-zinc-800/80 bg-zinc-900/40 text-zinc-200 text-sm placeholder:text-zinc-600 focus:outline-none focus:border-emerald-500/50"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wider block">
+                          Block Number (Optional)
+                        </label>
+                        <input
+                          type="text"
+                          value={blockNumber}
+                          onChange={(e) => setBlockNumber(e.target.value)}
+                          placeholder="e.g. Block C"
+                          className="w-full py-3 px-4 rounded-xl border border-zinc-800/80 bg-zinc-900/40 text-zinc-200 text-sm placeholder:text-zinc-600 focus:outline-none focus:border-emerald-500/50"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wider block">
+                          Landmark (Optional)
+                        </label>
+                        <input
+                          type="text"
+                          value={landmark}
+                          onChange={(e) => setLandmark(e.target.value)}
+                          placeholder="e.g. Near Central Park"
+                          className="w-full py-3 px-4 rounded-xl border border-zinc-800/80 bg-zinc-900/40 text-zinc-200 text-sm placeholder:text-zinc-600 focus:outline-none focus:border-emerald-500/50"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wider block">
+                          City
+                        </label>
+                        <input
+                          type="text"
+                          value={city}
+                          readOnly
+                          className="w-full py-3 px-4 rounded-xl border border-zinc-800/80 bg-zinc-900/20 text-zinc-500 text-sm focus:outline-none"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wider block">
+                          Country
+                        </label>
+                        <input
+                          type="text"
+                          value={country}
+                          readOnly
+                          className="w-full py-3 px-4 rounded-xl border border-zinc-800/80 bg-zinc-900/20 text-zinc-500 text-sm focus:outline-none"
+                        />
+                      </div>
                     </div>
                   </div>
                 )}

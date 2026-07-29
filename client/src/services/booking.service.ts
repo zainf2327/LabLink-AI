@@ -12,6 +12,12 @@ export interface BookingHomeSampling {
   scheduledAt?: string;
   assignedStaffId?: string | null;
   calendarEventId?: string | null;
+  region?: string;
+  streetAddress?: string;
+  blockNumber?: string;
+  landmark?: string;
+  city?: string;
+  country?: string;
 }
 
 export interface Booking {
@@ -61,6 +67,12 @@ export const bookingService = {
       requested: boolean;
       address?: string;
       scheduledAt?: string;
+      region?: string;
+      streetAddress?: string;
+      blockNumber?: string;
+      landmark?: string;
+      city?: string;
+      country?: string;
     };
     notes?: string;
   }): Promise<{ success: boolean; data: { booking: Booking } }> {

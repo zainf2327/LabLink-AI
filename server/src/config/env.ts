@@ -1,11 +1,13 @@
 import dotenv from 'dotenv';
 import { z } from 'zod';
 
+import logger from '../utils/logger.js';
+
 // Load environment variables from .env file
-dotenv.config({ override: true });
+dotenv.config();
 
 const envSchema = z.object({
-  NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
+  NODE_ENV: z.enum(['development', 'production']).default('development'),
   PORT: z.coerce.number().default(5001),
   MONGODB_URI: z.string().refine(val => val.startsWith('mongodb://') || val.startsWith('mongodb+srv://'), {
     message: 'MONGODB_URI must start with mongodb:// or mongodb+srv://'
@@ -28,15 +30,16 @@ const envSchema = z.object({
   AWS_SECRET_ACCESS_KEY: z.string().optional(),
   AWS_REGION: z.string().optional(),
   AWS_S3_BUCKET_NAME: z.string().optional(),
-  AWS_SES_FROM_EMAIL: z.string().optional(),
+  RESEND_API_KEY: z.string().min(1, 'RESEND_API_KEY is required'),
+  RESEND_FROM_EMAIL: z.string().default('LabLink AI <no-reply@mail.zainch.me>'),
   INCLUDE_PATIENT_NAME_IN_FILENAME: z.preprocess((val) => val === 'true' || val === true, z.boolean()).default(true),
 });
 
 const parsed = envSchema.safeParse(process.env);
 
 if (!parsed.success) {
-  console.error('❌ Invalid environment variables:');
-  console.error(JSON.stringify(parsed.error.format(), null, 2));
+  logger.error('❌ Invalid environment variables:');
+  logger.error(JSON.stringify(parsed.error.format(), null, 2));
   process.exit(1);
 }
 

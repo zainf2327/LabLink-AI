@@ -23,6 +23,7 @@ import analyticsRoutes from './routes/analytics.routes.js';
 import auditLogRoutes from './routes/auditLog.routes.js';
 import webhookRoutes from './routes/webhook.routes.js';
 import walletRoutes from './routes/wallet.routes.js';
+import regionRoutes from './routes/region.routes.js';
 import swaggerUi from 'swagger-ui-express';
 import { swaggerSpec } from './config/swagger.js';
 const app = express();
@@ -41,6 +42,10 @@ app.use(express.json());
 app.use(cookieParser());
 // Legacy/Basic Health Check Route
 app.get('/api/health', (req, res) => {
+    res.json({ status: 'ok', message: 'LabLink AI backend is running' });
+});
+// Root Health Check Route for Deploy Job
+app.get('/health', (req, res) => {
     res.json({ status: 'ok', message: 'LabLink AI backend is running' });
 });
 // Versioned Health Check Route
@@ -125,7 +130,8 @@ app.get('/api/v1/health', async (req, res) => {
         geminiApiKey: env.GEMINI_API_KEY ? 'configured' : 'unconfigured',
         encryptionKey: env.ENCRYPTION_KEY ? 'configured' : 'unconfigured',
         stripeWebhookSecret: env.STRIPE_WEBHOOK_SECRET ? 'configured' : 'unconfigured',
-        awsSesFromEmail: env.AWS_SES_FROM_EMAIL ? 'configured' : 'unconfigured'
+        resendApiKey: env.RESEND_API_KEY ? 'configured' : 'unconfigured',
+        resendFromEmail: env.RESEND_FROM_EMAIL ? 'configured' : 'unconfigured'
     };
     res.status(allConnected ? 200 : 207).json({
         status: allConnected ? 'ok' : 'degraded',
@@ -158,6 +164,7 @@ app.use('/api/v1/ai', aiRoutes);
 app.use('/api/v1/analytics', analyticsRoutes);
 app.use('/api/v1/audit-logs', auditLogRoutes);
 app.use('/api/v1/wallet', walletRoutes);
+app.use('/api/v1/regions', regionRoutes);
 // 404 handler for unknown routes
 app.use((req, res, next) => {
     res.status(404).json({

@@ -6,6 +6,7 @@ import FamilyMember from '../models/FamilyMember.model.js';
 import Subscription from '../models/Subscription.model.js';
 import Payment from '../models/Payment.model.js';
 import User from '../models/User.model.js';
+import Region from '../models/Region.model.js';
 import { calendarService } from './calendar.service.js';
 import { AppError } from '../utils/AppError.js';
 export const bookingService = {
@@ -49,12 +50,20 @@ export const bookingService = {
         // 4. Validate scheduling details
         if (homeSampling) {
             if (homeSampling.requested) {
-                if (!homeSampling.address) {
-                    throw new AppError('Address is required for home sampling', 400);
+                if (!homeSampling.streetAddress && !homeSampling.address) {
+                    throw new AppError('Street address is required for home sampling', 400);
                 }
                 const nonHomeCollectionTest = foundTests.find((t) => !t.isHomeCollectionAvailable);
                 if (nonHomeCollectionTest) {
                     throw new AppError(`Home collection is not available for test: "${nonHomeCollectionTest.name}"`, 400);
+                }
+                // Validate that the supplied region exists and is active
+                if (!homeSampling.region) {
+                    throw new AppError('A region is required for home sampling bookings', 400);
+                }
+                const regionDoc = await Region.findOne({ _id: homeSampling.region, isActive: true });
+                if (!regionDoc) {
+                    throw new AppError(`Region '${homeSampling.region}' does not exist or is not currently active`, 400);
                 }
             }
             if (!homeSampling.scheduledAt) {
@@ -118,6 +127,13 @@ export const bookingService = {
         const discountAmount = subDiscountAmount + couponDiscount;
         // 8. Calculate finalAmount
         const finalAmount = totalAmount - discountAmount;
+        const street = homeSampling?.streetAddress || '';
+        const block = homeSampling?.blockNumber ? `${homeSampling.blockNumber}, ` : '';
+        const landmark = homeSampling?.landmark ? `${homeSampling.landmark}, ` : '';
+        const cityStr = homeSampling?.city || '';
+        const formattedAddress = homeSampling?.requested
+            ? `${street}, ${block}${landmark}${cityStr}`.trim()
+            : '';
         // 9. Create Booking
         const booking = new Booking({
             patientId: new mongoose.Types.ObjectId(patientId),
@@ -130,10 +146,16 @@ export const bookingService = {
             couponId,
             homeSampling: {
                 requested: homeSampling?.requested || false,
-                address: homeSampling?.address || '',
+                address: formattedAddress,
                 scheduledAt: homeSampling?.scheduledAt ? new Date(homeSampling.scheduledAt) : undefined,
                 assignedStaffId: null,
                 calendarEventId: null,
+                region: homeSampling?.region || '',
+                streetAddress: homeSampling?.streetAddress || '',
+                blockNumber: homeSampling?.blockNumber || '',
+                landmark: homeSampling?.landmark || '',
+                city: homeSampling?.city || '',
+                country: homeSampling?.country || '',
             },
             notes: notes || '',
         });
@@ -158,12 +180,21 @@ export const bookingService = {
                 await couponDoc.save();
             }
             await booking.save();
-            // Sync to Google Calendar if patient has connected it
-            try {
-                await bookingService.syncBookingToCalendar(booking);
+            // Trigger automatic staff assignment or sync to calendar
+            if (booking.homeSampling.requested) {
+                import('./autoAssign.service.js').then(({ autoAssignStaff }) => {
+                    autoAssignStaff(booking._id.toString()).catch((err) => {
+                        console.error('[createBooking Bypass] Failed auto assign staff:', err);
+                    });
+                });
             }
-            catch (err) {
-                console.error('Failed to sync to Google Calendar:', err);
+            else {
+                try {
+                    await bookingService.syncBookingToCalendar(booking);
+                }
+                catch (err) {
+                    console.error('Failed to sync to Google Calendar:', err);
+                }
             }
         }
         return booking;

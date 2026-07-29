@@ -21,6 +21,7 @@ import Payment from './models/Payment.model.js';
 import FamilyMember from './models/FamilyMember.model.js';
 import AuditLog from './models/AuditLog.model.js';
 import WalletTransaction from './models/WalletTransaction.model.js';
+import Region from './models/Region.model.js';
 
 async function seed() {
   const uri = env.MONGODB_URI;
@@ -36,6 +37,7 @@ async function seed() {
     // 1. Clear database
     console.log('Clearing database...');
     await User.deleteMany({});
+    await Region.deleteMany({});
     await TestCategory.deleteMany({});
     await Test.deleteMany({});
     await Coupon.deleteMany({});
@@ -47,6 +49,22 @@ async function seed() {
     await AuditLog.deleteMany({});
     await WalletTransaction.deleteMany({});
     console.log('Database cleared.');
+
+    // Seed regions
+    console.log('Seeding regions...');
+    await Region.create([
+      { _id: 'lahore_johar_town', city: 'Lahore', name: 'Johar Town', country: 'Pakistan' },
+      { _id: 'lahore_gulberg', city: 'Lahore', name: 'Gulberg', country: 'Pakistan' },
+      { _id: 'lahore_dha_lahore', city: 'Lahore', name: 'DHA Lahore', country: 'Pakistan' },
+      { _id: 'lahore_model_town', city: 'Lahore', name: 'Model Town', country: 'Pakistan' },
+      { _id: 'lahore_mughalpura', city: 'Lahore', name: 'Mughalpura', country: 'Pakistan' },
+      { _id: 'karachi_clifton', city: 'Karachi', name: 'Clifton', country: 'Pakistan' },
+      { _id: 'karachi_gulshan_e_iqbal', city: 'Karachi', name: 'Gulshan-e-Iqbal', country: 'Pakistan' },
+      { _id: 'karachi_dha_karachi', city: 'Karachi', name: 'DHA Karachi', country: 'Pakistan' },
+      { _id: 'new_york_manhattan', city: 'New York', name: 'Manhattan', country: 'United States' },
+      { _id: 'new_york_brooklyn', city: 'New York', name: 'Brooklyn', country: 'United States' },
+      { _id: 'new_york_queens', city: 'New York', name: 'Queens', country: 'United States' },
+    ]);
 
     // 2. Create Users
     console.log('Hashing passwords...');
@@ -64,6 +82,14 @@ async function seed() {
       isVerified: true,
     });
 
+    const defaultShifts = [
+      { dayOfWeek: 1, startTime: '09:00', endTime: '17:00' },
+      { dayOfWeek: 2, startTime: '09:00', endTime: '17:00' },
+      { dayOfWeek: 3, startTime: '09:00', endTime: '17:00' },
+      { dayOfWeek: 4, startTime: '09:00', endTime: '17:00' },
+      { dayOfWeek: 5, startTime: '09:00', endTime: '17:00' },
+    ];
+
     const staffUser1 = await User.create({
       name: 'Staff Worker',
       email: 'staff@lablink.com',
@@ -72,6 +98,8 @@ async function seed() {
       role: 'staff',
       isActive: true,
       isVerified: true,
+      assignedRegions: ['lahore_johar_town', 'lahore_gulberg'],
+      shifts: defaultShifts,
     });
 
     const staffUser2 = await User.create({
@@ -82,6 +110,8 @@ async function seed() {
       role: 'staff',
       isActive: true,
       isVerified: true,
+      assignedRegions: ['lahore_gulberg', 'lahore_dha_lahore'],
+      shifts: defaultShifts,
     });
 
     const staffUser3 = await User.create({
@@ -92,6 +122,8 @@ async function seed() {
       role: 'staff',
       isActive: true,
       isVerified: true,
+      assignedRegions: ['lahore_model_town', 'lahore_mughalpura'],
+      shifts: defaultShifts,
     });
 
     const staffUser4 = await User.create({
@@ -102,6 +134,8 @@ async function seed() {
       role: 'staff',
       isActive: false,
       isVerified: true,
+      assignedRegions: ['lahore_johar_town'],
+      shifts: defaultShifts,
     });
 
     const patientUser = await User.create({
@@ -413,8 +447,14 @@ async function seed() {
         walletAmountUsed: 0,
         homeSampling: {
           requested: true,
-          address: '123 Health Ave, Islamabad',
-          scheduledAt: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000)
+          address: 'House 123, Street 5, Block C, Near Central Park, Lahore',
+          scheduledAt: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000),
+          region: 'lahore_johar_town',
+          streetAddress: 'House 123, Street 5',
+          blockNumber: 'Block C',
+          landmark: 'Near Central Park',
+          city: 'Lahore',
+          country: 'Pakistan',
         },
         createdAt: dates[2],
         updatedAt: dates[2]

@@ -59,6 +59,12 @@ export const createBookingSchema = z.object({
     requested: z.boolean(),
     address: z.string().optional(),
     scheduledAt: z.string().optional(),
+    region: z.string().optional(),
+    streetAddress: z.string().optional(),
+    blockNumber: z.string().optional(),
+    landmark: z.string().optional(),
+    city: z.string().optional(),
+    country: z.string().optional(),
   }).optional(),
   notes: z.string().optional(),
 });
@@ -72,6 +78,7 @@ export const updateBookingStatusSchema = z.object({
     'report_ready',
     'completed',
     'cancelled',
+    'pending_manual_assignment',
   ], {
     message: 'Invalid booking status',
   }),
@@ -135,4 +142,22 @@ export const createFamilyMemberSchema = z.object({
 
 export const updateFamilyMemberSchema = createFamilyMemberSchema.partial();
 
+export const createRegionSchema = z.object({
+  city: z.string().min(2, 'City name must be at least 2 characters long').max(50, 'City name must not exceed 50 characters'),
+  name: z.string().min(2, 'Region name must be at least 2 characters long').max(50, 'Region name must not exceed 50 characters'),
+  country: z.string().min(2, 'Country name must be at least 2 characters long').max(50, 'Country name must not exceed 50 characters'),
+});
+
+export const updateRegionSchema = createRegionSchema.partial().extend({
+  isActive: z.boolean().optional(),
+});
+
+export const updateStaffRegionsSchema = z.object({
+  regions: z.array(z.string().min(1, 'Region ID must not be empty')),
+});
+
+export const createStaffSchema = z.object({
+  name: z.string().min(2, 'Name must be at least 2 characters long').max(50, 'Name must not exceed 50 characters'),
+  email: z.string().email('Please enter a valid email address'),
+});
 

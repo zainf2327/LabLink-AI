@@ -1,21 +1,26 @@
 {
   "name": "server",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "description": "Lablink AI - Intelligent Diagnostic Lab Platform",
+  "main": "server.js",
   "scripts": {
     "dev": "tsx watch src/server.ts",
     "build": "tsc",
     "start": "node dist/server.js",
     "seed": "tsx src/seed.ts"
   },
-  "keywords": [],
-  "author": "",
+  "keywords": [
+    "lablink",
+    "server"
+  ],
+  "author": "Muhammad Zain",
   "license": "ISC",
   "type": "module",
+  "engines": {
+    "node": ">=24.18.0"
+  },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1089.0",
-    "@aws-sdk/client-ses": "^3.1089.0",
     "@aws-sdk/s3-request-presigner": "^3.1089.0",
     "@google/generative-ai": "^0.24.1",
     "@langchain/core": "^1.2.3",
@@ -36,6 +41,7 @@
     "mongoose": "^9.7.4",
     "multer": "^2.2.0",
     "pdf-parse": "^2.4.5",
+    "resend": "^6.18.0",
     "stripe": "^22.3.1",
     "swagger-jsdoc": "^6.3.0",
     "swagger-ui-express": "^5.0.1",
@@ -49,7 +55,7 @@
     "@types/express": "^5.0.6",
     "@types/jsonwebtoken": "^9.0.10",
     "@types/multer": "^2.2.0",
-    "@types/node": "^26.1.1",
+    "@types/node": "^24.13.2",
     "@types/pdf-parse": "^1.1.5",
     "@types/supertest": "^7.2.1",
     "@types/swagger-jsdoc": "^6.0.4",
