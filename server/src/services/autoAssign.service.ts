@@ -134,6 +134,13 @@ export async function autoAssignStaff(bookingId: string): Promise<IUser | null> 
         return null;
       }
 
+      // Short-circuit if a staff member is already assigned (concurrency check)
+      if (booking.homeSampling.assignedStaffId) {
+        await session.commitTransaction();
+        session.endSession();
+        return await User.findById(booking.homeSampling.assignedStaffId);
+      }
+
       // Query active staff users who cover the booking's region
       const staffMembers = await User.find({
         role: 'staff',
@@ -276,9 +283,10 @@ export async function autoAssignStaff(bookingId: string): Promise<IUser | null> 
       session.endSession();
 
       const isTransient =
-        error.message?.includes('TransientTransactionError') ||
+        error.message?.toLowerCase().includes('transienttransactionerror') ||
         error.errorLabels?.includes('TransientTransactionError') ||
-        error.message?.includes('write skew');
+        error.message?.toLowerCase().includes('write conflict') ||
+        error.message?.toLowerCase().includes('write skew');
 
       if (isTransient && attempts < maxAttempts) {
         logger.warn(`[AutoAssign] Concurrency conflict detected. Retrying attempt ${attempts + 1}/${maxAttempts}...`);
