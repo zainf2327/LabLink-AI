@@ -9,6 +9,7 @@ import { aiAssistantService } from '../services/aiAssistant.service.js';
 import { logAudit } from '../utils/auditLogger.js';
 import { buildReportFilename } from '../utils/reportFilename.js';
 import { env } from '../config/env.js';
+import logger from '../utils/logger.js';
 
 export const uploadReport = asyncHandler(async (req: Request, res: Response): Promise<void> => {
   if (!req.user) {
@@ -59,7 +60,7 @@ export const uploadReport = asyncHandler(async (req: Request, res: Response): Pr
     // 4. Upload file to S3
     s3Url = await s3Service.uploadFile(file.buffer, fileKey, file.mimetype);
   } catch (err: any) {
-    console.error('S3 Upload Failed:', err);
+    logger.error('S3 Upload Failed:', err);
     res.status(500).json({ success: false, message: 'Failed to upload report to file storage' });
     return;
   }
@@ -69,12 +70,12 @@ export const uploadReport = asyncHandler(async (req: Request, res: Response): Pr
     // 5. Extract text from PDF
     textContent = await pdfExtractService.extractText(file.buffer);
   } catch (err: any) {
-    console.error('PDF Text Extraction Failed:', err);
+    logger.error('PDF Text Extraction Failed:', err);
     // Cleanup S3 upload to avoid orphan files
     try {
       await s3Service.deleteFile(fileKey);
     } catch (cleanupErr) {
-      console.error('Failed to cleanup S3 object after parsing error:', cleanupErr);
+      logger.error('Failed to cleanup S3 object after parsing error:', cleanupErr);
     }
 
     res.status(400).json({
@@ -106,7 +107,7 @@ export const uploadReport = asyncHandler(async (req: Request, res: Response): Pr
     report.vectorized = true;
     await report.save();
   } catch (err) {
-    console.error('Pinecone vector upsert failed:', err);
+    logger.error('Pinecone vector upsert failed:', err);
   }
 
   // 6c. Generate AI plain-language summary (non-fatal)
@@ -116,7 +117,7 @@ export const uploadReport = asyncHandler(async (req: Request, res: Response): Pr
     report.summaryGeneratedAt = new Date();
     await report.save();
   } catch (err) {
-    console.error('AI summary generation failed:', err);
+    logger.error('AI summary generation failed:', err);
   }
 
   // 7. Update booking status to 'report_ready'
@@ -204,7 +205,7 @@ export const deleteReport = asyncHandler(async (req: Request, res: Response): Pr
   try {
     await s3Service.deleteFile(report.fileKey);
   } catch (err) {
-    console.error(`Failed to delete S3 file for key ${report.fileKey}:`, err);
+    logger.error(`Failed to delete S3 file for key ${report.fileKey}:`, err);
     // Log failure but proceed with DB cleanup so records do not get orphaned
   }
 

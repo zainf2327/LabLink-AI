@@ -2,12 +2,13 @@
   "name": "server",
   "version": "1.0.0",
   "description": "Lablink AI - Intelligent Diagnostic Lab Platform",
-  "main": "server.js",
+  "main": "dist/server.js",
   "scripts": {
     "dev": "tsx watch src/server.ts",
     "build": "tsc",
     "start": "node dist/server.js",
     "seed": "tsx src/seed.ts",
+    "seed:prod": "tsx src/seed-prod.ts",
     "test": "vitest run",
     "test:watch": "vitest"
   },

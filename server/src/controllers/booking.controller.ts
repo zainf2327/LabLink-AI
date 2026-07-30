@@ -7,6 +7,7 @@ import { bookingService } from '../services/booking.service.js';
 import { paymentService } from '../services/payment.service.js';
 import { calendarService } from '../services/calendar.service.js';
 import { createBookingSchema, updateBookingStatusSchema, assignStaffSchema } from '../utils/validators.js';
+import logger from '../utils/logger.js';
 
 
 export const createBooking = asyncHandler(async (req: Request, res: Response): Promise<void> => {
@@ -243,7 +244,7 @@ export const cancelBooking = asyncHandler(async (req: Request, res: Response): P
     try {
       await paymentService.creditWalletOnCancellation(booking);
     } catch (err) {
-      console.error('Failed to credit wallet on cancellation:', err);
+      logger.error('Failed to credit wallet on cancellation:', err);
     }
   }
 
@@ -251,7 +252,7 @@ export const cancelBooking = asyncHandler(async (req: Request, res: Response): P
   try {
     await bookingService.removeCalendarEvents(booking);
   } catch (err) {
-    console.error('Failed to remove Google Calendar events on cancel:', err);
+    logger.error('Failed to remove Google Calendar events on cancel:', err);
   }
 
   res.status(200).json({
@@ -287,7 +288,7 @@ export const assignStaff = asyncHandler(async (req: Request, res: Response): Pro
           const decryptedToken = decrypt(oldStaff.googleRefreshToken);
           await calendarService.deleteEvent(decryptedToken, booking.googleCalendar.staffEventId);
         } catch (err) {
-          console.error('Failed to delete old staff calendar event:', err);
+          logger.error('Failed to delete old staff calendar event:', err);
         }
       }
       if (!booking.googleCalendar) {

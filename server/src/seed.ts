@@ -7,7 +7,7 @@ import { env } from './config/env.js';
 dns.setServers(['8.8.8.8', '1.1.1.1']);
 
 // Load env variables
-dotenv.config();
+dotenv.config({ override: true });
 
 // Import Mongoose Models
 import User from './models/User.model.js';
@@ -34,37 +34,53 @@ async function seed() {
     await mongoose.connect(uri);
     console.log('Connected to MongoDB');
 
-    // 1. Clear database
-    console.log('Clearing database...');
+    // Fetch existing admin-only collections
+    console.log('Fetching existing Regions, Subscription Plans, and Coupons...');
+    const existingRegions = await Region.find();
+    const existingPlans = await SubscriptionPlan.find();
+    const existingCoupons = await Coupon.find();
+
+    if (existingRegions.length === 0) {
+      console.error('❌ Error: No Regions found in the database. Please configure regions in the database first.');
+      process.exit(1);
+    }
+    if (existingPlans.length === 0) {
+      console.error('❌ Error: No Subscription Plans found in the database. Please configure subscription plans in the database first.');
+      process.exit(1);
+    }
+    if (existingCoupons.length === 0) {
+      console.error('❌ Error: No Coupons found in the database. Please configure coupons in the database first.');
+      process.exit(1);
+    }
+
+    console.log(`Found ${existingRegions.length} regions, ${existingPlans.length} plans, and ${existingCoupons.length} coupons.`);
+
+    // 1. Clear other collections
+    console.log('Clearing database (except Regions, Subscription Plans, Coupons)...');
     await User.deleteMany({});
-    await Region.deleteMany({});
     await TestCategory.deleteMany({});
     await Test.deleteMany({});
-    await Coupon.deleteMany({});
-    await SubscriptionPlan.deleteMany({});
     await Subscription.deleteMany({});
     await Booking.deleteMany({});
     await Payment.deleteMany({});
     await FamilyMember.deleteMany({});
     await AuditLog.deleteMany({});
     await WalletTransaction.deleteMany({});
-    console.log('Database cleared.');
+    console.log('Collections cleared.');
 
-    // Seed regions
-    console.log('Seeding regions...');
-    await Region.create([
-      { _id: 'lahore_johar_town', city: 'Lahore', name: 'Johar Town', country: 'Pakistan' },
-      { _id: 'lahore_gulberg', city: 'Lahore', name: 'Gulberg', country: 'Pakistan' },
-      { _id: 'lahore_dha_lahore', city: 'Lahore', name: 'DHA Lahore', country: 'Pakistan' },
-      { _id: 'lahore_model_town', city: 'Lahore', name: 'Model Town', country: 'Pakistan' },
-      { _id: 'lahore_mughalpura', city: 'Lahore', name: 'Mughalpura', country: 'Pakistan' },
-      { _id: 'karachi_clifton', city: 'Karachi', name: 'Clifton', country: 'Pakistan' },
-      { _id: 'karachi_gulshan_e_iqbal', city: 'Karachi', name: 'Gulshan-e-Iqbal', country: 'Pakistan' },
-      { _id: 'karachi_dha_karachi', city: 'Karachi', name: 'DHA Karachi', country: 'Pakistan' },
-      { _id: 'new_york_manhattan', city: 'New York', name: 'Manhattan', country: 'United States' },
-      { _id: 'new_york_brooklyn', city: 'New York', name: 'Brooklyn', country: 'United States' },
-      { _id: 'new_york_queens', city: 'New York', name: 'Queens', country: 'United States' },
-    ]);
+    // Helper functions to get active Region IDs
+    const getRegionId = (id: string): string => {
+      const match = existingRegions.find((r) => r._id === id);
+      return match ? match._id : existingRegions[0]._id;
+    };
+
+    // Helper to get Plans
+    const freePlan = existingPlans.find((p) => p.name.toLowerCase() === 'free') || existingPlans[0];
+    const silverPlan = existingPlans.find((p) => p.name.toLowerCase().includes('silver')) || existingPlans[0];
+    const goldPlan = existingPlans.find((p) => p.name.toLowerCase().includes('gold')) || existingPlans[0];
+
+    // Helper to get Coupon
+    const save10Coupon = existingCoupons.find((c) => c.code === 'SAVE10') || null;
 
     // 2. Create Users
     console.log('Hashing passwords...');
@@ -90,130 +106,141 @@ async function seed() {
       { dayOfWeek: 5, startTime: '09:00', endTime: '17:00' },
     ];
 
-    const staffUser1 = await User.create({
-      name: 'Staff Worker',
-      email: 'staff@lablink.com',
-      passwordHash,
-      phone: '+15550200',
-      role: 'staff',
-      isActive: true,
-      isVerified: true,
-      assignedRegions: ['lahore_johar_town', 'lahore_gulberg'],
-      shifts: defaultShifts,
-    });
-
-    const staffUser2 = await User.create({
-      name: 'Alice Smith (Nurse)',
-      email: 'alice.smith@lablink.com',
+    // 5 Staff workers
+    const staff1 = await User.create({
+      name: 'Dr. John Watson (Phlebotomist)',
+      email: 'staff1@lablink.com',
       passwordHash,
       phone: '+15550201',
       role: 'staff',
       isActive: true,
       isVerified: true,
-      assignedRegions: ['lahore_gulberg', 'lahore_dha_lahore'],
+      assignedRegions: [getRegionId('lahore_gulberg'), getRegionId('lahore_johar_town')],
       shifts: defaultShifts,
     });
 
-    const staffUser3 = await User.create({
-      name: 'Bob Johnson (Phlebotomist)',
-      email: 'bob.johnson@lablink.com',
+    const staff2 = await User.create({
+      name: 'Sister Clara Barton (Nurse)',
+      email: 'staff2@lablink.com',
       passwordHash,
       phone: '+15550202',
       role: 'staff',
       isActive: true,
       isVerified: true,
-      assignedRegions: ['lahore_model_town', 'lahore_mughalpura'],
+      assignedRegions: [getRegionId('karachi_clifton'), getRegionId('karachi_gulshan_e_iqbal')],
       shifts: defaultShifts,
     });
 
-    const staffUser4 = await User.create({
-      name: 'Carol Williams (Inactive Tech)',
-      email: 'carol.williams@lablink.com',
+    const staff3 = await User.create({
+      name: 'Dr. Gregory House (Lab Tech)',
+      email: 'staff3@lablink.com',
       passwordHash,
       phone: '+15550203',
       role: 'staff',
-      isActive: false,
+      isActive: true,
       isVerified: true,
-      assignedRegions: ['lahore_johar_town'],
+      assignedRegions: [getRegionId('new_york_manhattan'), getRegionId('new_york_brooklyn')],
       shifts: defaultShifts,
     });
 
-    const patientUser = await User.create({
-      name: 'Patient Account',
-      email: 'patient@lablink.com',
+    const staff4 = await User.create({
+      name: 'Florence Nightingale (Phlebotomist)',
+      email: 'staff4@lablink.com',
       passwordHash,
-      phone: '+15550300',
+      phone: '+15550204',
+      role: 'staff',
+      isActive: true,
+      isVerified: true,
+      assignedRegions: [getRegionId('lahore_dha_lahore'), getRegionId('lahore_model_town')],
+      shifts: defaultShifts,
+    });
+
+    const staff5Inactive = await User.create({
+      name: 'Carol Danvers (Inactive Worker)',
+      email: 'staff5@lablink.com',
+      passwordHash,
+      phone: '+15550205',
+      role: 'staff',
+      isActive: false,
+      isVerified: true,
+      assignedRegions: [getRegionId('lahore_johar_town')],
+      shifts: defaultShifts,
+    });
+
+    // 3 Patients with diversified profiles
+    const patient1 = await User.create({
+      name: 'John Doe',
+      email: 'patient1@lablink.com',
+      passwordHash,
+      phone: '+15550301',
       role: 'patient',
-      walletBalance: 150, // Seeding patient with initial $150 credit for wallet flow testing
+      walletBalance: 150,
       isActive: true,
       isVerified: true,
     });
 
-    console.log(`Created Users:\n- Admin: ${adminUser.email}\n- Staff (Active): ${staffUser1.email}, ${staffUser2.email}, ${staffUser3.email}\n- Staff (Inactive): ${staffUser4.email}\n- Patient: ${patientUser.email}`);
+    const patient2 = await User.create({
+      name: 'Jane Smith',
+      email: 'patient2@lablink.com',
+      passwordHash,
+      phone: '+15550302',
+      role: 'patient',
+      walletBalance: 50,
+      isActive: true,
+      isVerified: true,
+    });
 
-    // 3. Create Family Member first
-    console.log('Creating family member for patient user...');
-    const familyMember = await FamilyMember.create({
-      userId: patientUser._id,
+    const patient3 = await User.create({
+      name: 'Bob Brown',
+      email: 'patient3@lablink.com',
+      passwordHash,
+      phone: '+15550303',
+      role: 'patient',
+      walletBalance: 0,
+      isActive: true,
+      isVerified: true,
+    });
+
+    console.log('Seeded users list successfully.');
+
+    // 3. Create Family Members
+    console.log('Creating family members...');
+    const familyMember1 = await FamilyMember.create({
+      userId: patient1._id,
       name: 'Sarah Connor',
-      dateOfBirth: '1985-11-10',
+      dateOfBirth: new Date('1985-11-10'),
       relationship: 'spouse',
       gender: 'female',
     });
-    console.log(`Created Family Member: ${familyMember.name} (Spouse)`);
 
-    // 4. Create Subscription Plans
-    console.log('Creating subscription plans...');
-    const freePlan = await SubscriptionPlan.create({
-      name: 'Free',
-      price: 0,
-      maxFamilyMembers: 0,
-      features: ['Single user dashboard', 'Standard report delivery'],
-      isActive: true,
-      durationMonths: null,
-      isDefault: true,
-      testDiscountPercent: 0,
-      freeHomeCollections: false,
-      aiQuestionsPerMonth: 5,
+    const familyMember2 = await FamilyMember.create({
+      userId: patient1._id,
+      name: 'John Connor',
+      dateOfBirth: new Date('2005-04-12'),
+      relationship: 'child',
+      gender: 'male',
     });
 
-    const silverPlan = await SubscriptionPlan.create({
-      name: 'Family Silver Plan',
-      price: 29,
-      maxFamilyMembers: 2,
-      features: ['Dashboard for self & 2 family members', 'Priority report delivery', '10% discount on all tests'],
-      isActive: true,
-      durationMonths: 1,
-      isDefault: false,
-      testDiscountPercent: 10,
-      freeHomeCollections: false,
-      aiQuestionsPerMonth: 15,
+    const familyMember3 = await FamilyMember.create({
+      userId: patient2._id,
+      name: 'Baby Smith',
+      dateOfBirth: new Date('2024-01-01'),
+      relationship: 'child',
+      gender: 'other',
     });
 
-    const goldPlan = await SubscriptionPlan.create({
-      name: 'Family Gold Plan',
-      price: 59,
-      maxFamilyMembers: 5,
-      features: ['Dashboard for self & 5 family members', 'Express 12hr report delivery', '15% discount on all tests', 'Free home sampling'],
-      isActive: true,
-      durationMonths: 1,
-      isDefault: false,
-      testDiscountPercent: 15,
-      freeHomeCollections: true,
-      aiQuestionsPerMonth: 50,
-    });
+    console.log('Family members created.');
 
-    console.log('Created subscription plans.');
-
-    // 5. Create Active Subscription for Patient
-    console.log('Assigning Family Silver Plan active subscription to patient user...');
-    await Subscription.create({
-      userId: patientUser._id,
+    // 4. Create Active Subscriptions for Patients
+    console.log('Assigning subscriptions...');
+    // Patient 1: Active Family Silver subscription (holds 2 family members)
+    const sub1 = await Subscription.create({
+      userId: patient1._id,
       planId: silverPlan._id,
       status: 'active',
-      startDate: new Date(),
-      expiryDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days later
-      activeFamilyMemberIds: [familyMember._id],
+      startDate: new Date(Date.now() - 15 * 24 * 60 * 60 * 1000), // 15 days ago
+      expiryDate: new Date(Date.now() + 15 * 24 * 60 * 60 * 1000), // 15 days from now
+      activeFamilyMemberIds: [familyMember1._id, familyMember2._id],
       needsFamilySelection: false,
       planSnapshot: {
         price: silverPlan.price,
@@ -225,9 +252,31 @@ async function seed() {
         maxFamilyMembers: silverPlan.maxFamilyMembers,
       },
     });
-    console.log('Active subscription created.');
 
-    // 6. Create Test Categories
+    // Patient 2: Active Family Gold subscription (holds 1 family member)
+    const sub2 = await Subscription.create({
+      userId: patient2._id,
+      planId: goldPlan._id,
+      status: 'active',
+      startDate: new Date(Date.now() - 25 * 24 * 60 * 60 * 1000), // 25 days ago
+      expiryDate: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000), // 5 days from now
+      activeFamilyMemberIds: [familyMember3._id],
+      needsFamilySelection: false,
+      planSnapshot: {
+        price: goldPlan.price,
+        name: goldPlan.name,
+        durationMonths: goldPlan.durationMonths,
+        testDiscountPercent: goldPlan.testDiscountPercent,
+        freeHomeCollections: goldPlan.freeHomeCollections,
+        aiQuestionsPerMonth: goldPlan.aiQuestionsPerMonth,
+        maxFamilyMembers: goldPlan.maxFamilyMembers,
+      },
+    });
+
+    // Patient 3 has Free Plan (No explicit subscription record required)
+    console.log('Subscriptions created.');
+
+    // 5. Create Test Categories
     console.log('Creating test categories...');
     const hematology = await TestCategory.create({
       name: 'Hematology',
@@ -251,9 +300,9 @@ async function seed() {
 
     console.log('Test categories created.');
 
-    // 7. Create Tests
+    // 6. Create Tests
     console.log('Creating tests catalog...');
-    // Hematology tests
+    // Hematology
     const cbc = await Test.create({
       name: 'Complete Blood Count (CBC)',
       description: 'Evaluates overall health and detects disorders such as anemia and leukemia.',
@@ -266,7 +315,7 @@ async function seed() {
       isActive: true,
     });
 
-    // Biochemistry tests
+    // Biochemistry
     const lft = await Test.create({
       name: 'Liver Function Test (LFT)',
       description: 'Measures proteins, liver enzymes, and bilirubin in your blood to diagnose liver health.',
@@ -303,7 +352,7 @@ async function seed() {
       isActive: true,
     });
 
-    // Immunology tests
+    // Immunology
     const thyroid = await Test.create({
       name: 'Thyroid Panel (T3, T4, TSH)',
       description: 'Checks thyroid hormone levels to identify hyperthyroidism or hypothyroidism.',
@@ -328,7 +377,7 @@ async function seed() {
       isActive: true,
     });
 
-    // Radiology tests
+    // Radiology
     const xray = await Test.create({
       name: 'Chest X-Ray',
       description: 'Uses low dose radiation to image internal structures of chest and lungs.',
@@ -337,177 +386,385 @@ async function seed() {
       price: 120,
       preparationInstructions: 'Remove all metal objects before the scan.',
       duration: '4 Hours',
-      isHomeCollectionAvailable: false, // Radiology requires visiting lab
+      isHomeCollectionAvailable: false,
       isActive: true,
     });
 
     console.log('Tests catalog created.');
 
-    // 8. Create Coupons
-    console.log('Creating coupons...');
-    await Coupon.create({
-      code: 'SAVE10',
-      discountType: 'fixed',
-      discountValue: 10,
-      minOrderValue: 30,
-      maxUses: 100,
-      usedCount: 0,
-      expiresAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
-      isActive: true,
+    // 7. Create Mock Bookings
+    console.log('Creating mock bookings...');
+    const now = new Date();
+
+    const dates = {
+      minus25d: new Date(now.getTime() - 25 * 24 * 60 * 60 * 1000),
+      minus15d: new Date(now.getTime() - 15 * 24 * 60 * 60 * 1000),
+      minus10d: new Date(now.getTime() - 10 * 24 * 60 * 60 * 1000),
+      minus5d: new Date(now.getTime() - 5 * 24 * 60 * 60 * 1000),
+      minus2d: new Date(now.getTime() - 2 * 24 * 60 * 60 * 1000),
+      minus1d: new Date(now.getTime() - 1 * 24 * 60 * 60 * 1000),
+      today: now,
+      plus1d: new Date(now.getTime() + 1 * 24 * 60 * 60 * 1000),
+      plus2d: new Date(now.getTime() + 2 * 24 * 60 * 60 * 1000),
+    };
+
+    // Booking 1: Completed 15 days ago, patient1, CBC, walk-in
+    const booking1 = await Booking.create({
+      patientId: patient1._id,
+      tests: [{ testId: cbc._id, name: cbc.name, price: cbc.price }],
+      status: 'completed',
+      totalAmount: 45,
+      discountAmount: 4.5, // 10% Silver plan discount
+      finalAmount: 40.5,
+      walletAmountUsed: 0,
+      homeSampling: { requested: false },
+      createdAt: dates.minus15d,
+      updatedAt: dates.minus15d,
     });
 
-    await Coupon.create({
-      code: 'SAVE20',
-      discountType: 'percentage',
-      discountValue: 20,
-      minOrderValue: 50,
-      maxUses: 50,
-      usedCount: 0,
-      expiresAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
-      isActive: true,
+    // Booking 2: Completed 10 days ago, patient2, LFT + Lipid, home sampling (staff1 assigned)
+    const booking2 = await Booking.create({
+      patientId: patient2._id,
+      tests: [
+        { testId: lft._id, name: lft.name, price: lft.price },
+        { testId: lipid._id, name: lipid.name, price: lipid.price },
+      ],
+      status: 'completed',
+      totalAmount: 115,
+      discountAmount: 17.25, // 15% Gold plan discount
+      finalAmount: 97.75,
+      walletAmountUsed: 20, // Paid 20 via wallet
+      homeSampling: {
+        requested: true,
+        address: 'Apartment 4B, Gulberg Heights, Lahore',
+        scheduledAt: dates.minus10d,
+        assignedStaffId: staff1._id,
+        region: getRegionId('lahore_gulberg'),
+        streetAddress: 'Apartment 4B, Gulberg Heights',
+        city: 'Lahore',
+        country: 'Pakistan',
+      },
+      createdAt: dates.minus10d,
+      updatedAt: dates.minus10d,
     });
 
-    await Coupon.create({
-      code: 'WELCOME15',
-      discountType: 'fixed',
-      discountValue: 15,
-      minOrderValue: 0,
-      maxUses: 200,
-      usedCount: 0,
-      expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-      isActive: true,
+    // Booking 3: Cancelled 5 days ago, patient3, Glucose, walk-in
+    const booking3 = await Booking.create({
+      patientId: patient3._id,
+      tests: [{ testId: glucose._id, name: glucose.name, price: glucose.price }],
+      status: 'cancelled',
+      totalAmount: 25,
+      discountAmount: 0,
+      finalAmount: 25,
+      walletAmountUsed: 0,
+      homeSampling: { requested: false },
+      createdAt: dates.minus5d,
+      updatedAt: dates.minus5d,
     });
 
-    await Coupon.create({
-      code: 'FREELAB',
-      discountType: 'percentage',
-      discountValue: 100,
-      minOrderValue: 0,
-      maxUses: 10,
-      usedCount: 0,
-      expiresAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
-      isActive: true,
+    // Booking 4: Scheduled (Upcoming - 2 days from now), patient1, Thyroid Panel, home sampling (staff1 assigned)
+    const booking4 = await Booking.create({
+      patientId: patient1._id,
+      forMemberId: familyMember1._id, // booking for spouse
+      tests: [{ testId: thyroid._id, name: thyroid.name, price: thyroid.price }],
+      status: 'scheduled',
+      totalAmount: 80,
+      discountAmount: 8, // 10% Silver plan discount
+      finalAmount: 72,
+      walletAmountUsed: 0,
+      homeSampling: {
+        requested: true,
+        address: 'House 42, Johar Town, Lahore',
+        scheduledAt: dates.plus2d,
+        assignedStaffId: staff1._id,
+        region: getRegionId('lahore_johar_town'),
+        streetAddress: 'House 42',
+        blockNumber: 'Block G',
+        city: 'Lahore',
+        country: 'Pakistan',
+      },
+      createdAt: dates.minus1d,
+      updatedAt: dates.minus1d,
     });
 
-    console.log('Coupons created.');
+    // Booking 5: Sample Collected (Today), patient2, Vitamin D, home sampling (staff2 assigned in Karachi Clifton)
+    const booking5 = await Booking.create({
+      patientId: patient2._id,
+      forMemberId: familyMember3._id, // booking for baby
+      tests: [{ testId: vitD._id, name: vitD.name, price: vitD.price }],
+      status: 'sample_collected',
+      totalAmount: 95,
+      discountAmount: 14.25, // 15% Gold plan discount
+      finalAmount: 80.75,
+      walletAmountUsed: 0,
+      homeSampling: {
+        requested: true,
+        address: 'Flat 12, Ocean View Apartments, Clifton, Karachi',
+        scheduledAt: dates.today,
+        assignedStaffId: staff2._id,
+        region: getRegionId('karachi_clifton'),
+        streetAddress: 'Flat 12, Ocean View Apartments',
+        city: 'Karachi',
+        country: 'Pakistan',
+      },
+      createdAt: dates.today,
+      updatedAt: dates.today,
+    });
 
-    // 9. Create Mock Bookings for Analytics Visualization
-    console.log('Creating mock bookings for analytics...');
-    const cbcTest = await Test.findOne({ name: 'Complete Blood Count (CBC)' });
-    const glucoseTest = await Test.findOne({ name: 'Fasting Blood Sugar (FBS)' });
-    const thyroidTest = await Test.findOne({ name: 'Thyroid Panel (T3, T4, TSH)' });
+    // Booking 6: In Lab (Yesterday), patient1, Glucose, walk-in, fully paid by wallet
+    const booking6 = await Booking.create({
+      patientId: patient1._id,
+      tests: [{ testId: glucose._id, name: glucose.name, price: glucose.price }],
+      status: 'in_lab',
+      totalAmount: 25,
+      discountAmount: 2.5, // 10% Silver
+      finalAmount: 22.5,
+      walletAmountUsed: 22.5, // Fully wallet paid
+      homeSampling: { requested: false },
+      createdAt: dates.minus1d,
+      updatedAt: dates.minus1d,
+    });
 
-    if (cbcTest && glucoseTest && thyroidTest && patientUser) {
-      const dates = [
-        new Date(Date.now() - 5 * 24 * 60 * 60 * 1000), // 5 days ago
-        new Date(Date.now() - 3 * 24 * 60 * 60 * 1000), // 3 days ago
-        new Date(Date.now() - 1 * 24 * 60 * 60 * 1000), // 1 day ago
-        new Date(), // today
-      ];
+    // Booking 7: Report Ready (2 days ago), patient2, Chest X-Ray, walk-in
+    const booking7 = await Booking.create({
+      patientId: patient2._id,
+      tests: [{ testId: xray._id, name: xray.name, price: xray.price }],
+      status: 'report_ready',
+      totalAmount: 120,
+      discountAmount: 18, // 15% Gold
+      finalAmount: 102,
+      walletAmountUsed: 0,
+      homeSampling: { requested: false },
+      createdAt: dates.minus2d,
+      updatedAt: dates.minus2d,
+    });
 
-      // Booking 1
-      const booking1 = await Booking.create({
-        patientId: patientUser._id,
-        tests: [{ testId: cbcTest._id, name: cbcTest.name, price: cbcTest.price }],
-        status: 'completed',
-        totalAmount: cbcTest.price,
-        discountAmount: 0,
-        finalAmount: cbcTest.price,
-        walletAmountUsed: 0,
-        homeSampling: { requested: false },
-        createdAt: dates[0],
-        updatedAt: dates[0]
-      });
- 
-      // Booking 2
-      const booking2 = await Booking.create({
-        patientId: patientUser._id,
-        tests: [{ testId: glucoseTest._id, name: glucoseTest.name, price: glucoseTest.price }],
-        status: 'completed',
-        totalAmount: glucoseTest.price,
-        discountAmount: 0,
-        finalAmount: glucoseTest.price,
-        walletAmountUsed: 15, // Mocking that $15 was paid by wallet
-        homeSampling: { requested: false },
-        createdAt: dates[1],
-        updatedAt: dates[1]
-      });
- 
-      // Booking 3
-      const booking3 = await Booking.create({
-        patientId: patientUser._id,
-        tests: [
-          { testId: cbcTest._id, name: cbcTest.name, price: cbcTest.price },
-          { testId: thyroidTest._id, name: thyroidTest.name, price: thyroidTest.price }
-        ],
-        status: 'scheduled',
-        totalAmount: cbcTest.price + thyroidTest.price,
-        discountAmount: 0,
-        finalAmount: cbcTest.price + thyroidTest.price,
-        walletAmountUsed: 0,
-        homeSampling: {
-          requested: true,
-          address: 'House 123, Street 5, Block C, Near Central Park, Lahore',
-          scheduledAt: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000),
-          region: 'lahore_johar_town',
-          streetAddress: 'House 123, Street 5',
-          blockNumber: 'Block C',
-          landmark: 'Near Central Park',
-          city: 'Lahore',
-          country: 'Pakistan',
-        },
-        createdAt: dates[2],
-        updatedAt: dates[2]
-      });
- 
-      // Booking 4
-      const booking4 = await Booking.create({
-        patientId: patientUser._id,
-        tests: [{ testId: thyroidTest._id, name: thyroidTest.name, price: thyroidTest.price }],
-        status: 'sample_collected',
-        totalAmount: thyroidTest.price,
-        discountAmount: 10,
-        finalAmount: thyroidTest.price - 10,
-        walletAmountUsed: 0,
-        homeSampling: { requested: false },
-        createdAt: dates[3],
-        updatedAt: dates[3]
-      });
-      console.log('Mock bookings created.');
+    // Booking 8: Pending Payment (Today), patient3, CBC, walk-in
+    const booking8 = await Booking.create({
+      patientId: patient3._id,
+      tests: [{ testId: cbc._id, name: cbc.name, price: cbc.price }],
+      status: 'pending_payment',
+      totalAmount: 45,
+      discountAmount: 0,
+      finalAmount: 45,
+      walletAmountUsed: 0,
+      homeSampling: { requested: false },
+      createdAt: dates.today,
+      updatedAt: dates.today,
+    });
 
-      // 10. Seed diversified WalletTransaction records for Patient
-      console.log('Seeding patient wallet transaction ledger...');
-      await WalletTransaction.create({
-        userId: patientUser._id,
-        type: 'credit',
-        amount: 45,
-        reason: 'cancellation_refund',
-        bookingId: booking1._id,
-        note: `Refund for cancellation of Booking ${booking1._id.toString()}`,
-        createdAt: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000),
-      });
+    // Booking 9: Pending Manual Assignment (Tomorrow), patient1, Glucose, home sampling (unassigned)
+    const booking9 = await Booking.create({
+      patientId: patient1._id,
+      tests: [{ testId: glucose._id, name: glucose.name, price: glucose.price }],
+      status: 'pending_manual_assignment',
+      totalAmount: 25,
+      discountAmount: 2.5, // 10% Silver
+      finalAmount: 22.5,
+      walletAmountUsed: 0,
+      homeSampling: {
+        requested: true,
+        address: 'House 99, Johar Town, Lahore',
+        scheduledAt: dates.plus1d,
+        assignedStaffId: null, // triggers manual assignment UI
+        region: getRegionId('lahore_johar_town'),
+        streetAddress: 'House 99',
+        city: 'Lahore',
+        country: 'Pakistan',
+      },
+      createdAt: dates.today,
+      updatedAt: dates.today,
+    });
 
-      await WalletTransaction.create({
-        userId: patientUser._id,
-        type: 'debit',
-        amount: 15,
-        reason: 'booking_payment',
-        bookingId: booking2._id,
-        note: `Payment partial debit for Booking ${booking2._id.toString()}`,
-        createdAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000),
-      });
+    console.log('Mock bookings created successfully.');
 
-      await WalletTransaction.create({
-        userId: patientUser._id,
-        type: 'credit',
-        amount: 120,
-        reason: 'cancellation_refund',
-        note: 'Manual administrative balance adjustment',
-        createdAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000),
-      });
-      console.log('Wallet transaction ledger seeded.');
-    }
+    // 8. Create Stripe Payments
+    console.log('Seeding payment transaction log...');
+    // Payment for Booking 1
+    await Payment.create({
+      bookingId: booking1._id,
+      paymentFor: 'booking',
+      patientId: patient1._id,
+      amount: 40.5,
+      walletAmountUsed: 0,
+      currency: 'usd',
+      method: 'stripe',
+      stripePaymentIntentId: 'pi_mock_1',
+      status: 'succeeded',
+      paidAt: dates.minus15d,
+      createdAt: dates.minus15d,
+    });
 
+    // Payment for Booking 2
+    await Payment.create({
+      bookingId: booking2._id,
+      paymentFor: 'booking',
+      patientId: patient2._id,
+      amount: 77.75,
+      walletAmountUsed: 20,
+      currency: 'usd',
+      method: 'stripe',
+      stripePaymentIntentId: 'pi_mock_2',
+      status: 'succeeded',
+      paidAt: dates.minus10d,
+      createdAt: dates.minus10d,
+    });
+
+    // Payment for Booking 3 (Paid then cancelled)
+    await Payment.create({
+      bookingId: booking3._id,
+      paymentFor: 'booking',
+      patientId: patient3._id,
+      amount: 25,
+      walletAmountUsed: 0,
+      currency: 'usd',
+      method: 'stripe',
+      stripePaymentIntentId: 'pi_mock_3',
+      status: 'succeeded',
+      paidAt: dates.minus5d,
+      createdAt: dates.minus5d,
+    });
+
+    // Payment for Booking 4
+    await Payment.create({
+      bookingId: booking4._id,
+      paymentFor: 'booking',
+      patientId: patient1._id,
+      amount: 72,
+      walletAmountUsed: 0,
+      currency: 'usd',
+      method: 'stripe',
+      stripePaymentIntentId: 'pi_mock_4',
+      status: 'succeeded',
+      paidAt: dates.minus1d,
+      createdAt: dates.minus1d,
+    });
+
+    // Payment for Booking 5
+    await Payment.create({
+      bookingId: booking5._id,
+      paymentFor: 'booking',
+      patientId: patient2._id,
+      amount: 80.75,
+      walletAmountUsed: 0,
+      currency: 'usd',
+      method: 'stripe',
+      stripePaymentIntentId: 'pi_mock_5',
+      status: 'succeeded',
+      paidAt: dates.today,
+      createdAt: dates.today,
+    });
+
+    // Payment for Booking 6 (Fully paid by wallet)
+    await Payment.create({
+      bookingId: booking6._id,
+      paymentFor: 'booking',
+      patientId: patient1._id,
+      amount: 0,
+      walletAmountUsed: 22.5,
+      currency: 'usd',
+      method: 'stripe',
+      stripePaymentIntentId: 'pi_wallet_payment',
+      status: 'succeeded',
+      paidAt: dates.minus1d,
+      createdAt: dates.minus1d,
+    });
+
+    // Payment for Booking 7
+    await Payment.create({
+      bookingId: booking7._id,
+      paymentFor: 'booking',
+      patientId: patient2._id,
+      amount: 102,
+      walletAmountUsed: 0,
+      currency: 'usd',
+      method: 'stripe',
+      stripePaymentIntentId: 'pi_mock_7',
+      status: 'succeeded',
+      paidAt: dates.minus2d,
+      createdAt: dates.minus2d,
+    });
+
+    // Payment for Booking 9
+    await Payment.create({
+      bookingId: booking9._id,
+      paymentFor: 'booking',
+      patientId: patient1._id,
+      amount: 22.5,
+      walletAmountUsed: 0,
+      currency: 'usd',
+      method: 'stripe',
+      stripePaymentIntentId: 'pi_mock_9',
+      status: 'succeeded',
+      paidAt: dates.today,
+      createdAt: dates.today,
+    });
+
+    console.log('Payment transaction logs created.');
+
+    // 9. Seed Wallet Transactions
+    console.log('Seeding wallet transaction ledgers...');
+    // Patient 1 Wallet Ledger
+    await WalletTransaction.create({
+      userId: patient1._id,
+      type: 'credit',
+      amount: 172.5,
+      reason: 'cancellation_refund',
+      note: 'Initial wallet balance credit and trial promotion',
+      createdAt: dates.minus15d,
+    });
+
+    await WalletTransaction.create({
+      userId: patient1._id,
+      type: 'debit',
+      amount: 22.5,
+      reason: 'booking_payment',
+      bookingId: booking6._id,
+      note: `Payment debit for Booking ${booking6._id.toString()}`,
+      createdAt: dates.minus1d,
+    });
+
+    // Patient 2 Wallet Ledger
+    await WalletTransaction.create({
+      userId: patient2._id,
+      type: 'credit',
+      amount: 70,
+      reason: 'cancellation_refund',
+      note: 'Promotional loyalty program credit',
+      createdAt: dates.minus25d,
+    });
+
+    await WalletTransaction.create({
+      userId: patient2._id,
+      type: 'debit',
+      amount: 20,
+      reason: 'booking_payment',
+      bookingId: booking2._id,
+      note: `Payment partial debit for Booking ${booking2._id.toString()}`,
+      createdAt: dates.minus10d,
+    });
+
+    // Patient 3 Wallet Ledger: Cancelled Booking 3 refund
+    await WalletTransaction.create({
+      userId: patient3._id,
+      type: 'credit',
+      amount: 25,
+      reason: 'cancellation_refund',
+      bookingId: booking3._id,
+      note: `Cancellation refund for Booking ${booking3._id.toString()}`,
+      createdAt: dates.minus5d,
+    });
+
+    await WalletTransaction.create({
+      userId: patient3._id,
+      type: 'debit',
+      amount: 25,
+      reason: 'booking_payment',
+      note: 'Administrative wallet balance payout withdrawal',
+      createdAt: dates.minus5d,
+    });
+
+    console.log('Wallet transaction ledger successfully seeded.');
     console.log('Database seeded successfully! 🌱');
 
   } catch (error) {

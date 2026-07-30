@@ -4,6 +4,7 @@ import Report from '../models/Report.model.js';
 import ChatMessage from '../models/ChatMessage.model.js';
 import { aiAssistantService } from '../services/aiAssistant.service.js';
 import { appendMedicalDisclaimer, MEDICAL_DISCLAIMER } from '../utils/medicalDisclaimer.js';
+import logger from '../utils/logger.js';
 
 export const chatWithAssistant = asyncHandler(async (req: Request, res: Response): Promise<void> => {
   if (!req.user) {
@@ -128,7 +129,7 @@ export const chatWithAssistant = asyncHandler(async (req: Request, res: Response
       content: fullAssistantResponse,
     });
   } catch (err: any) {
-    console.error('Error during streaming:', err);
+    logger.error('Error during streaming:', err);
     res.write(`data: ${JSON.stringify({ error: 'Error during generation: ' + err.message })}\n\n`);
   } finally {
     res.write('data: [DONE]\n\n');

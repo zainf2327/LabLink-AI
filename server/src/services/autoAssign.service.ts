@@ -3,6 +3,7 @@ import Booking, { IBooking } from '../models/Booking.model.js';
 import User, { IUser } from '../models/User.model.js';
 import { calendarService } from './calendar.service.js';
 import { bookingService } from './booking.service.js';
+import logger from '../utils/logger.js';
 
 /**
  * Get typical travel buffer time between region zones.
@@ -140,17 +141,17 @@ export async function autoAssignStaff(bookingId: string): Promise<IUser | null> 
         assignedRegions: booking.homeSampling.region,
       }).session(session);
 
-      console.log(`[AutoAssign Debug] Booking ID: ${bookingId}`);
-      console.log(`[AutoAssign Debug] Booking Region: ${booking.homeSampling.region}`);
-      console.log(`[AutoAssign Debug] Booking Scheduled At: ${booking.homeSampling.scheduledAt}`);
-      console.log(`[AutoAssign Debug] Found ${staffMembers.length} active staff members covering this region.`);
+      logger.debug(`[AutoAssign Debug] Booking ID: ${bookingId}`);
+      logger.debug(`[AutoAssign Debug] Booking Region: ${booking.homeSampling.region}`);
+      logger.debug(`[AutoAssign Debug] Booking Scheduled At: ${booking.homeSampling.scheduledAt}`);
+      logger.debug(`[AutoAssign Debug] Found ${staffMembers.length} active staff members covering this region.`);
 
       const candidates: Array<{ staff: IUser; workload: number }> = [];
 
       for (const staff of staffMembers) {
         // 1. Shift check
         const shiftOk = checkShiftAvailability(staff, booking.homeSampling.scheduledAt);
-        console.log(`[AutoAssign Debug] Staff: ${staff.name} (${staff.email}) | Shift check: ${shiftOk}`);
+        logger.debug(`[AutoAssign Debug] Staff: ${staff.name} (${staff.email}) | Shift check: ${shiftOk}`);
         if (!shiftOk) {
           continue;
         }
@@ -165,7 +166,7 @@ export async function autoAssignStaff(bookingId: string): Promise<IUser | null> 
           _id: { $ne: booking._id },
         }).session(session);
 
-        console.log(`[AutoAssign Debug] Staff: ${staff.name} | Overlap check: ${overlap ? 'CONFLICT' : 'OK'}`);
+        logger.debug(`[AutoAssign Debug] Staff: ${staff.name} | Overlap check: ${overlap ? 'CONFLICT' : 'OK'}`);
         if (overlap) {
           continue;
         }
@@ -178,7 +179,7 @@ export async function autoAssignStaff(bookingId: string): Promise<IUser | null> 
           booking._id,
           session
         );
-        console.log(`[AutoAssign Debug] Staff: ${staff.name} | Travel conflict check: ${travelConflict ? 'CONFLICT' : 'OK'}`);
+        logger.debug(`[AutoAssign Debug] Staff: ${staff.name} | Travel conflict check: ${travelConflict ? 'CONFLICT' : 'OK'}`);
         if (travelConflict) {
           continue;
         }
@@ -196,10 +197,10 @@ export async function autoAssignStaff(bookingId: string): Promise<IUser | null> 
               endTime
             );
           } catch (err) {
-            console.error(`[AutoAssign] Failed to check Google Calendar for staff ${staff._id}:`, err);
+            logger.error(`[AutoAssign] Failed to check Google Calendar for staff ${staff._id}:`, err);
           }
         }
-        console.log(`[AutoAssign Debug] Staff: ${staff.name} | Google Calendar busy check: ${calendarBusy ? 'BUSY' : 'FREE'}`);
+        logger.debug(`[AutoAssign Debug] Staff: ${staff.name} | Google Calendar busy check: ${calendarBusy ? 'BUSY' : 'FREE'}`);
         if (calendarBusy) {
           continue;
         }
@@ -228,7 +229,7 @@ export async function autoAssignStaff(bookingId: string): Promise<IUser | null> 
         await session.commitTransaction();
         session.endSession();
 
-        console.warn(`[AutoAssign] No eligible staff found for booking ${bookingId}. Set status to pending_manual_assignment.`);
+        logger.warn(`[AutoAssign] No eligible staff found for booking ${bookingId}. Set status to pending_manual_assignment.`);
         return null;
       }
 
@@ -266,7 +267,7 @@ export async function autoAssignStaff(bookingId: string): Promise<IUser | null> 
 
       // Async trigger Google Calendar Sync (fire-and-forget)
       bookingService.syncBookingToCalendar(booking).catch((err) => {
-        console.error(`[AutoAssign] Async Google Calendar sync failed for booking ${bookingId}:`, err);
+        logger.error(`[AutoAssign] Async Google Calendar sync failed for booking ${bookingId}:`, err);
       });
 
       return selected;
@@ -280,7 +281,7 @@ export async function autoAssignStaff(bookingId: string): Promise<IUser | null> 
         error.message?.includes('write skew');
 
       if (isTransient && attempts < maxAttempts) {
-        console.warn(`[AutoAssign] Concurrency conflict detected. Retrying attempt ${attempts + 1}/${maxAttempts}...`);
+        logger.warn(`[AutoAssign] Concurrency conflict detected. Retrying attempt ${attempts + 1}/${maxAttempts}...`);
         await new Promise((resolve) => setTimeout(resolve, 50 + Math.random() * 100));
         continue;
       }

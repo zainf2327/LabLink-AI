@@ -4,6 +4,7 @@ import { RecursiveCharacterTextSplitter } from '@langchain/textsplitters';
 import { pineconeIndex } from '../config/pinecone.js';
 import { env } from '../config/env.js';
 import { appendMedicalDisclaimer } from '../utils/medicalDisclaimer.js';
+import logger from '../utils/logger.js';
 
 export const aiAssistantService = {
   /**
@@ -37,7 +38,7 @@ export const aiAssistantService = {
           filter: { reportId: { $eq: reportId } },
         });
       } catch (deleteErr: any) {
-        console.warn('Pinecone deleteMany warning (possibly empty namespace):', deleteErr.message);
+        logger.warn('Pinecone deleteMany warning (possibly empty namespace):', deleteErr.message);
       }
 
       const vectors = chunks.map((chunk: string, i: number) => ({
@@ -56,7 +57,7 @@ export const aiAssistantService = {
 
       return vectors.length;
     } catch (err: any) {
-      console.error('Error in upsertReportVectors:', err);
+      logger.error('Error in upsertReportVectors:', err);
       throw new Error(`Failed to vectorize report: ${err.message}`);
     }
   },
@@ -85,7 +86,7 @@ export const aiAssistantService = {
       const summary = String(response.content).trim();
       return appendMedicalDisclaimer(summary);
     } catch (err: any) {
-      console.error('Error in generateSummary:', err);
+      logger.error('Error in generateSummary:', err);
       throw new Error(`Failed to generate summary: ${err.message}`);
     }
   },
@@ -188,7 +189,7 @@ ${secondaryContextText}`;
         stream,
       };
     } catch (err: any) {
-      console.error('Error in chatWithAssistant:', err);
+      logger.error('Error in chatWithAssistant:', err);
       throw new Error(`Failed to complete chat query: ${err.message}`);
     }
   },

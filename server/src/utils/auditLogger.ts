@@ -1,5 +1,6 @@
 import mongoose from 'mongoose';
 import AuditLog from '../models/AuditLog.model.js';
+import logger from './logger.js';
 
 export interface AuditLogPayload {
   actorId: mongoose.Types.ObjectId | string;
@@ -14,7 +15,7 @@ export const logAudit = async (payload: AuditLogPayload): Promise<void> => {
   try {
     await AuditLog.create(payload);
   } catch (error) {
-    console.error('Failed to save audit log:', error);
+    logger.error('Failed to save audit log:', error);
     throw error;
   }
 };

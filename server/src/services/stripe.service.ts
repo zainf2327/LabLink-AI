@@ -1,5 +1,6 @@
 import Stripe from 'stripe';
 import { stripeConfig } from '../config/stripe.js';
+import logger from '../utils/logger.js';
 
 if (!stripeConfig.secretKey) {
   throw new Error('STRIPE_SECRET_KEY is required');
@@ -29,7 +30,7 @@ export const stripeService = {
         client_secret: intent.client_secret,
       };
     } catch (error) {
-      console.error('Error creating Stripe PaymentIntent:', error);
+      logger.error('Error creating Stripe PaymentIntent:', error);
       throw error;
     }
   },
@@ -44,7 +45,7 @@ export const stripeService = {
         client_secret: intent.client_secret,
       };
     } catch (error) {
-      console.error('Error retrieving Stripe PaymentIntent:', error);
+      logger.error('Error retrieving Stripe PaymentIntent:', error);
       throw error;
     }
   },

@@ -19,6 +19,7 @@ import {
 import { calendarService } from '../services/calendar.service.js';
 import { emailService } from '../services/email.service.js';
 import crypto from 'crypto';
+import logger from '../utils/logger.js';
 
 const generateAccessToken = (userId: string, role: string): string => {
   return jwt.sign({ id: userId, role }, env.JWT_ACCESS_SECRET, { expiresIn: '15m' });
@@ -322,7 +323,7 @@ export const handleGoogleLoginCallback = asyncHandler(async (req: Request, res: 
     // Redirect to frontend home/dashboard
     res.redirect(`${env.FRONTEND_URL}/`);
   } catch (err: any) {
-    console.error('Google Auth Callback Error:', err);
+    logger.error('Google Auth Callback Error:', err);
     res.redirect(`${env.FRONTEND_URL}/login?error=${encodeURIComponent(err.message || 'auth_failed')}`);
   }
 });
@@ -383,7 +384,7 @@ export const handleGoogleCalendarCallback = asyncHandler(async (req: Request, re
     const redirectPath = user.role === 'patient' ? 'patient/dashboard' : `${user.role}/dashboard`;
     res.redirect(`${env.FRONTEND_URL}/${redirectPath}?calendar=connected`);
   } catch (err: any) {
-    console.error('Google Calendar Callback Error:', err);
+    logger.error('Google Calendar Callback Error:', err);
     res.redirect(`${env.FRONTEND_URL}/login?error=${encodeURIComponent(err.message || 'calendar_connect_failed')}`);
   }
 });

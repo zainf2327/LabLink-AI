@@ -9,6 +9,7 @@ import User from '../models/User.model.js';
 import Region from '../models/Region.model.js';
 import { calendarService } from './calendar.service.js';
 import { AppError } from '../utils/AppError.js';
+import logger from '../utils/logger.js';
 
 
 export const bookingService = {
@@ -255,14 +256,14 @@ export const bookingService = {
       if (booking.homeSampling.requested) {
         import('./autoAssign.service.js').then(({ autoAssignStaff }) => {
           autoAssignStaff(booking._id.toString()).catch((err) => {
-            console.error('[createBooking Bypass] Failed auto assign staff:', err);
+            logger.error('[createBooking Bypass] Failed auto assign staff:', err);
           });
         });
       } else {
         try {
           await bookingService.syncBookingToCalendar(booking);
         } catch (err) {
-          console.error('Failed to sync to Google Calendar:', err);
+          logger.error('Failed to sync to Google Calendar:', err);
         }
       }
     }
@@ -352,7 +353,7 @@ export const bookingService = {
         booking.googleCalendar.patientEventId = eventId;
         updated = true;
       } catch (err: any) {
-        console.error(`Failed to sync calendar event for patient ${patient._id}:`, err);
+        logger.error(`Failed to sync calendar event for patient ${patient._id}:`, err);
         if (err.message && (err.message.includes('invalid_grant') || err.message.includes('auth'))) {
           patient.googleCalendarConnected = false;
           await patient.save();
@@ -386,7 +387,7 @@ export const bookingService = {
           booking.googleCalendar.staffEventId = eventId;
           updated = true;
         } catch (err: any) {
-          console.error(`Failed to sync calendar event for staff ${staff._id}:`, err);
+          logger.error(`Failed to sync calendar event for staff ${staff._id}:`, err);
           if (err.message && (err.message.includes('invalid_grant') || err.message.includes('auth'))) {
             staff.googleCalendarConnected = false;
             await staff.save();
@@ -413,7 +414,7 @@ export const bookingService = {
           const decryptedToken = decrypt(patient.googleRefreshToken);
           await calendarService.deleteEvent(decryptedToken, booking.googleCalendar.patientEventId);
         } catch (err) {
-          console.error('Failed to delete patient calendar event:', err);
+          logger.error('Failed to delete patient calendar event:', err);
         }
       }
       booking.googleCalendar.patientEventId = null;
@@ -427,7 +428,7 @@ export const bookingService = {
           const decryptedToken = decrypt(staff.googleRefreshToken);
           await calendarService.deleteEvent(decryptedToken, booking.googleCalendar.staffEventId);
         } catch (err) {
-          console.error('Failed to delete staff calendar event:', err);
+          logger.error('Failed to delete staff calendar event:', err);
         }
       }
       booking.googleCalendar.staffEventId = null;

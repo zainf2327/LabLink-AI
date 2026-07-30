@@ -1,6 +1,7 @@
 import { S3Client, PutObjectCommand, DeleteObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { env } from '../config/env.js';
+import logger from '../utils/logger.js';
 
 const isMock = !env.AWS_ACCESS_KEY_ID || env.AWS_ACCESS_KEY_ID.startsWith('mock');
 
@@ -15,7 +16,7 @@ const s3Client = isMock ? null : new S3Client({
 export const s3Service = {
   async uploadFile(fileBuffer: Buffer, fileKey: string, mimeType: string): Promise<string> {
     if (isMock) {
-      console.log(`[S3 MOCK] Uploading file to key: ${fileKey}`);
+      logger.debug(`[S3 MOCK] Uploading file to key: ${fileKey}`);
       return `https://${env.AWS_S3_BUCKET_NAME || 'lablink-reports-bucket'}.s3.${env.AWS_REGION || 'us-east-1'}.amazonaws.com/${fileKey}`;
     }
     const command = new PutObjectCommand({
@@ -30,7 +31,7 @@ export const s3Service = {
 
   async deleteFile(fileKey: string): Promise<void> {
     if (isMock) {
-      console.log(`[S3 MOCK] Deleting file key: ${fileKey}`);
+      logger.debug(`[S3 MOCK] Deleting file key: ${fileKey}`);
       return;
     }
     const command = new DeleteObjectCommand({
@@ -42,7 +43,7 @@ export const s3Service = {
 
   async getPresignedDownloadUrl(fileKey: string): Promise<string> {
     if (isMock) {
-      console.log(`[S3 MOCK] Generating pre-signed URL for key: ${fileKey}`);
+      logger.debug(`[S3 MOCK] Generating pre-signed URL for key: ${fileKey}`);
       return `https://${env.AWS_S3_BUCKET_NAME || 'lablink-reports-bucket'}.s3.${env.AWS_REGION || 'us-east-1'}.amazonaws.com/${fileKey}?mock-signature=true`;
     }
     const command = new GetObjectCommand({
@@ -55,7 +56,7 @@ export const s3Service = {
 
   async getFileStream(fileKey: string): Promise<{ stream: NodeJS.ReadableStream; mimeType?: string; contentLength?: number } | null> {
     if (isMock) {
-      console.log(`[S3 MOCK] File streaming requested for key: ${fileKey}; no local mock PDF is configured.`);
+      logger.debug(`[S3 MOCK] File streaming requested for key: ${fileKey}; no local mock PDF is configured.`);
       return null;
     }
 

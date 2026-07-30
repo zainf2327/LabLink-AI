@@ -4,7 +4,7 @@ import { z } from 'zod';
 import logger from '../utils/logger.js';
 
 // Load environment variables from .env file
-dotenv.config();
+dotenv.config({ override: true });
 
 const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
