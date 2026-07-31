@@ -29,6 +29,21 @@ import {
 
 const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY || '');
 
+const getRelationshipBadgeStyles = (relationship: string) => {
+  switch (relationship.toLowerCase()) {
+    case 'spouse':
+      return 'bg-purple-50 text-purple-600 border-purple-100/80';
+    case 'child':
+      return 'bg-teal-50 text-teal-600 border-teal-100/80';
+    case 'parent':
+      return 'bg-blue-50 text-blue-600 border-blue-100/80';
+    case 'sibling':
+      return 'bg-amber-50 text-amber-600 border-amber-100/80';
+    default:
+      return 'bg-slate-50 text-slate-600 border-slate-200/80';
+  }
+};
+
 const MembershipPageContent: React.FC = () => {
   const stripe = useStripe();
   const elements = useElements();
@@ -448,7 +463,7 @@ const MembershipPageContent: React.FC = () => {
                 <button
                   onClick={handleOpenAddModal}
                   disabled={familyMembers.length >= maxFamilyAllowed}
-                  className="px-3.5 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold transition-all shadow-xs flex items-center gap-1.5 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                  className="px-3.5 py-2 rounded-xl bg-brand-500 hover:bg-brand-600 text-white text-xs font-bold transition-all shadow-md shadow-brand-500/10 flex items-center gap-1.5 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   <Plus size={14} />
                   <span>Add Member</span>
@@ -462,32 +477,43 @@ const MembershipPageContent: React.FC = () => {
                     return (
                       <div
                         key={member._id}
-                        className={`bg-zinc-900/40 border p-4 rounded-2xl flex items-center justify-between hover:border-emerald-500/20 transition-all ${
-                          isActive ? 'border-zinc-800/80' : 'border-red-500/20 bg-red-950/5'
+                        className={`p-4 rounded-2xl border flex items-center gap-4 transition-all duration-300 hover:shadow-md ${
+                          isActive 
+                            ? 'bg-white border-slate-100 hover:border-brand-500/30 shadow-xs' 
+                            : 'border-red-100 bg-red-50/20 hover:border-red-200'
                         }`}
                       >
-                        <div className="flex items-center gap-3">
-                          <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold text-sm ${
-                            isActive ? 'bg-emerald-500/10 text-emerald-400' : 'bg-red-500/10 text-red-400'
-                          }`}>
-                            {member.name.slice(0, 2).toUpperCase()}
-                          </div>
-                          <div>
-                            <h4 className="text-xs font-bold text-zinc-100 flex items-center gap-1.5">
-                              <span>{member.name}</span>
-                              <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-zinc-850 text-zinc-400 border border-zinc-800 capitalize font-medium">
-                                {member.relationship}
+                        {/* Avatar */}
+                        <div className={`w-10 h-10 rounded-full flex-shrink-0 flex items-center justify-center font-extrabold text-xs tracking-wider shadow-inner ${
+                          isActive 
+                            ? 'bg-gradient-to-br from-brand-50 to-teal-50 text-brand-600 border border-brand-100' 
+                            : 'bg-red-50 text-red-600 border border-red-100'
+                        }`}>
+                          {member.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
+                        </div>
+
+                        {/* Content */}
+                        <div className="flex-1 min-w-0 space-y-1">
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-extrabold text-slate-800 truncate max-w-[100px] sm:max-w-none">
+                              {member.name}
+                            </span>
+                            <span className={`text-[9px] px-2 py-0.5 rounded-full border capitalize font-extrabold tracking-tight shrink-0 ${getRelationshipBadgeStyles(member.relationship)}`}>
+                              {member.relationship}
+                            </span>
+                            {!isActive && (
+                              <span className="text-[8px] px-1.5 py-0.5 rounded-full bg-red-50 border border-red-100 text-red-500 flex items-center gap-0.5 font-bold uppercase tracking-wider shrink-0">
+                                <Lock size={8} className="shrink-0" />
+                                <span>Locked</span>
                               </span>
-                              {!isActive && (
-                                <span className="text-[8px] px-1.5 py-0.5 rounded-full bg-red-500/10 border border-red-500/25 text-red-400 flex items-center gap-0.5 font-bold uppercase tracking-wider">
-                                  <Lock size={8} />
-                                  <span>Locked</span>
-                                </span>
-                              )}
-                            </h4>
-                            <p className="text-[10px] text-zinc-500 mt-1 flex items-center gap-2">
-                              <span>{member.gender}</span>
-                              <span className="w-1 h-1 rounded-full bg-zinc-700" />
+                            )}
+                          </div>
+
+                          <div className="flex items-center gap-2 text-[10px] text-slate-500 font-semibold whitespace-nowrap overflow-hidden">
+                            <span className="capitalize">{member.gender}</span>
+                            <span className="text-slate-300">•</span>
+                            <div className="flex items-center gap-1 shrink-0">
+                              <Calendar size={11} className="text-slate-400 shrink-0" />
                               <span>
                                 DOB: {new Date(member.dateOfBirth).toLocaleDateString(undefined, {
                                   year: 'numeric',
@@ -495,25 +521,26 @@ const MembershipPageContent: React.FC = () => {
                                   day: 'numeric',
                                 })}
                               </span>
-                            </p>
+                            </div>
                           </div>
                         </div>
 
-                        <div className="flex items-center gap-1.5">
+                        {/* Actions */}
+                        <div className="flex items-center gap-1 flex-shrink-0">
                           <button
                             onClick={() => handleOpenEditModal(member)}
                             disabled={!isActive}
                             title={isActive ? 'Edit member details' : 'Cannot edit details of a locked member'}
-                            className="w-8 h-8 rounded-lg flex items-center justify-center text-zinc-400 hover:text-emerald-400 hover:bg-emerald-500/5 transition-all cursor-pointer disabled:opacity-30 disabled:hover:text-zinc-400 disabled:hover:bg-transparent"
+                            className="w-8 h-8 rounded-xl flex items-center justify-center text-slate-400 hover:text-brand-600 hover:bg-brand-50 border border-transparent hover:border-brand-100 transition-all cursor-pointer disabled:opacity-30 disabled:hover:text-slate-400 disabled:hover:bg-transparent"
                           >
-                            <Pencil size={13} />
+                            <Pencil size={12} />
                           </button>
                           <button
                             onClick={() => handleDeleteMember(member._id)}
                             title="Remove member"
-                            className="w-8 h-8 rounded-lg flex items-center justify-center text-zinc-400 hover:text-red-400 hover:bg-red-500/5 transition-all cursor-pointer"
+                            className="w-8 h-8 rounded-xl flex items-center justify-center text-slate-400 hover:text-red-600 hover:bg-red-55/60 border border-transparent hover:border-red-100 transition-all cursor-pointer"
                           >
-                            <Trash2 size={13} />
+                            <Trash2 size={12} />
                           </button>
                         </div>
                       </div>

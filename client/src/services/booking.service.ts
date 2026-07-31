@@ -26,14 +26,14 @@ export interface Booking {
   forMemberId?: string | null;
   tests: BookingTest[];
   status:
-    | 'pending_payment'
-    | 'scheduled'
-    | 'sample_collected'
-    | 'in_lab'
-    | 'report_ready'
-    | 'completed'
-    | 'cancelled'
-    | 'pending_manual_assignment';
+  | 'pending_payment'
+  | 'scheduled'
+  | 'sample_collected'
+  | 'in_lab'
+  | 'report_ready'
+  | 'completed'
+  | 'cancelled'
+  | 'pending_manual_assignment';
   totalAmount: number;
   discountAmount: number;
   finalAmount: number;

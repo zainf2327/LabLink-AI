@@ -4,6 +4,30 @@ import { LogOut, User, ChevronDown, Lock, Bell, Menu, X } from 'lucide-react';
 import useAuthStore from '../../store/useAuthStore';
 import Logo from '../Logo';
 
+const ROLE_AVATAR_COLORS: Record<string, string> = {
+  patient: 'bg-brand-50 text-brand-600 border-brand-200/50',
+  staff: 'bg-teal-50 text-teal-600 border-teal-200/50',
+  admin: 'bg-purple-50 text-purple-600 border-purple-200/50',
+};
+
+const ROLE_BADGE_COLORS: Record<string, string> = {
+  patient: 'bg-brand-50 text-brand-600 border-brand-100',
+  staff: 'bg-teal-50 text-teal-600 border-teal-100',
+  admin: 'bg-purple-50 text-purple-600 border-purple-100',
+};
+
+const ROLE_HOVER_STYLES: Record<string, string> = {
+  patient: 'hover:border-brand-200/60 hover:bg-brand-50/20',
+  staff: 'hover:border-teal-200/60 hover:bg-teal-50/20',
+  admin: 'hover:border-purple-200/60 hover:bg-purple-50/20',
+};
+
+const ROLE_TEXT_HOVER: Record<string, string> = {
+  patient: 'group-hover:text-brand-500',
+  staff: 'group-hover:text-teal-500',
+  admin: 'group-hover:text-purple-500',
+};
+
 interface TopbarProps {
   pageTitle: string;
   isMobileSidebarOpen?: boolean;
@@ -58,7 +82,6 @@ const Topbar: React.FC<TopbarProps> = ({ pageTitle, isMobileSidebarOpen, onToggl
 
         <div className="min-w-0">
           <h1 className="text-sm sm:text-base md:text-lg font-semibold text-slate-800 leading-tight truncate max-w-[90px] xs:max-w-[130px] sm:max-w-none">{pageTitle}</h1>
-          <p className="text-xs text-slate-400 leading-none mt-0.5 capitalize md:block hidden">{user?.role} Portal</p>
         </div>
       </div>
 
@@ -73,20 +96,19 @@ const Topbar: React.FC<TopbarProps> = ({ pageTitle, isMobileSidebarOpen, onToggl
         <div className="relative" ref={dropdownRef}>
           <button
             onClick={() => setDropdownOpen((v) => !v)}
-            className="flex items-center gap-2.5 p-1.5 md:pl-2 md:pr-3 md:py-1.5 rounded-xl border border-slate-200 hover:border-blue-300 hover:bg-blue-50/50 transition-all duration-150 group h-11 w-11 md:h-auto md:w-auto justify-center cursor-pointer shrink-0"
+            className={`flex items-center gap-2 pl-1.5 pr-2.5 py-1 rounded-full border border-slate-200/60 transition-all duration-200 group h-10 md:h-auto justify-center cursor-pointer shrink-0 shadow-2xs ${ROLE_HOVER_STYLES[user?.role ?? 'patient']}`}
             aria-label="User profile options"
           >
             {/* Avatar circle with initials */}
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center shadow-sm shrink-0">
-              <span className="text-xs font-bold text-white tracking-wide">{initials}</span>
+            <div className={`w-7.5 h-7.5 rounded-full flex items-center justify-center font-extrabold text-[11px] tracking-wider shadow-inner border ${ROLE_AVATAR_COLORS[user?.role ?? 'patient']}`}>
+              {initials}
             </div>
-            <div className="md:block hidden text-left">
-              <p className="text-sm font-semibold text-slate-700 leading-tight truncate max-w-[120px]">{user?.name}</p>
-              <p className="text-[10px] text-slate-400 leading-none capitalize">{user?.role}</p>
+            <div className="md:block hidden text-left max-w-[100px] min-w-0">
+              <p className="text-xs font-bold text-slate-700 truncate leading-tight">{user?.name}</p>
             </div>
             <ChevronDown
-              size={14}
-              className={`text-slate-400 group-hover:text-blue-500 transition-transform duration-200 md:block hidden ${dropdownOpen ? 'rotate-180' : ''}`}
+              size={12}
+              className={`text-slate-400 transition-transform duration-200 md:block hidden ${ROLE_TEXT_HOVER[user?.role ?? 'patient']} ${dropdownOpen ? 'rotate-180' : ''}`}
             />
           </button>
 
@@ -94,18 +116,18 @@ const Topbar: React.FC<TopbarProps> = ({ pageTitle, isMobileSidebarOpen, onToggl
           {dropdownOpen && (
             <div className="absolute right-0 top-full mt-2 w-60 bg-white rounded-xl border border-slate-200 shadow-xl shadow-slate-200/60 overflow-hidden z-50 animate-fadeIn">
               {/* User info header */}
-              <div className="px-4 py-3 border-b border-slate-100">
+              <div className="px-4 py-3.5 border-b border-slate-100 bg-slate-50/30">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center shrink-0 shadow-sm">
-                    <span className="text-sm font-bold text-white">{initials}</span>
+                  <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 shadow-inner border font-extrabold text-xs tracking-wider ${ROLE_AVATAR_COLORS[user?.role ?? 'patient']}`}>
+                    {initials}
                   </div>
-                  <div className="overflow-hidden">
-                    <p className="text-sm font-semibold text-slate-800 truncate">{user?.name}</p>
-                    <p className="text-xs text-slate-400 truncate">{user?.email}</p>
+                  <div className="overflow-hidden min-w-0">
+                    <p className="text-xs font-bold text-slate-800 truncate">{user?.name}</p>
+                    <p className="text-[10px] text-slate-405 truncate mt-0.5">{user?.email}</p>
                   </div>
                 </div>
-                <div className="mt-2">
-                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-blue-50 text-blue-600 border border-blue-100">
+                <div className="mt-2.5">
+                  <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[8px] font-extrabold uppercase tracking-widest border ${ROLE_BADGE_COLORS[user?.role ?? 'patient']}`}>
                     {user?.role}
                   </span>
                 </div>

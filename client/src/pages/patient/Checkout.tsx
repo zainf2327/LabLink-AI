@@ -27,6 +27,7 @@ import {
   Wallet,
 } from 'lucide-react';
 import { useToast } from '../../hooks/useToast';
+import { DateTimeSlotPicker } from '../../components/DateTimeSlotPicker';
 
 // Initialize Stripe Promise
 const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY || '');
@@ -638,14 +639,9 @@ const CheckoutForm: React.FC = () => {
 
               {/* Preferred Date & Time Slot (Always Visible) */}
               <div className="space-y-2">
-                <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wider block">
-                  Preferred Date & Time Slot
-                </label>
-                <input
-                  type="datetime-local"
+                <DateTimeSlotPicker
                   value={scheduledAt}
-                  onChange={(e) => setScheduledAt(e.target.value)}
-                  className="w-full py-3 px-4 rounded-xl border border-zinc-800/80 bg-zinc-900/40 text-zinc-200 text-sm focus:outline-none focus:border-emerald-500/50 cursor-pointer"
+                  onChange={setScheduledAt}
                 />
               </div>
 

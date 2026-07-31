@@ -30,6 +30,8 @@ import {
   Printer,
   Sparkles,
   CreditCard,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
 
 export const PatientDashboard: React.FC = () => {
@@ -948,62 +950,120 @@ export const PatientDashboard: React.FC = () => {
                               </div>
 
                               <div className="flex items-center gap-3 self-end sm:self-center">
-                                <button
-                                  onClick={() => handleToggleExpand(report._id)}
-                                  className="px-3.5 py-1.5 rounded-xl border border-zinc-800 hover:border-purple-500/30 bg-slate-50 text-xs font-semibold text-slate-500 hover:text-purple-400 transition-all cursor-pointer flex items-center gap-1.5"
-                                >
-                                  <span>AI Summary</span>
-                                  <span className="text-[10px]">{isExpanded ? '▲' : '▼'}</span>
-                                </button>
+                                 <button
+                                   onClick={() => handleToggleExpand(report._id)}
+                                   className="px-3.5 py-1.5 rounded-xl border border-zinc-800 hover:border-brand-500/30 hover:bg-brand-50/20 bg-slate-50/50 text-xs font-semibold text-slate-500 hover:text-brand-500 transition-all cursor-pointer flex items-center gap-1.5 group active:scale-98"
+                                 >
+                                   <Sparkles size={13} className="text-zinc-400 group-hover:text-brand-500 transition-colors" />
+                                   <span>AI Summary</span>
+                                   {isExpanded ? (
+                                     <ChevronUp size={13} className="text-zinc-400 group-hover:text-brand-500 transition-colors" />
+                                   ) : (
+                                     <ChevronDown size={13} className="text-zinc-400 group-hover:text-brand-500 transition-colors" />
+                                   )}
+                                 </button>
 
-                                <button
-                                  onClick={() => handleDownloadReport(report)}
-                                  disabled={downloadingReportId === report._id}
-                                  className="px-4 py-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black text-xs font-bold transition-all shadow-md shadow-emerald-500/5 hover:scale-[1.02] flex items-center gap-1.5 cursor-pointer whitespace-nowrap disabled:opacity-50"
-                                >
-                                  {downloadingReportId === report._id ? (
-                                    <Loader size={14} />
-                                  ) : (
-                                    <FileDown size={14} />
-                                  )}
-                                  <span>{downloadingReportId === report._id ? 'Downloading...' : 'Download'}</span>
-                                </button>
+                                 <button
+                                   onClick={() => handleDownloadReport(report)}
+                                   disabled={downloadingReportId === report._id}
+                                   className="px-4 py-1.5 rounded-xl bg-brand-500 hover:bg-brand-600 text-white text-xs font-bold transition-all shadow-md shadow-brand-500/10 hover:scale-[1.02] active:scale-98 flex items-center gap-1.5 cursor-pointer whitespace-nowrap disabled:opacity-50"
+                                 >
+                                   {downloadingReportId === report._id ? (
+                                     <Loader size={13} className="animate-spin" />
+                                   ) : (
+                                     <FileDown size={13} />
+                                   )}
+                                   <span>{downloadingReportId === report._id ? 'Downloading...' : 'Download'}</span>
+                                 </button>
                               </div>
                             </div>
 
                             {isExpanded && (
-                              <>
+                              <div className="mt-4 animate-fade-in">
                                 {!report.summary && !report.vectorized ? (
-                                  <div className="mt-4 p-4 rounded-xl bg-slate-50 border border-slate-200/60 animate-pulse space-y-2">
-                                    <div className="h-3.5 bg-zinc-800 rounded w-1/4"></div>
-                                    <div className="h-3 bg-zinc-900 rounded w-full"></div>
-                                    <div className="h-3 bg-zinc-900 rounded w-5/6"></div>
-                                    <span className="text-[10px] text-zinc-550 font-medium tracking-wide block pt-1">
-                                      🧬 AI Summary generating, please wait...
+                                  <div className="glassmorphic-card rounded-2xl p-5 border border-slate-200/60 animate-pulse space-y-3">
+                                    <div className="flex items-center gap-2">
+                                      <div className="w-4.5 h-4.5 rounded-full bg-brand-100 flex items-center justify-center animate-ping"></div>
+                                      <div className="h-3.5 bg-slate-200 rounded w-1/3"></div>
+                                    </div>
+                                    <div className="space-y-2 pt-2">
+                                      <div className="h-3 bg-slate-100 rounded w-full"></div>
+                                      <div className="h-3 bg-slate-100 rounded w-5/6"></div>
+                                    </div>
+                                    <span className="text-[10px] text-brand-500 font-bold tracking-wider block pt-1 animate-pulse">
+                                      🧬 Analyzing biomarkers & compiling plain-language summary...
                                     </span>
                                   </div>
                                 ) : (
-                                  <div className="mt-4 p-4 rounded-xl bg-slate-50/80 border border-slate-200/60 space-y-3">
-                                    <div className="space-y-1.5">
-                                      <span className="text-[10px] uppercase font-bold tracking-wider text-purple-400 block">
-                                        AI Plain-Language Summary
-                                      </span>
-                                      <p className="text-slate-600 text-xs leading-relaxed whitespace-pre-line">
-                                        {report.summary || 'Summary generation in progress...'}
-                                      </p>
+                                  <div className="space-y-4">
+                                    <div className="glassmorphic-card rounded-2xl p-5 border border-slate-200/60 shadow-sm shadow-slate-150/40 space-y-4">
+                                      <div className="flex items-center justify-between border-b border-slate-100/80 pb-3">
+                                        <div className="flex items-center gap-2">
+                                          <div className="p-1.5 rounded-lg bg-brand-50 text-brand-500">
+                                            <Sparkles size={14} className="animate-pulse" />
+                                          </div>
+                                          <span className="text-xs font-bold text-slate-800 tracking-tight">
+                                            AI Plain-Language Summary
+                                          </span>
+                                        </div>
+                                        <span className="text-[9px] uppercase font-extrabold tracking-widest bg-brand-50 text-brand-600 px-2.5 py-0.5 rounded-full border border-brand-100">
+                                          Scoped RAG
+                                        </span>
+                                      </div>
+                                      
+                                      {(() => {
+                                        if (!report.summary) {
+                                          return (
+                                            <p className="text-slate-600 text-xs leading-relaxed font-medium whitespace-pre-line px-1">
+                                              Summary generation is in progress. Please check back shortly.
+                                            </p>
+                                          );
+                                        }
+                                        
+                                        const parts = report.summary.split(/\n-+\n|\n\n-+\n/);
+                                        const cleanSummary = parts[0]?.trim() || '';
+                                        const disclaimer = parts[1]?.trim() || '';
+                                        
+                                        return (
+                                          <div className="space-y-3 px-1">
+                                            <p className="text-slate-600 text-xs leading-relaxed font-medium whitespace-pre-line">
+                                              {cleanSummary}
+                                            </p>
+                                            {disclaimer && (
+                                              <div className="p-3 rounded-xl bg-zinc-950/40 border border-slate-200/80 text-[10px] text-slate-500 font-semibold leading-relaxed flex items-start gap-2 shadow-inner">
+                                                <span className="text-brand-600 shrink-0 font-bold uppercase tracking-widest bg-brand-50 border border-brand-100 px-1.5 py-0.5 rounded text-[8px] leading-none">Notice</span>
+                                                <span className="flex-1 leading-snug text-slate-500">{disclaimer.replace(/^medical disclaimer:\s*/i, '')}</span>
+                                              </div>
+                                            )}
+                                          </div>
+                                        );
+                                      })()}
+
+                                      <div className="pt-2 border-t border-slate-100/60 flex items-center justify-between">
+                                        <span className="text-[10px] text-slate-400 font-semibold flex items-center gap-1">
+                                          <Activity size={10} className="text-brand-400" />
+                                          Interactive report analysis ready
+                                        </span>
+                                        <Link
+                                          to={`/patient/reports/${report._id}/ai-assistant`}
+                                          className="px-4 py-2 rounded-xl bg-gradient-to-r from-brand-500 to-brand-600 hover:from-brand-600 hover:to-brand-700 text-white text-xs font-bold transition-all shadow-md shadow-brand-500/10 hover:scale-[1.02] flex items-center gap-1.5 cursor-pointer hover:shadow-lg hover:shadow-brand-500/15"
+                                        >
+                                          <span>Consult AI Assistant</span>
+                                          <Sparkles size={12} className="text-white/80" />
+                                        </Link>
+                                      </div>
                                     </div>
-                                    <div className="pt-1 flex gap-2">
-                                      <Link
-                                        to={`/patient/reports/${report._id}/ai-assistant`}
-                                        className="px-3.5 py-1.5 rounded-xl bg-purple-500/10 hover:bg-purple-500 border border-purple-500/20 text-purple-400 hover:text-black text-xs font-bold transition-all shadow-md shadow-purple-500/5 hover:scale-[1.02] flex items-center gap-1.5 cursor-pointer"
-                                      >
-                                        <Activity size={12} />
-                                        <span>🧬 Ask AI about this report</span>
-                                      </Link>
-                                    </div>
+
+                                    {/* Dedicated Clinical Security & Audit logs for this specific report */}
+                                    <ReportDisclosure
+                                      variant="full"
+                                      createdAt={report.createdAt}
+                                      lastViewedAt={report.lastViewedAt}
+                                      accessLog={report.accessLog}
+                                    />
                                   </div>
                                 )}
-                              </>
+                              </div>
                             )}
                           </div>
                         );
@@ -1011,15 +1071,6 @@ export const PatientDashboard: React.FC = () => {
                     </div>
                   )}
                 </div>
-
-                {reports.length > 0 && (
-                  <ReportDisclosure
-                    variant="full"
-                    createdAt={reports[0].createdAt}
-                    lastViewedAt={reports[0].lastViewedAt}
-                    accessLog={reports[0].accessLog}
-                  />
-                )}
               </div>
             )}
         </div>

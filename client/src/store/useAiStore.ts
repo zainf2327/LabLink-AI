@@ -101,6 +101,8 @@ export const useAiStore = create<AiState>((set, get) => ({
 
       let accumulatedContent = '';
       let buffer = '';
+      let lastUpdateTime = 0;
+      const THROTTLE_MS = 60; // Render state throttle window
 
       while (true) {
         const { value, done } = await reader.read();
@@ -126,15 +128,20 @@ export const useAiStore = create<AiState>((set, get) => ({
                 const parsed = JSON.parse(rawData);
                 if (parsed.token) {
                   accumulatedContent += parsed.token;
-                  set((state) => ({
-                    sessions: {
-                      ...state.sessions,
-                      [reportId]: {
-                        ...state.sessions[reportId],
-                        streamingContent: accumulatedContent,
+                  
+                  const now = Date.now();
+                  if (now - lastUpdateTime > THROTTLE_MS) {
+                    lastUpdateTime = now;
+                    set((state) => ({
+                      sessions: {
+                        ...state.sessions,
+                        [reportId]: {
+                          ...state.sessions[reportId],
+                          streamingContent: accumulatedContent,
+                        },
                       },
-                    },
-                  }));
+                    }));
+                  }
                 } else if (parsed.error) {
                   throw new Error(parsed.error);
                 }
@@ -145,6 +152,17 @@ export const useAiStore = create<AiState>((set, get) => ({
           }
         }
       }
+
+      // Ensure final state update captures everything
+      set((state) => ({
+        sessions: {
+          ...state.sessions,
+          [reportId]: {
+            ...state.sessions[reportId],
+            streamingContent: accumulatedContent,
+          },
+        },
+      }));
 
       const assistantMsg: ChatMessage = {
         patientId: '',

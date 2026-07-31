@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import useAuthStore from './store/useAuthStore';
+import SplashScreen from './components/SplashScreen';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import { VerifyEmail } from './pages/VerifyEmail';
@@ -30,17 +31,7 @@ export const App: React.FC = () => {
   }, [checkAuth]);
 
   if (isCheckingAuth) {
-    return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-zinc-950 text-zinc-100">
-        <div className="relative w-16 h-16">
-          <div className="absolute inset-0 rounded-full border-4 border-emerald-500/20 border-t-emerald-400 animate-spin"></div>
-          <div className="absolute inset-4 rounded-full bg-emerald-500/20 blur-sm animate-pulse"></div>
-        </div>
-        <p className="mt-4 text-zinc-400 font-medium tracking-wide animate-pulse">
-          Initializing LabLink AI...
-        </p>
-      </div>
-    );
+    return <SplashScreen message="Initializing LabLink AI" />;
   }
 
   // Root redirect helper based on roles

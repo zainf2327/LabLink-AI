@@ -1,6 +1,7 @@
 import React from 'react';
 import { Navigate } from 'react-router-dom';
 import useAuthStore from '../store/useAuthStore';
+import SplashScreen from './SplashScreen';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -11,19 +12,7 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, allowe
   const { isAuthenticated, user, isLoading } = useAuthStore();
 
   if (isLoading) {
-    return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-zinc-950 text-zinc-100">
-        <div className="relative w-16 h-16">
-          {/* Neon spinning outer ring */}
-          <div className="absolute inset-0 rounded-full border-4 border-emerald-500/20 border-t-emerald-400 animate-spin"></div>
-          {/* Glowing central core */}
-          <div className="absolute inset-4 rounded-full bg-emerald-500/20 blur-sm animate-pulse"></div>
-        </div>
-        <p className="mt-4 text-zinc-400 font-medium tracking-wide animate-pulse">
-          Securing session...
-        </p>
-      </div>
-    );
+    return <SplashScreen message="Securing session" />;
   }
 
   if (!isAuthenticated || !user) {

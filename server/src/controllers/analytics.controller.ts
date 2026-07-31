@@ -52,12 +52,33 @@ export const getOverview = asyncHandler(async (req: Request, res: Response): Pro
     createdAt: { $gte: start, $lte: end }
   });
 
+  // Dynamic booking status breakdown aggregation
+  const statusBreakdown = await Booking.aggregate([
+    {
+      $match: {
+        createdAt: { $gte: start, $lte: end }
+      }
+    },
+    {
+      $group: {
+        _id: '$status',
+        count: { $sum: 1 }
+      }
+    }
+  ]);
+
+  const formattedStatusBreakdown = statusBreakdown.map(s => ({
+    status: s._id,
+    count: s.count
+  }));
+
   res.status(200).json({
     success: true,
     data: {
       totalBookings,
       totalRevenue,
-      newPatientsCount
+      newPatientsCount,
+      statusBreakdown: formattedStatusBreakdown
     }
   });
 });

@@ -306,7 +306,7 @@ export const assignStaff = asyncHandler(async (req: Request, res: Response): Pro
   if (booking.status === 'pending_manual_assignment' && assignedStaffId) {
     booking.status = 'scheduled';
   }
-  
+
   await booking.save();
 
   // 4. Sync calendar for the new staff member (if booking is scheduled)

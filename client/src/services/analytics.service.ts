@@ -1,9 +1,15 @@
 import { api } from './api';
 
+export interface StatusBreakdownItem {
+  status: string;
+  count: number;
+}
+
 export interface OverviewData {
   totalBookings: number;
   totalRevenue: number;
   newPatientsCount: number;
+  statusBreakdown: StatusBreakdownItem[];
 }
 
 export interface BookingTrend {

@@ -38,12 +38,7 @@ const NAV_ITEMS = {
   ],
 };
 
-// ─── Role color config ────────────────────────────────────────────────────────
-const ROLE_COLORS: Record<string, string> = {
-  patient: 'from-blue-500 to-blue-700',
-  staff: 'from-teal-500 to-cyan-700',
-  admin: 'from-violet-500 to-purple-700',
-};
+
 
 const ROLE_BADGE_COLORS: Record<string, string> = {
   patient: 'bg-blue-50 text-blue-600 border-blue-100',
@@ -69,7 +64,6 @@ const Sidebar: React.FC<SidebarProps> = ({
   const navigate = useNavigate();
   const role = (user?.role as 'patient' | 'staff' | 'admin') ?? 'patient';
   const navItems = NAV_ITEMS[role] ?? [];
-  const avatarGradient = ROLE_COLORS[role] ?? ROLE_COLORS.patient;
   const badgeColor = ROLE_BADGE_COLORS[role] ?? ROLE_BADGE_COLORS.patient;
 
   const initials = user?.name
@@ -187,23 +181,36 @@ const Sidebar: React.FC<SidebarProps> = ({
       </nav>
 
       {/* Bottom: User Info + Sign Out */}
-      <div className="px-3 pb-4 pt-3 border-t border-slate-100 shrink-0">
-        <div className="flex items-center gap-3 px-3 py-2 rounded-xl bg-slate-50">
-          <div className={`w-8 h-8 rounded-lg bg-gradient-to-br ${avatarGradient} flex items-center justify-center shrink-0 shadow-sm`}>
-            <span className="text-xs font-bold text-white">{initials}</span>
-          </div>
-          <div className="flex-1 overflow-hidden">
-            <p className="text-xs font-semibold text-slate-700 truncate">{user?.name}</p>
-            <span className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider border ${badgeColor}`}>
-              {user?.role}
+      <div className="px-3 pb-4 pt-3 border-t border-slate-200/60 shrink-0 bg-slate-50/10">
+        <div className="flex items-center gap-3 px-3 py-2.5 rounded-2xl bg-slate-50/40 hover:bg-slate-50/80 border border-slate-200/60 hover:border-slate-200/85 transition-all duration-300 shadow-xs hover:scale-[1.01] group">
+          {/* Circular avatar with role-colored border-ring */}
+          <div className="relative w-8.5 h-8.5 rounded-full flex items-center justify-center shrink-0 shadow-inner bg-white border-2 border-slate-100 group-hover:border-brand-500/20 transition-all duration-300">
+            <span className="text-[11px] font-extrabold text-slate-700 tracking-wider">
+              {initials}
+            </span>
+            {/* Active Status Dot */}
+            <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-500 border-2 border-white flex items-center justify-center">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping absolute"></span>
             </span>
           </div>
+
+          <div className="flex-1 overflow-hidden min-w-0">
+            <p className="text-xs font-bold text-slate-800 truncate" title={user?.name}>
+              {user?.name}
+            </p>
+            <div className="flex items-center gap-1.5 mt-0.5">
+              <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-extrabold uppercase tracking-widest border ${badgeColor}`}>
+                {user?.role}
+              </span>
+            </div>
+          </div>
+
           <button
             onClick={handleLogout}
             title="Sign out"
-            className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-red-500 hover:bg-red-50 transition-all duration-150 shrink-0"
+            className="w-8 h-8 rounded-xl flex items-center justify-center text-slate-400 hover:text-red-600 hover:bg-red-50 hover:border-red-100/50 border border-transparent hover:translate-x-0.5 transition-all duration-200 shrink-0 cursor-pointer"
           >
-            <LogOut size={14} />
+            <LogOut size={13} />
           </button>
         </div>
       </div>

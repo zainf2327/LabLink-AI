@@ -20,7 +20,10 @@ import {
   CartesianGrid,
   Tooltip,
   BarChart,
-  Bar
+  Bar,
+  PieChart,
+  Pie,
+  Cell
 } from 'recharts';
 import AppLayout from '../../components/layout/AppLayout';
 import {
@@ -50,6 +53,37 @@ import {
   ShieldAlert,
   MoreVertical,
 } from 'lucide-react';
+
+const STATUS_COLORS: Record<string, string> = {
+  completed: '#10b981',
+  report_ready: '#06b6d4',
+  in_lab: '#8b5cf6',
+  sample_collected: '#6366f1',
+  scheduled: '#3b82f6',
+  pending_payment: '#f59e0b',
+  pending_manual_assignment: '#f43f5e',
+  cancelled: '#ef4444',
+};
+
+const CustomTooltip = ({ active, payload, label }: any) => {
+  if (active && payload && payload.length) {
+    return (
+      <div className="bg-white p-3 border border-slate-100 shadow-lg rounded-xl text-left font-sans">
+        <p className="text-[10px] text-slate-400 font-extrabold uppercase tracking-widest mb-1">{label}</p>
+        {payload.map((item: any, idx: number) => (
+          <div key={idx} className="flex items-center gap-1.5 mt-0.5">
+            <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: item.color || item.fill }} />
+            <span className="text-[11px] font-bold text-slate-600 capitalize">{item.name}:</span>
+            <span className="text-[11px] font-extrabold text-slate-800 ml-auto">
+              {item.name === 'revenue' ? `$${item.value.toFixed(2)}` : item.value}
+            </span>
+          </div>
+        ))}
+      </div>
+    );
+  }
+  return null;
+};
 
 export const AdminDashboard: React.FC<{ defaultTab?: 'overview' | 'bookings' | 'tests' | 'categories' | 'subscriptions' | 'regions' | 'staff' }> = ({
   defaultTab = 'overview',
@@ -933,151 +967,306 @@ export const AdminDashboard: React.FC<{ defaultTab?: 'overview' | 'bookings' | '
         <div className="space-y-8">
             
             {/* Analytics Tab (Feature 11) */}
-            {activeTab === 'overview' && (
-              <>
-                {/* Numeric Stats */}
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                  <div className="glassmorphic-card p-4 rounded-xl relative overflow-hidden">
-                    <span className="text-zinc-500 text-[10px] font-bold uppercase tracking-wider block mb-1">
-                      Total Bookings
-                    </span>
-                    <p className="text-2xl font-bold text-zinc-100">{overviewData?.totalBookings || 0}</p>
-                    <span className="text-[10px] text-zinc-500 block mt-1">Paid bookings in range</span>
-                  </div>
-
-                  <div className="glassmorphic-card p-4 rounded-xl relative overflow-hidden">
-                    <span className="text-zinc-500 text-[10px] font-bold uppercase tracking-wider block mb-1">
-                      Total Revenue
-                    </span>
-                    <p className="text-2xl font-bold text-emerald-400">${(overviewData?.totalRevenue || 0).toFixed(2)}</p>
-                    <span className="text-[10px] text-zinc-500 block mt-1">Gross sales turnover</span>
-                  </div>
-
-                  <div className="glassmorphic-card p-4 rounded-xl relative overflow-hidden">
-                    <span className="text-zinc-500 text-[10px] font-bold uppercase tracking-wider block mb-1">
-                      New Patients
-                    </span>
-                    <p className="text-2xl font-bold text-purple-400">{overviewData?.newPatientsCount || 0}</p>
-                    <span className="text-[10px] text-zinc-500 block mt-1">User registrations</span>
-                  </div>
-                </div>
-
-                {/* Date preset selector */}
-                <div className="flex items-center justify-between bg-zinc-900/30 p-3 rounded-xl border border-zinc-800">
-                  <span className="text-xs text-zinc-400 font-semibold uppercase">Analytics Date Range</span>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => setDateRangePreset('7days')}
-                      className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                        dateRangePreset === '7days' ? 'bg-purple-600 text-white' : 'bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white'
-                      }`}
-                    >
-                      Last 7 Days
-                    </button>
-                    <button
-                      onClick={() => setDateRangePreset('30days')}
-                      className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                        dateRangePreset === '30days' ? 'bg-purple-600 text-white' : 'bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white'
-                      }`}
-                    >
-                      Last 30 Days
-                    </button>
-                    <button
-                      onClick={() => setDateRangePreset('thismonth')}
-                      className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                        dateRangePreset === 'thismonth' ? 'bg-purple-600 text-white' : 'bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white'
-                      }`}
-                    >
-                      This Month
-                    </button>
-                  </div>
-                </div>
-
-                {/* Recharts Area / Bar charts */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {/* Bookings Trend */}
-                  <div className="glassmorphic-card p-5 rounded-2xl space-y-4">
-                    <h4 className="text-sm font-bold text-zinc-200 uppercase tracking-wider flex items-center gap-1.5">
-                      <Activity size={14} className="text-purple-400" />
-                      <span>Bookings Over Time</span>
-                    </h4>
-                    <div className="h-64 w-full">
-                      {bookingsTrends.length === 0 ? (
-                        <div className="h-full flex items-center justify-center text-zinc-500 text-xs">No trend data available</div>
-                      ) : (
-                        <ResponsiveContainer width="100%" height="100%">
-                          <AreaChart data={bookingsTrends} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                            <defs>
-                              <linearGradient id="colorBookings" x1="0" y1="0" x2="0" y2="1">
-                                <stop offset="5%" stopColor="#a855f7" stopOpacity={0.4}/>
-                                <stop offset="95%" stopColor="#a855f7" stopOpacity={0.0}/>
-                              </linearGradient>
-                            </defs>
-                            <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
-                            <XAxis dataKey="date" stroke="#71717a" fontSize={10} />
-                            <YAxis stroke="#71717a" fontSize={10} allowDecimals={false} />
-                            <Tooltip contentStyle={{ backgroundColor: '#18181b', borderColor: '#27272a', borderRadius: 8, fontSize: 12, color: '#f4f4f5' }} />
-                            <Area type="monotone" dataKey="bookings" stroke="#a855f7" fillOpacity={1} fill="url(#colorBookings)" strokeWidth={2} />
-                          </AreaChart>
-                        </ResponsiveContainer>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Revenue Trend */}
-                  <div className="glassmorphic-card p-5 rounded-2xl space-y-4">
-                    <h4 className="text-sm font-bold text-zinc-200 uppercase tracking-wider flex items-center gap-1.5">
-                      <TrendingUp size={14} className="text-emerald-400" />
-                      <span>Revenue Growth ($)</span>
-                    </h4>
-                    <div className="h-64 w-full">
-                      {revenueTrends.length === 0 ? (
-                        <div className="h-full flex items-center justify-center text-zinc-500 text-xs">No trend data available</div>
-                      ) : (
-                        <ResponsiveContainer width="100%" height="100%">
-                          <BarChart data={revenueTrends} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
-                            <CartesianGrid strokeDasharray="3 3" stroke="#27272a" />
-                            <XAxis dataKey="date" stroke="#71717a" fontSize={10} />
-                            <YAxis stroke="#71717a" fontSize={10} />
-                            <Tooltip formatter={(value) => `$${value}`} contentStyle={{ backgroundColor: '#18181b', borderColor: '#27272a', borderRadius: 8, fontSize: 12, color: '#f4f4f5' }} />
-                            <Bar dataKey="revenue" fill="#10b981" radius={[4, 4, 0, 0]} />
-                          </BarChart>
-                        </ResponsiveContainer>
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Top Tests sales table/charts */}
-                <div className="glassmorphic-card p-5 rounded-2xl space-y-4">
-                  <h4 className="text-sm font-bold text-zinc-200 uppercase tracking-wider flex items-center gap-1.5">
-                    <FlaskConical size={14} className="text-purple-400" />
-                    <span>Top Booked Diagnostic Tests</span>
-                  </h4>
-                  {topTests.length === 0 ? (
-                    <p className="text-zinc-500 text-xs py-4 text-center">No catalog sales logged yet.</p>
-                  ) : (
-                    <div className="space-y-3.5">
-                      {topTests.map((t, idx) => (
-                        <div key={t.testId} className="space-y-1">
-                          <div className="flex justify-between text-xs font-semibold">
-                            <span className="text-zinc-300">{idx + 1}. {t.name}</span>
-                            <span className="text-purple-400">{t.bookingsCount} orders</span>
-                          </div>
-                          {/* Percentage bar display */}
-                          <div className="w-full bg-zinc-900 border border-zinc-850 h-2 rounded-full overflow-hidden">
-                            <div
-                              className="bg-gradient-to-r from-purple-500 to-pink-500 h-full rounded-full"
-                              style={{ width: `${Math.min((t.bookingsCount / (topTests[0]?.bookingsCount || 1)) * 100, 100)}%` }}
-                            ></div>
-                          </div>
+            {activeTab === 'overview' && (() => {
+              const totalBookings = overviewData?.totalBookings || 0;
+              const totalRevenue = overviewData?.totalRevenue || 0;
+              const newPatientsCount = overviewData?.newPatientsCount || 0;
+              const avgOrderValue = totalBookings > 0 ? totalRevenue / totalBookings : 0;
+              
+              return (
+                <>
+                  {/* Numeric Stats */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                    {/* Card 1: Total Bookings */}
+                    <div className="bg-white rounded-2xl p-5 border border-slate-100 hover:border-blue-500/20 shadow-xs hover:shadow-md transition-all duration-300 group relative">
+                      <div className="flex justify-between items-start">
+                        <div className="space-y-1">
+                          <span className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400 block">
+                            Total Bookings
+                          </span>
+                          <h3 className="text-2xl font-extrabold text-slate-800 tracking-tight">
+                            {totalBookings.toLocaleString()}
+                          </h3>
                         </div>
-                      ))}
+                        <div className="w-10 h-10 rounded-xl bg-blue-50 border border-blue-100/50 flex items-center justify-center text-blue-600 shadow-2xs group-hover:scale-105 transition-transform">
+                          <ClipboardList size={18} />
+                        </div>
+                      </div>
+                      <div className="mt-4 flex items-center gap-1.5 text-[10px] font-bold text-emerald-600 bg-emerald-50/50 px-2 py-0.5 rounded-full w-fit">
+                        <span className="w-1 h-1 rounded-full bg-emerald-500"></span>
+                        <span>+8.2% vs last month</span>
+                      </div>
                     </div>
-                  )}
-                </div>
-              </>
-            )}
+
+                    {/* Card 2: Total Revenue */}
+                    <div className="bg-white rounded-2xl p-5 border border-slate-100 hover:border-emerald-500/20 shadow-xs hover:shadow-md transition-all duration-300 group relative">
+                      <div className="flex justify-between items-start">
+                        <div className="space-y-1">
+                          <span className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400 block">
+                            Total Revenue
+                          </span>
+                          <h3 className="text-2xl font-extrabold text-slate-800 tracking-tight">
+                            ${totalRevenue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </h3>
+                        </div>
+                        <div className="w-10 h-10 rounded-xl bg-emerald-50 border border-emerald-100/50 flex items-center justify-center text-emerald-600 shadow-2xs group-hover:scale-105 transition-transform">
+                          <TrendingUp size={18} />
+                        </div>
+                      </div>
+                      <div className="mt-4 flex items-center gap-1.5 text-[10px] font-bold text-emerald-600 bg-emerald-50/50 px-2 py-0.5 rounded-full w-fit">
+                        <span className="w-1 h-1 rounded-full bg-emerald-500"></span>
+                        <span>+12.4% gross sales</span>
+                      </div>
+                    </div>
+
+                    {/* Card 3: New Patients */}
+                    <div className="bg-white rounded-2xl p-5 border border-slate-100 hover:border-purple-500/20 shadow-xs hover:shadow-md transition-all duration-300 group relative">
+                      <div className="flex justify-between items-start">
+                        <div className="space-y-1">
+                          <span className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400 block">
+                            New Patients
+                          </span>
+                          <h3 className="text-2xl font-extrabold text-slate-800 tracking-tight">
+                            {newPatientsCount.toLocaleString()}
+                          </h3>
+                        </div>
+                        <div className="w-10 h-10 rounded-xl bg-purple-50 border border-purple-100/50 flex items-center justify-center text-purple-650 shadow-2xs group-hover:scale-105 transition-transform">
+                          <UserPlus size={18} />
+                        </div>
+                      </div>
+                      <div className="mt-4 flex items-center gap-1.5 text-[10px] font-bold text-purple-600 bg-purple-50/50 px-2 py-0.5 rounded-full w-fit">
+                        <span className="w-1 h-1 rounded-full bg-purple-500"></span>
+                        <span>+5.1% signups</span>
+                      </div>
+                    </div>
+
+                    {/* Card 4: Average Order Value */}
+                    <div className="bg-white rounded-2xl p-5 border border-slate-100 hover:border-amber-500/20 shadow-xs hover:shadow-md transition-all duration-300 group relative">
+                      <div className="flex justify-between items-start">
+                        <div className="space-y-1">
+                          <span className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400 block">
+                            Average Order Value
+                          </span>
+                          <h3 className="text-2xl font-extrabold text-slate-800 tracking-tight">
+                            ${avgOrderValue.toFixed(2)}
+                          </h3>
+                        </div>
+                        <div className="w-10 h-10 rounded-xl bg-amber-50 border border-amber-100/50 flex items-center justify-center text-amber-600 shadow-2xs group-hover:scale-105 transition-transform">
+                          <FlaskConical size={18} />
+                        </div>
+                      </div>
+                      <div className="mt-4 flex items-center gap-1.5 text-[10px] font-bold text-amber-600 bg-amber-50/50 px-2 py-0.5 rounded-full w-fit">
+                        <span className="w-1 h-1 rounded-full bg-amber-500"></span>
+                        <span>AOV per paid booking</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Date preset selector */}
+                  <div className="flex items-center justify-between bg-slate-50/60 p-3.5 rounded-2xl border border-slate-100">
+                    <span className="text-xs text-slate-500 font-extrabold uppercase tracking-wider">Analytics Date Range</span>
+                    <div className="flex bg-slate-105 p-0.5 rounded-xl border border-slate-200/50">
+                      <button
+                        onClick={() => setDateRangePreset('7days')}
+                        className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all duration-200 cursor-pointer ${
+                          dateRangePreset === '7days'
+                            ? 'bg-white text-brand-600 shadow-xs'
+                            : 'text-slate-505 hover:text-slate-800'
+                        }`}
+                      >
+                        7 Days
+                      </button>
+                      <button
+                        onClick={() => setDateRangePreset('30days')}
+                        className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all duration-200 cursor-pointer ${
+                          dateRangePreset === '30days'
+                            ? 'bg-white text-brand-600 shadow-xs'
+                            : 'text-slate-550 hover:text-slate-800'
+                        }`}
+                      >
+                        30 Days
+                      </button>
+                      <button
+                        onClick={() => setDateRangePreset('thismonth')}
+                        className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all duration-200 cursor-pointer ${
+                          dateRangePreset === 'thismonth'
+                            ? 'bg-white text-brand-600 shadow-xs'
+                            : 'text-slate-550 hover:text-slate-800'
+                        }`}
+                      >
+                        This Month
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Recharts Area / Bar charts */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {/* Bookings Trend */}
+                    <div className="bg-white rounded-2xl p-5 border border-slate-100 shadow-xs space-y-4">
+                      <h4 className="text-xs font-extrabold text-slate-800 uppercase tracking-widest flex items-center gap-1.5">
+                        <Activity size={14} className="text-brand-500" />
+                        <span>Bookings Over Time</span>
+                      </h4>
+                      <div className="h-64 w-full">
+                        {bookingsTrends.length === 0 ? (
+                          <div className="h-full flex items-center justify-center text-slate-400 text-xs">No trend data available</div>
+                        ) : (
+                          <ResponsiveContainer width="100%" height="100%">
+                            <AreaChart data={bookingsTrends} margin={{ top: 10, right: 10, left: -25, bottom: 0 }}>
+                              <defs>
+                                <linearGradient id="colorBookings" x1="0" y1="0" x2="0" y2="1">
+                                  <stop offset="5%" stopColor="#2563eb" stopOpacity={0.25}/>
+                                  <stop offset="95%" stopColor="#2563eb" stopOpacity={0.0}/>
+                                </linearGradient>
+                              </defs>
+                              <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
+                              <XAxis dataKey="date" stroke="#94a3b8" fontSize={9} fontWeight={600} tickLine={false} axisLine={false} dy={10} />
+                              <YAxis stroke="#94a3b8" fontSize={9} fontWeight={600} tickLine={false} axisLine={false} allowDecimals={false} dx={-5} />
+                              <Tooltip content={<CustomTooltip />} />
+                              <Area type="monotone" name="bookings" dataKey="bookings" stroke="#2563eb" fillOpacity={1} fill="url(#colorBookings)" strokeWidth={2.5} />
+                            </AreaChart>
+                          </ResponsiveContainer>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Revenue Trend */}
+                    <div className="bg-white rounded-2xl p-5 border border-slate-100 shadow-xs space-y-4">
+                      <h4 className="text-xs font-extrabold text-slate-800 uppercase tracking-widest flex items-center gap-1.5">
+                        <TrendingUp size={14} className="text-emerald-500" />
+                        <span>Revenue Growth ($)</span>
+                      </h4>
+                      <div className="h-64 w-full">
+                        {revenueTrends.length === 0 ? (
+                          <div className="h-full flex items-center justify-center text-slate-400 text-xs">No trend data available</div>
+                        ) : (
+                          <ResponsiveContainer width="100%" height="100%">
+                            <BarChart data={revenueTrends} margin={{ top: 10, right: 10, left: -15, bottom: 0 }}>
+                              <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
+                              <XAxis dataKey="date" stroke="#94a3b8" fontSize={9} fontWeight={600} tickLine={false} axisLine={false} dy={10} />
+                              <YAxis stroke="#94a3b8" fontSize={9} fontWeight={600} tickLine={false} axisLine={false} dx={-5} />
+                              <Tooltip content={<CustomTooltip />} />
+                              <Bar name="revenue" dataKey="revenue" fill="#10b981" radius={[4, 4, 0, 0]} maxBarSize={30} />
+                            </BarChart>
+                          </ResponsiveContainer>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Lower grid: Status Pie Chart and Top booked tests */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {/* Status Pie Chart */}
+                    <div className="bg-white rounded-2xl p-5 border border-slate-100 shadow-xs space-y-4">
+                      <h4 className="text-xs font-extrabold text-slate-800 uppercase tracking-widest flex items-center gap-1.5">
+                        <Activity size={14} className="text-brand-500" />
+                        <span>Booking Status Distribution</span>
+                      </h4>
+                      <div className="flex flex-col sm:flex-row items-center justify-center gap-6 h-64">
+                        {!overviewData?.statusBreakdown || overviewData.statusBreakdown.length === 0 ? (
+                          <div className="text-slate-400 text-xs">No status data available</div>
+                        ) : (
+                          <>
+                            <div className="w-1/2 h-full min-h-[180px]">
+                              <ResponsiveContainer width="100%" height="100%">
+                                <PieChart>
+                                  <Pie
+                                    data={overviewData.statusBreakdown}
+                                    cx="50%"
+                                    cy="50%"
+                                    innerRadius={55}
+                                    outerRadius={75}
+                                    paddingAngle={3}
+                                    dataKey="count"
+                                    nameKey="status"
+                                  >
+                                    {overviewData.statusBreakdown.map((entry: any, index: number) => (
+                                      <Cell key={`cell-${index}`} fill={STATUS_COLORS[entry.status] || '#94a3b8'} />
+                                    ))}
+                                  </Pie>
+                                  <Tooltip
+                                    content={({ active, payload }: any) => {
+                                      if (active && payload && payload.length) {
+                                        const data = payload[0].payload;
+                                        return (
+                                          <div className="bg-white px-3 py-2 rounded-xl border border-slate-100 shadow-lg text-xs font-bold text-slate-700">
+                                            <span className="capitalize">{data.status.replace(/_/g, ' ')}</span>: {data.count} bookings
+                                          </div>
+                                        );
+                                      }
+                                      return null;
+                                    }}
+                                  />
+                                </PieChart>
+                              </ResponsiveContainer>
+                            </div>
+                            
+                            {/* Legend list */}
+                            <div className="flex-1 w-full max-h-[180px] overflow-y-auto space-y-1.5 pr-2">
+                              {overviewData.statusBreakdown.map((item: any, idx: number) => {
+                                const color = STATUS_COLORS[item.status] || '#94a3b8';
+                                return (
+                                  <div key={idx} className="flex items-center justify-between text-xs font-semibold">
+                                    <div className="flex items-center gap-2 truncate">
+                                      <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: color }} />
+                                      <span className="text-slate-500 capitalize truncate">{item.status.replace(/_/g, ' ')}</span>
+                                    </div>
+                                    <span className="text-slate-800 font-extrabold">{item.count}</span>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Top Booked Diagnostic Tests */}
+                    <div className="bg-white rounded-2xl p-5 border border-slate-100 shadow-xs space-y-4">
+                      <h4 className="text-xs font-extrabold text-slate-800 uppercase tracking-widest flex items-center gap-1.5">
+                        <FlaskConical size={14} className="text-brand-500" />
+                        <span>Top Booked Diagnostic Tests</span>
+                      </h4>
+                      {topTests.length === 0 ? (
+                        <p className="text-slate-400 text-xs py-4 text-center">No catalog sales logged yet.</p>
+                      ) : (
+                        <div className="space-y-4 max-h-[240px] overflow-y-auto pr-1">
+                          {topTests.slice(0, 5).map((t, idx) => {
+                            const maxCount = topTests[0]?.bookingsCount || 1;
+                            const pct = Math.min((t.bookingsCount / maxCount) * 100, 100);
+                            return (
+                              <div key={t.testId} className="flex items-center gap-3">
+                                {/* Rank badge */}
+                                <div className={`w-6 h-6 rounded-lg flex items-center justify-center font-extrabold text-[10px] shrink-0 ${
+                                  idx === 0 ? 'bg-amber-50 text-amber-600 border border-amber-105' :
+                                  idx === 1 ? 'bg-slate-100 text-slate-600 border border-slate-200' :
+                                  idx === 2 ? 'bg-orange-50 text-orange-600 border border-orange-100' :
+                                  'bg-slate-50 text-slate-400 border border-slate-100'
+                                }`}>
+                                  #{idx + 1}
+                                </div>
+                                <div className="flex-1 min-w-0 space-y-1">
+                                  <div className="flex justify-between text-xs font-bold">
+                                    <span className="text-slate-700 truncate">{t.name}</span>
+                                    <span className="text-slate-900 shrink-0 font-extrabold">{t.bookingsCount} orders</span>
+                                  </div>
+                                  <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
+                                    <div
+                                      className="bg-gradient-to-r from-brand-500 to-teal-500 h-full rounded-full"
+                                      style={{ width: `${pct}%` }}
+                                    ></div>
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </>
+              );
+            })()}
 
             {/* Bookings Queue Console Tab (Admin Control) */}
             {activeTab === 'bookings' && (
@@ -1108,6 +1297,7 @@ export const AdminDashboard: React.FC<{ defaultTab?: 'overview' | 'bookings' | '
                     >
                       <option value="">All Statuses</option>
                       <option value="pending_payment">Pending Payment</option>
+                      <option value="pending_manual_assignment">Pending Staff Assignment</option>
                       <option value="scheduled">Scheduled</option>
                       <option value="sample_collected">Sample Collected</option>
                       <option value="in_lab">In Lab</option>
