@@ -9,6 +9,7 @@
     "start": "node dist/server.js",
     "seed": "tsx src/seed.ts",
     "seed:prod": "tsx src/seed-prod.ts",
+    "migrate:shifts-tz": "tsx src/migrate-shifts-tz.ts",
     "test": "vitest run",
     "test:watch": "vitest"
   },

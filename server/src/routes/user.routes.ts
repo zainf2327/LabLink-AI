@@ -9,11 +9,12 @@ import {
   updateStaffRegions,
   createStaff,
   resetStaffPassword,
+  updateStaffShifts,
 } from '../controllers/user.controller.js';
 import { authenticate } from '../middleware/auth.middleware.js';
 import { authorize } from '../middleware/role.middleware.js';
 import { validate } from '../middleware/validate.middleware.js';
-import { updateStaffRegionsSchema, createStaffSchema } from '../utils/validators.js';
+import { updateStaffRegionsSchema, createStaffSchema, updateStaffShiftsSchema } from '../utils/validators.js';
 
 const router = Router();
 
@@ -26,6 +27,7 @@ router.post('/staff/:id/reset-password', authenticate, authorize('admin'), reset
 router.get('/', authenticate, authorize('admin'), getAllUsers);
 router.get('/:id', authenticate, authorize('admin'), getUserById);
 router.patch('/:id/regions', authenticate, authorize('admin'), validate(updateStaffRegionsSchema), updateStaffRegions);
+router.patch('/:id/shifts', authenticate, authorize('admin'), validate(updateStaffShiftsSchema), updateStaffShifts);
 router.patch('/:id', authenticate, authorize('admin'), updateUser);
 router.delete('/:id', authenticate, authorize('admin'), deactivateUser);
 

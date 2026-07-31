@@ -10,7 +10,7 @@ import Test from '../models/Test.model.js';
 import TestCategory from '../models/TestCategory.model.js';
 import SubscriptionPlan from '../models/SubscriptionPlan.model.js';
 import Subscription from '../models/Subscription.model.js';
-import { autoAssignStaff } from '../services/autoAssign.service.js';
+import { autoAssignStaff, checkShiftAvailability, getDayBoundsInTimezone } from '../services/autoAssign.service.js';
 
 async function waitForAssignment(bookingId: string): Promise<any> {
   for (let i = 0; i < 20; i++) {
@@ -370,5 +370,92 @@ describe('Auto-Assign Staff Integration Tests', () => {
 
     const postCancelBooking = await Booking.findById(manualBooking._id);
     expect(postCancelBooking!.status).toBe('cancelled');
+  });
+
+  it('Test 7: should evaluate getDayBoundsInTimezone correctly regardless of process.env.TZ', () => {
+    // Time 1: August 3rd, 2026 at 00:30 PKT (which is August 2nd, 19:30 UTC)
+    const earlyTime = new Date(Date.UTC(2026, 7, 2, 19, 30, 0));
+    
+    // Time 2: August 3rd, 2026 at 23:45 PKT (which is August 3rd, 18:45 UTC)
+    const lateTime = new Date(Date.UTC(2026, 7, 3, 18, 45, 0));
+
+    // Save original TZ
+    const originalTZ = process.env.TZ;
+
+    try {
+      for (const targetTZ of ['UTC', 'America/New_York', 'Europe/London']) {
+        process.env.TZ = targetTZ;
+
+        const boundsEarly = getDayBoundsInTimezone(earlyTime, 'Asia/Karachi');
+        const boundsLate = getDayBoundsInTimezone(lateTime, 'Asia/Karachi');
+
+        // Expected bounds (local day August 3rd):
+        // Start: 2026-08-03 00:00:00.000 PKT => 2026-08-02 19:00:00.000 UTC
+        // End: 2026-08-03 23:59:59.999 PKT => 2026-08-03 18:59:59.999 UTC
+        
+        expect(boundsEarly.start.toISOString()).toBe('2026-08-02T19:00:00.000Z');
+        expect(boundsEarly.end.toISOString()).toBe('2026-08-03T18:59:59.999Z');
+
+        expect(boundsLate.start.toISOString()).toBe('2026-08-02T19:00:00.000Z');
+        expect(boundsLate.end.toISOString()).toBe('2026-08-03T18:59:59.999Z');
+      }
+    } finally {
+      // Restore original TZ
+      if (originalTZ) {
+        process.env.TZ = originalTZ;
+      } else {
+        delete process.env.TZ;
+      }
+    }
+  });
+
+  it('Test 6: should evaluate checkShiftAvailability correctly regardless of process.env.TZ', () => {
+    // Staff member with shift in Asia/Karachi timezone
+    // Monday shift: 09:00 to 17:00 (9 AM to 5 PM PKT)
+    const mockStaff: any = {
+      shifts: [
+        { dayOfWeek: 1, startTime: '09:00', endTime: '17:00', timezone: 'Asia/Karachi' }
+      ]
+    };
+
+    // Monday booking at 4:00 PM PKT (which is 11:00 AM UTC)
+    // Date.UTC(2026, 7, 3, 11, 0, 0) => Monday, August 3rd, 2026 at 11:00 UTC
+    const bookingDate = new Date(Date.UTC(2026, 7, 3, 11, 0, 0));
+
+    // Save original TZ
+    const originalTZ = process.env.TZ;
+
+    try {
+      // Mock server to UTC
+      process.env.TZ = 'UTC';
+      const resUTC = checkShiftAvailability(mockStaff, bookingDate);
+
+      // Mock server to Los Angeles (PDT/PST)
+      process.env.TZ = 'America/Los_Angeles';
+      const resLA = checkShiftAvailability(mockStaff, bookingDate);
+
+      // Both should return true because 11:00 AM UTC is 4:00 PM PKT, which is within the 09:00-17:00 PKT shift
+      expect(resUTC).toBe(true);
+      expect(resLA).toBe(true);
+
+      // Test outside shift: Monday at 9:00 PM PKT (which is 4:00 PM UTC / 16:00 UTC)
+      const lateBooking = new Date(Date.UTC(2026, 7, 3, 16, 0, 0));
+
+      process.env.TZ = 'UTC';
+      const lateUTC = checkShiftAvailability(mockStaff, lateBooking);
+
+      process.env.TZ = 'America/Los_Angeles';
+      const lateLA = checkShiftAvailability(mockStaff, lateBooking);
+
+      expect(lateUTC).toBe(false);
+      expect(lateLA).toBe(false);
+    } finally {
+      // Restore original TZ
+      if (originalTZ) {
+        process.env.TZ = originalTZ;
+      } else {
+        delete process.env.TZ;
+      }
+    }
   });
 });

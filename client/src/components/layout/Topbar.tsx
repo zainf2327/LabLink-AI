@@ -1,14 +1,16 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { LogOut, User, ChevronDown, Lock, Bell, Menu } from 'lucide-react';
+import { LogOut, User, ChevronDown, Lock, Bell, Menu, X } from 'lucide-react';
 import useAuthStore from '../../store/useAuthStore';
+import Logo from '../Logo';
 
 interface TopbarProps {
   pageTitle: string;
+  isMobileSidebarOpen?: boolean;
   onToggleMobileSidebar?: () => void;
 }
 
-const Topbar: React.FC<TopbarProps> = ({ pageTitle, onToggleMobileSidebar }) => {
+const Topbar: React.FC<TopbarProps> = ({ pageTitle, isMobileSidebarOpen, onToggleMobileSidebar }) => {
   const { user, logout } = useAuthStore();
   const navigate = useNavigate();
   const [dropdownOpen, setDropdownOpen] = useState(false);
@@ -36,28 +38,34 @@ const Topbar: React.FC<TopbarProps> = ({ pageTitle, onToggleMobileSidebar }) => 
   };
 
   return (
-    <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-6 sticky top-0 z-40 shrink-0">
+    <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-3 md:px-6 sticky top-0 z-40 shrink-0">
       {/* Left section: Hamburger button for mobile + Page Title */}
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-1.5 md:gap-3 min-w-0">
         {onToggleMobileSidebar && (
           <button
             onClick={onToggleMobileSidebar}
-            className="md:hidden p-1.5 rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition-all cursor-pointer"
-            title="Menu"
+            className={`${user?.role === 'admin' ? 'lg:hidden' : 'md:hidden'} h-11 w-11 flex items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition-all cursor-pointer shrink-0`}
+            title={isMobileSidebarOpen ? "Close menu" : "Menu"}
+            aria-label={isMobileSidebarOpen ? "Close navigation drawer" : "Toggle navigation drawer"}
           >
-            <Menu size={20} />
+            {isMobileSidebarOpen ? <X size={20} /> : <Menu size={20} />}
           </button>
         )}
-        <div>
-          <h1 className="text-lg font-semibold text-slate-800 leading-tight">{pageTitle}</h1>
-          <p className="text-xs text-slate-400 leading-none mt-0.5 capitalize">{user?.role} Portal</p>
+        
+        <div className={`${user?.role === 'admin' ? 'lg:hidden' : 'md:hidden'} flex items-center shrink-0 ml-0.5`}>
+          <Logo size="sm" />
+        </div>
+
+        <div className="min-w-0">
+          <h1 className="text-sm sm:text-base md:text-lg font-semibold text-slate-800 leading-tight truncate max-w-[90px] xs:max-w-[130px] sm:max-w-none">{pageTitle}</h1>
+          <p className="text-xs text-slate-400 leading-none mt-0.5 capitalize md:block hidden">{user?.role} Portal</p>
         </div>
       </div>
 
       {/* Right Side Controls */}
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-2 md:gap-3 shrink-0">
         {/* Notification Bell (placeholder) */}
-        <button className="relative w-9 h-9 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-all duration-150">
+        <button className="relative w-11 h-11 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-all duration-150 cursor-pointer shrink-0">
           <Bell size={18} />
         </button>
 
@@ -65,19 +73,20 @@ const Topbar: React.FC<TopbarProps> = ({ pageTitle, onToggleMobileSidebar }) => 
         <div className="relative" ref={dropdownRef}>
           <button
             onClick={() => setDropdownOpen((v) => !v)}
-            className="flex items-center gap-2.5 pl-2 pr-3 py-1.5 rounded-xl border border-slate-200 hover:border-blue-300 hover:bg-blue-50/50 transition-all duration-150 group"
+            className="flex items-center gap-2.5 p-1.5 md:pl-2 md:pr-3 md:py-1.5 rounded-xl border border-slate-200 hover:border-blue-300 hover:bg-blue-50/50 transition-all duration-150 group h-11 w-11 md:h-auto md:w-auto justify-center cursor-pointer shrink-0"
+            aria-label="User profile options"
           >
             {/* Avatar circle with initials */}
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center shadow-sm">
+            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center shadow-sm shrink-0">
               <span className="text-xs font-bold text-white tracking-wide">{initials}</span>
             </div>
-            <div className="hidden sm:block text-left">
+            <div className="md:block hidden text-left">
               <p className="text-sm font-semibold text-slate-700 leading-tight truncate max-w-[120px]">{user?.name}</p>
               <p className="text-[10px] text-slate-400 leading-none capitalize">{user?.role}</p>
             </div>
             <ChevronDown
               size={14}
-              className={`text-slate-400 group-hover:text-blue-500 transition-transform duration-200 ${dropdownOpen ? 'rotate-180' : ''}`}
+              className={`text-slate-400 group-hover:text-blue-500 transition-transform duration-200 md:block hidden ${dropdownOpen ? 'rotate-180' : ''}`}
             />
           </button>
 

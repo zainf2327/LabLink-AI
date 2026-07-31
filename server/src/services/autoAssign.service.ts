@@ -5,6 +5,51 @@ import { calendarService } from './calendar.service.js';
 import { bookingService } from './booking.service.js';
 import logger from '../utils/logger.js';
 
+function getZonedInstant(year: number, month: number, day: number, hour: number, minute: number, second: number, ms: number, timezone: string): Date {
+  const utcDate = new Date(Date.UTC(year, month - 1, day, hour, minute, second, 0));
+  
+  const formatter = new Intl.DateTimeFormat('en-US', {
+    timeZone: timezone,
+    year: 'numeric',
+    month: 'numeric',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: 'numeric',
+    second: 'numeric',
+    hourCycle: 'h23',
+  });
+  
+  const getOffsetMs = (date: Date) => {
+    const parts = formatter.formatToParts(date);
+    const getVal = (type: string) => Number(parts.find((p) => p.type === type)?.value);
+    const localTime = Date.UTC(getVal('year'), getVal('month') - 1, getVal('day'), getVal('hour'), getVal('minute'), getVal('second'));
+    return localTime - date.getTime();
+  };
+
+  const offset = getOffsetMs(utcDate);
+  return new Date(utcDate.getTime() - offset + ms);
+}
+
+export function getDayBoundsInTimezone(date: Date, timezone: string): { start: Date; end: Date } {
+  const formatter = new Intl.DateTimeFormat('en-US', {
+    timeZone: timezone,
+    year: 'numeric',
+    month: 'numeric',
+    day: 'numeric',
+  });
+  const parts = formatter.formatToParts(date);
+  const getVal = (type: string) => Number(parts.find((p) => p.type === type)?.value);
+
+  const year = getVal('year');
+  const month = getVal('month');
+  const day = getVal('day');
+
+  return {
+    start: getZonedInstant(year, month, day, 0, 0, 0, 0, timezone),
+    end: getZonedInstant(year, month, day, 23, 59, 59, 999, timezone),
+  };
+}
+
 /**
  * Get typical travel buffer time between region zones.
  * - 20 minutes if the same region.
@@ -26,7 +71,34 @@ export function checkShiftAvailability(staff: IUser, scheduledAt: Date): boolean
     return false;
   }
 
-  const dayOfWeek = scheduledAt.getDay(); // 0 (Sunday) to 6 (Saturday)
+  // Resolve target timezone from the shifts list, fallback to Asia/Karachi
+  const timezone = staff.shifts[0]?.timezone || 'Asia/Karachi';
+
+  const formatter = new Intl.DateTimeFormat('en-US', {
+    timeZone: timezone,
+    year: 'numeric',
+    month: 'numeric',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: 'numeric',
+    second: 'numeric',
+    hourCycle: 'h23',
+  });
+
+  const parts = formatter.formatToParts(scheduledAt);
+  const getVal = (type: string) => Number(parts.find((p) => p.type === type)?.value);
+
+  const year = getVal('year');
+  const month = getVal('month');
+  const day = getVal('day');
+  const hour = getVal('hour');
+  const minute = getVal('minute');
+  const second = getVal('second');
+
+  // Build a UTC wall-clock date representation to extract timezone-independent values
+  const wallClockDate = new Date(Date.UTC(year, month - 1, day, hour, minute, second));
+  const dayOfWeek = wallClockDate.getUTCDay();
+
   const shift = staff.shifts.find((s) => s.dayOfWeek === dayOfWeek);
   if (!shift) {
     return false;
@@ -41,7 +113,7 @@ export function checkShiftAvailability(staff: IUser, scheduledAt: Date): boolean
   const shiftStartMinutes = parseTimeToMinutes(shift.startTime);
   const shiftEndMinutes = parseTimeToMinutes(shift.endTime);
 
-  const bookingStartMinutes = scheduledAt.getHours() * 60 + scheduledAt.getMinutes();
+  const bookingStartMinutes = wallClockDate.getUTCHours() * 60 + wallClockDate.getUTCMinutes();
   const bookingEndMinutes = bookingStartMinutes + 30; // 30 mins collection duration
 
   return bookingStartMinutes >= shiftStartMinutes && bookingEndMinutes <= shiftEndMinutes;
@@ -55,12 +127,10 @@ export async function checkDynamicTravelConflict(
   scheduledAt: Date,
   bookingRegion: string,
   currentBookingId: string | mongoose.Types.ObjectId,
+  timezone: string,
   session?: mongoose.ClientSession
 ): Promise<boolean> {
-  const startOfDay = new Date(scheduledAt);
-  startOfDay.setHours(0, 0, 0, 0);
-  const endOfDay = new Date(scheduledAt);
-  endOfDay.setHours(23, 59, 59, 999);
+  const { start: startOfDay, end: endOfDay } = getDayBoundsInTimezone(scheduledAt, timezone);
 
   // Find other active bookings for the staff member on the same day
   const query = {
@@ -134,11 +204,11 @@ export async function autoAssignStaff(bookingId: string): Promise<IUser | null> 
         return null;
       }
 
-      // Short-circuit if a staff member is already assigned (concurrency check)
-      if (booking.homeSampling.assignedStaffId) {
+      // Short-circuit if a staff member is already assigned or auto-assignment failed (concurrency check)
+      if (booking.homeSampling.assignedStaffId || booking.status === 'pending_manual_assignment') {
         await session.commitTransaction();
         session.endSession();
-        return await User.findById(booking.homeSampling.assignedStaffId);
+        return booking.homeSampling.assignedStaffId ? await User.findById(booking.homeSampling.assignedStaffId) : null;
       }
 
       // Query active staff users who cover the booking's region
@@ -156,6 +226,7 @@ export async function autoAssignStaff(bookingId: string): Promise<IUser | null> 
       const candidates: Array<{ staff: IUser; workload: number }> = [];
 
       for (const staff of staffMembers) {
+        const timezone = staff.shifts[0]?.timezone || 'Asia/Karachi';
         // 1. Shift check
         const shiftOk = checkShiftAvailability(staff, booking.homeSampling.scheduledAt);
         logger.debug(`[AutoAssign Debug] Staff: ${staff.name} (${staff.email}) | Shift check: ${shiftOk}`);
@@ -184,6 +255,7 @@ export async function autoAssignStaff(bookingId: string): Promise<IUser | null> 
           booking.homeSampling.scheduledAt,
           booking.homeSampling.region,
           booking._id,
+          timezone,
           session
         );
         logger.debug(`[AutoAssign Debug] Staff: ${staff.name} | Travel conflict check: ${travelConflict ? 'CONFLICT' : 'OK'}`);
@@ -213,10 +285,7 @@ export async function autoAssignStaff(bookingId: string): Promise<IUser | null> 
         }
 
         // 5. Calculate workload today
-        const startOfDay = new Date(booking.homeSampling.scheduledAt);
-        startOfDay.setHours(0, 0, 0, 0);
-        const endOfDay = new Date(booking.homeSampling.scheduledAt);
-        endOfDay.setHours(23, 59, 59, 999);
+        const { start: startOfDay, end: endOfDay } = getDayBoundsInTimezone(booking.homeSampling.scheduledAt, timezone);
 
         const workload = await Booking.countDocuments({
           'homeSampling.assignedStaffId': staff._id,

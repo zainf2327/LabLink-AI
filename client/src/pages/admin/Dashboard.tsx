@@ -25,9 +25,6 @@ import {
 import AppLayout from '../../components/layout/AppLayout';
 import {
   ShieldCheck,
-  Shield,
-  Settings,
-  LayoutGrid,
   Plus,
   Pencil,
   Trash2,
@@ -50,7 +47,8 @@ import {
   X,
   TrendingUp,
   Key,
-  ShieldAlert
+  ShieldAlert,
+  MoreVertical,
 } from 'lucide-react';
 
 export const AdminDashboard: React.FC<{ defaultTab?: 'overview' | 'bookings' | 'tests' | 'categories' | 'subscriptions' | 'regions' | 'staff' }> = ({
@@ -61,6 +59,7 @@ export const AdminDashboard: React.FC<{ defaultTab?: 'overview' | 'bookings' | '
   useEffect(() => {
     setActiveTab(defaultTab);
   }, [defaultTab]);
+
 
   // API States
   const [categories, setCategories] = useState<Category[]>([]);
@@ -169,6 +168,15 @@ export const AdminDashboard: React.FC<{ defaultTab?: 'overview' | 'bookings' | '
   const [selectedStaffForRegions, setSelectedStaffForRegions] = useState<StaffMember | null>(null);
   const [staffRegionsForm, setStaffRegionsForm] = useState<string[]>([]);
   const [staffRegionsModalError, setStaffRegionsModalError] = useState<string | null>(null);
+
+  const [isStaffShiftsModalOpen, setIsStaffShiftsModalOpen] = useState(false);
+  const [selectedStaffForShifts, setSelectedStaffForShifts] = useState<StaffMember | null>(null);
+  const [staffShiftsTimezone, setStaffShiftsTimezone] = useState('Asia/Karachi');
+  const [staffShiftsForm, setStaffShiftsForm] = useState<{ dayOfWeek: number; enabled: boolean; startTime: string; endTime: string }[]>([]);
+  const [staffShiftsModalError, setStaffShiftsModalError] = useState<string | null>(null);
+
+  // UI UX additional states and refs
+  const [openKebabId, setOpenKebabId] = useState<string | null>(null);
 
   const [allActiveRegions, setAllActiveRegions] = useState<Region[]>([]);
 
@@ -583,6 +591,57 @@ export const AdminDashboard: React.FC<{ defaultTab?: 'overview' | 'bookings' | '
     }
   };
 
+  // Open shifts modal and populate form
+  const openStaffShiftsModal = (member: StaffMember) => {
+    setSelectedStaffForShifts(member);
+    const tz = member.shifts?.[0]?.timezone || 'Asia/Karachi';
+    setStaffShiftsTimezone(tz);
+
+    const initialShifts = [];
+    const daysOrder = [1, 2, 3, 4, 5, 6, 0]; // Mon to Sun
+    for (const d of daysOrder) {
+      const existing = member.shifts?.find((s) => s.dayOfWeek === d);
+      initialShifts.push({
+        dayOfWeek: d,
+        enabled: !!existing,
+        startTime: existing?.startTime || '09:00',
+        endTime: existing?.endTime || '17:00',
+      });
+    }
+    setStaffShiftsForm(initialShifts);
+    setStaffShiftsModalError(null);
+    setIsStaffShiftsModalOpen(true);
+  };
+
+  // Submit shifts update
+  const handleStaffShiftsSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedStaffForShifts) return;
+    setStaffShiftsModalError(null);
+
+    const shiftsToSubmit = staffShiftsForm
+      .filter((s) => s.enabled)
+      .map((s) => ({
+        dayOfWeek: s.dayOfWeek,
+        startTime: s.startTime,
+        endTime: s.endTime,
+        timezone: staffShiftsTimezone,
+      }));
+
+    try {
+      const res = await staffService.updateStaffShifts(selectedStaffForShifts._id, shiftsToSubmit);
+      if (res.success) {
+        displaySuccess('Staff shifts updated successfully');
+        setIsStaffShiftsModalOpen(false);
+        setSelectedStaffForShifts(null);
+        fetchStaff();
+      }
+    } catch (err: any) {
+      console.error('Error updating staff shifts:', err);
+      setStaffShiftsModalError(err.response?.data?.message || 'Failed to update staff shifts');
+    }
+  };
+
   // Load initial catalog data
   useEffect(() => {
     fetchCategories();
@@ -850,6 +909,7 @@ export const AdminDashboard: React.FC<{ defaultTab?: 'overview' | 'bookings' | '
     }
   };
 
+
   return (
     <AppLayout pageTitle="Admin Dashboard">
       {/* Alert Banners */}
@@ -868,87 +928,6 @@ export const AdminDashboard: React.FC<{ defaultTab?: 'overview' | 'bookings' | '
 
       {/* Main Content */}
       <div className="p-6 flex flex-col gap-8">
-        
-        {/* Navigation Tabs */}
-        <div className="flex border-b border-zinc-850 gap-2 pb-px overflow-x-auto">
-          <button
-            onClick={() => setActiveTab('overview')}
-            className={`px-5 py-3 text-sm font-semibold border-b-2 transition-all flex items-center gap-2 cursor-pointer shrink-0 ${
-              activeTab === 'overview'
-                ? 'border-purple-500 text-purple-400'
-                : 'border-transparent text-zinc-400 hover:text-zinc-200'
-            }`}
-          >
-            <ShieldCheck size={18} />
-            <span>Console Overview</span>
-          </button>
-          <button
-            onClick={() => setActiveTab('bookings')}
-            className={`px-5 py-3 text-sm font-semibold border-b-2 transition-all flex items-center gap-2 cursor-pointer shrink-0 ${
-              activeTab === 'bookings'
-                ? 'border-purple-500 text-purple-400'
-                : 'border-transparent text-zinc-400 hover:text-zinc-200'
-            }`}
-          >
-            <ClipboardList size={18} />
-            <span>Bookings & Assignments</span>
-          </button>
-          <button
-            onClick={() => setActiveTab('tests')}
-            className={`px-5 py-3 text-sm font-semibold border-b-2 transition-all flex items-center gap-2 cursor-pointer shrink-0 ${
-              activeTab === 'tests'
-                ? 'border-purple-500 text-purple-400'
-                : 'border-transparent text-zinc-400 hover:text-zinc-200'
-            }`}
-          >
-            <LayoutGrid size={18} />
-            <span>Test Catalog</span>
-          </button>
-          <button
-            onClick={() => setActiveTab('categories')}
-            className={`px-5 py-3 text-sm font-semibold border-b-2 transition-all flex items-center gap-2 cursor-pointer shrink-0 ${
-              activeTab === 'categories'
-                ? 'border-purple-500 text-purple-400'
-                : 'border-transparent text-zinc-400 hover:text-zinc-200'
-            }`}
-          >
-            <Settings size={18} />
-            <span>Test Categories</span>
-          </button>
-          <button
-            onClick={() => setActiveTab('subscriptions')}
-            className={`px-5 py-3 text-sm font-semibold border-b-2 transition-all flex items-center gap-2 cursor-pointer shrink-0 ${
-              activeTab === 'subscriptions'
-                ? 'border-purple-500 text-purple-400'
-                : 'border-transparent text-zinc-400 hover:text-zinc-200'
-            }`}
-          >
-            <Shield size={18} />
-            <span>Subscriptions</span>
-          </button>
-          <button
-            onClick={() => setActiveTab('regions')}
-            className={`px-5 py-3 text-sm font-semibold border-b-2 transition-all flex items-center gap-2 cursor-pointer shrink-0 ${
-              activeTab === 'regions'
-                ? 'border-purple-500 text-purple-400'
-                : 'border-transparent text-zinc-400 hover:text-zinc-200'
-            }`}
-          >
-            <MapPin size={18} />
-            <span>Regions</span>
-          </button>
-          <button
-            onClick={() => setActiveTab('staff')}
-            className={`px-5 py-3 text-sm font-semibold border-b-2 transition-all flex items-center gap-2 cursor-pointer shrink-0 ${
-              activeTab === 'staff'
-                ? 'border-purple-500 text-purple-400'
-                : 'border-transparent text-zinc-400 hover:text-zinc-200'
-            }`}
-          >
-            <UserPlus size={18} />
-            <span>Staff Management</span>
-          </button>
-        </div>
 
         {/* Tab Contents */}
         <div className="space-y-8">
@@ -1370,23 +1349,85 @@ export const AdminDashboard: React.FC<{ defaultTab?: 'overview' | 'bookings' | '
                                   {test.isActive !== false ? 'Active' : 'Inactive'}
                                 </span>
                               </td>
-                              <td className="py-3.5 px-4 text-right space-x-1 shrink-0">
-                                <button
-                                  onClick={() => openEditTest(test)}
-                                  className="p-1.5 rounded-lg border border-zinc-800 hover:border-zinc-700 bg-zinc-900 text-zinc-400 hover:text-white transition-colors cursor-pointer"
-                                  title="Edit"
-                                >
-                                  <Pencil size={14} />
-                                </button>
-                                {test.isActive !== false && (
+                              <td className="py-3.5 px-4 text-right">
+                                {/* Inline Actions for Large Screens */}
+                                <div className="hidden lg:inline-flex items-center gap-1.5">
+                                  <div className="relative group">
+                                    <button
+                                      onClick={() => openEditTest(test)}
+                                      className="p-1.5 rounded-lg border border-zinc-800 hover:border-purple-200 bg-zinc-900 hover:bg-purple-50 text-zinc-400 hover:text-purple-600 transition-colors cursor-pointer inline-flex items-center justify-center"
+                                      aria-label="Edit test details"
+                                    >
+                                      <Pencil size={14} />
+                                    </button>
+                                    <span className="pointer-events-none absolute bottom-full mb-2 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity bg-zinc-900 border border-zinc-800 text-[10px] text-zinc-200 px-2 py-1 rounded whitespace-nowrap z-35 font-medium shadow-xl">
+                                      Edit test details
+                                    </span>
+                                  </div>
+                                  
+                                  {test.isActive !== false && (
+                                    <div className="relative group">
+                                      <button
+                                        onClick={() => handleTestDeactivate(test._id || '')}
+                                        className="p-1.5 rounded-lg border border-zinc-800 hover:border-red-900 bg-zinc-900 hover:bg-red-950 text-zinc-400 hover:text-red-400 transition-colors cursor-pointer inline-flex items-center justify-center"
+                                        aria-label="Deactivate test"
+                                      >
+                                        <ShieldX size={14} />
+                                      </button>
+                                      <span className="pointer-events-none absolute bottom-full mb-2 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity bg-zinc-900 border border-zinc-800 text-[10px] text-zinc-200 px-2 py-1 rounded whitespace-nowrap z-35 font-medium shadow-xl">
+                                        Deactivate test
+                                      </span>
+                                    </div>
+                                  )}
+                                </div>
+
+                                {/* Responsive Kebab Dropdown for Smaller Screens */}
+                                <div className={`lg:hidden inline-block relative text-left ${openKebabId === (test._id || '') ? 'z-30' : ''}`}>
                                   <button
-                                    onClick={() => handleTestDeactivate(test._id || '')}
-                                    className="p-1.5 rounded-lg border border-zinc-800 hover:border-red-900/40 bg-zinc-900 text-zinc-400 hover:text-red-400 transition-colors cursor-pointer"
-                                    title="Deactivate"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      const id = test._id || '';
+                                      setOpenKebabId(openKebabId === id ? null : id);
+                                    }}
+                                    className="p-1.5 rounded-lg border border-zinc-800 hover:border-zinc-700 bg-zinc-900 text-zinc-400 hover:text-white transition-colors cursor-pointer inline-flex items-center justify-center"
+                                    title="More Actions"
+                                    aria-label="More Actions"
+                                    aria-haspopup="true"
+                                    aria-expanded={openKebabId === (test._id || '')}
                                   >
-                                    <ShieldX size={14} />
+                                    <MoreVertical size={12} />
                                   </button>
-                                )}
+
+                                  {openKebabId === (test._id || '') && (
+                                    <>
+                                      <div className="fixed inset-0 z-30" onClick={() => setOpenKebabId(null)} />
+                                      <div className="absolute right-0 mt-1.5 w-64 rounded-xl border border-slate-200/80 bg-white shadow-2xl z-40 overflow-hidden font-medium py-1 text-left animate-fadeIn">
+                                        <button
+                                          onClick={() => {
+                                            setOpenKebabId(null);
+                                            openEditTest(test);
+                                          }}
+                                          className="flex items-center gap-2 w-full px-3 py-2 text-xs text-slate-700 hover:bg-slate-50 hover:text-purple-600 transition-colors"
+                                        >
+                                          <Pencil size={12} />
+                                          <span>Edit test details</span>
+                                        </button>
+                                        {test.isActive !== false && (
+                                          <button
+                                            onClick={() => {
+                                              setOpenKebabId(null);
+                                              handleTestDeactivate(test._id || '');
+                                            }}
+                                            className="flex items-center gap-2 w-full px-3 py-2 text-xs text-red-600 hover:bg-red-50 hover:text-red-700 transition-colors"
+                                          >
+                                            <ShieldX size={12} />
+                                            <span>Deactivate test</span>
+                                          </button>
+                                        )}
+                                      </div>
+                                    </>
+                                  )}
+                                </div>
                               </td>
                             </tr>
                           ))}
@@ -1419,22 +1460,50 @@ export const AdminDashboard: React.FC<{ defaultTab?: 'overview' | 'bookings' | '
                           <div className="flex justify-between items-center border-t border-zinc-850/40 pt-3">
                             <span className="font-bold text-emerald-400 text-sm">${test.price.toFixed(2)}</span>
                             
-                            <div className="flex gap-1.5">
+                            <div className={`inline-block relative text-left ${openKebabId === (test._id || '') ? 'z-30' : ''}`}>
                               <button
-                                onClick={() => openEditTest(test)}
-                                className="p-1.5 rounded-lg border border-zinc-800 bg-zinc-900 text-zinc-400 hover:text-white transition-colors cursor-pointer"
-                                title="Edit"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  const id = test._id || '';
+                                  setOpenKebabId(openKebabId === id ? null : id);
+                                }}
+                                className="p-1.5 rounded-lg border border-zinc-800 bg-zinc-900 text-zinc-400 hover:text-white transition-colors cursor-pointer inline-flex items-center justify-center"
+                                title="More Actions"
+                                aria-label="More Actions"
+                                aria-haspopup="true"
+                                aria-expanded={openKebabId === (test._id || '')}
                               >
-                                <Pencil size={14} />
+                                <MoreVertical size={14} />
                               </button>
-                              {test.isActive !== false && (
-                                <button
-                                  onClick={() => handleTestDeactivate(test._id || '')}
-                                  className="p-1.5 rounded-lg border border-zinc-800 bg-zinc-900 text-zinc-400 hover:text-red-400 transition-colors cursor-pointer"
-                                  title="Deactivate"
-                                >
-                                  <ShieldX size={14} />
-                                </button>
+
+                              {openKebabId === (test._id || '') && (
+                                <>
+                                  <div className="fixed inset-0 z-30" onClick={() => setOpenKebabId(null)} />
+                                  <div className="absolute right-0 bottom-full mb-1.5 w-64 rounded-xl border border-slate-200/80 bg-white shadow-2xl z-40 overflow-hidden font-medium py-1 text-left animate-fadeIn">
+                                    <button
+                                      onClick={() => {
+                                        setOpenKebabId(null);
+                                        openEditTest(test);
+                                      }}
+                                      className="flex items-center gap-2 w-full px-3 py-2 text-xs text-slate-700 hover:bg-slate-50 hover:text-purple-600 transition-colors"
+                                    >
+                                      <Pencil size={12} />
+                                      <span>Edit test details</span>
+                                    </button>
+                                    {test.isActive !== false && (
+                                      <button
+                                        onClick={() => {
+                                          setOpenKebabId(null);
+                                          handleTestDeactivate(test._id || '');
+                                        }}
+                                        className="flex items-center gap-2 w-full px-3 py-2 text-xs text-red-600 hover:bg-red-50 hover:text-red-700 transition-colors"
+                                      >
+                                        <ShieldX size={12} />
+                                        <span>Deactivate test</span>
+                                      </button>
+                                    )}
+                                  </div>
+                                </>
                               )}
                             </div>
                           </div>
@@ -1507,21 +1576,81 @@ export const AdminDashboard: React.FC<{ defaultTab?: 'overview' | 'bookings' | '
                             {cat.description || 'No description provided'}
                           </p>
                         </div>
-                        <div className="flex gap-1.5 shrink-0">
-                          <button
-                            onClick={() => openEditCategory(cat)}
-                            className="p-1.5 rounded-lg border border-zinc-800 hover:border-zinc-750 bg-zinc-900 text-zinc-400 hover:text-white transition-colors cursor-pointer"
-                            title="Edit"
-                          >
-                            <Pencil size={12} />
-                          </button>
-                          <button
-                            onClick={() => handleCategoryDelete(cat._id || '')}
-                            className="p-1.5 rounded-lg border border-zinc-800 hover:border-red-900/40 bg-zinc-900 text-zinc-400 hover:text-red-400 transition-colors cursor-pointer"
-                            title="Delete"
-                          >
-                            <Trash2 size={12} />
-                          </button>
+                        <div className="relative text-left shrink-0">
+                          {/* Desktop Inline Actions */}
+                          <div className="hidden sm:inline-flex items-center gap-1.5">
+                            <div className="relative group">
+                              <button
+                                onClick={() => openEditCategory(cat)}
+                                className="p-1.5 rounded-lg border border-zinc-800 hover:border-purple-200 bg-zinc-900 hover:bg-purple-50 text-zinc-400 hover:text-purple-600 transition-colors cursor-pointer inline-flex items-center justify-center"
+                                aria-label="Edit category"
+                              >
+                                <Pencil size={12} />
+                              </button>
+                              <span className="pointer-events-none absolute bottom-full mb-2 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity bg-zinc-900 border border-zinc-800 text-[10px] text-zinc-200 px-2 py-1 rounded whitespace-nowrap z-35 font-medium shadow-xl">
+                                Edit category
+                              </span>
+                            </div>
+                            
+                            <div className="relative group">
+                              <button
+                                onClick={() => handleCategoryDelete(cat._id || '')}
+                                className="p-1.5 rounded-lg border border-zinc-800 hover:border-red-900 bg-zinc-900 hover:bg-red-950 text-zinc-400 hover:text-red-400 transition-colors cursor-pointer inline-flex items-center justify-center"
+                                aria-label="Delete category"
+                              >
+                                <Trash2 size={12} />
+                              </button>
+                              <span className="pointer-events-none absolute bottom-full mb-2 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity bg-zinc-900 border border-zinc-800 text-[10px] text-zinc-200 px-2 py-1 rounded whitespace-nowrap z-35 font-medium shadow-xl">
+                                Delete category
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Mobile Kebab Dropdown */}
+                          <div className={`sm:hidden inline-block relative text-left ${openKebabId === (cat._id || '') ? 'z-30' : ''}`}>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                const id = cat._id || '';
+                                setOpenKebabId(openKebabId === id ? null : id);
+                              }}
+                              className="p-1.5 rounded-lg border border-zinc-800 hover:border-zinc-750 bg-zinc-900 text-zinc-400 hover:text-white transition-colors cursor-pointer inline-flex items-center justify-center"
+                              title="More Actions"
+                              aria-label="More Actions"
+                              aria-haspopup="true"
+                              aria-expanded={openKebabId === (cat._id || '')}
+                            >
+                              <MoreVertical size={12} />
+                            </button>
+
+                            {openKebabId === (cat._id || '') && (
+                              <>
+                                <div className="fixed inset-0 z-30" onClick={() => setOpenKebabId(null)} />
+                                <div className="absolute right-0 bottom-full mb-1.5 w-64 rounded-xl border border-slate-200/80 bg-white shadow-2xl z-40 overflow-hidden font-medium py-1 text-left animate-fadeIn">
+                                  <button
+                                    onClick={() => {
+                                      setOpenKebabId(null);
+                                      openEditCategory(cat);
+                                    }}
+                                    className="flex items-center gap-2 w-full px-3 py-2 text-xs text-slate-700 hover:bg-slate-50 hover:text-purple-600 transition-colors"
+                                  >
+                                    <Pencil size={12} />
+                                    <span>Edit category</span>
+                                  </button>
+                                  <button
+                                    onClick={() => {
+                                      setOpenKebabId(null);
+                                      handleCategoryDelete(cat._id || '');
+                                    }}
+                                    className="flex items-center gap-2 w-full px-3 py-2 text-xs text-red-600 hover:bg-red-50 hover:text-red-700 transition-colors"
+                                  >
+                                    <Trash2 size={12} />
+                                    <span>Delete category</span>
+                                  </button>
+                                </div>
+                              </>
+                            )}
+                          </div>
                         </div>
                       </div>
                     ))}
@@ -1593,32 +1722,100 @@ export const AdminDashboard: React.FC<{ defaultTab?: 'overview' | 'bookings' | '
                                     {plan.isActive ? 'Active' : 'Inactive'}
                                   </span>
                                 </td>
-                                <td className="py-3.5 px-4 text-right space-x-1">
-                                  <button
-                                    onClick={() => {
-                                      setEditingSubPlan(plan);
-                                      setSubPlanForm({
-                                        name: plan.name,
-                                        price: plan.price,
-                                        maxFamilyMembers: plan.maxFamilyMembers,
-                                        features: plan.features.length > 0 ? plan.features : [''],
-                                      });
-                                      setIsSubPlanModalOpen(true);
-                                    }}
-                                    className="p-1.5 rounded-lg border border-zinc-800 hover:border-zinc-700 bg-zinc-900 text-zinc-400 hover:text-white transition-colors cursor-pointer"
-                                    title="Edit"
-                                  >
-                                    <Pencil size={12} />
-                                  </button>
-                                  {plan.isActive && (
+                                <td className="py-3.5 px-4 text-right">
+                                  {/* Inline Actions for Large Screens */}
+                                  <div className="hidden lg:inline-flex items-center gap-1.5">
+                                    <div className="relative group">
+                                      <button
+                                        onClick={() => {
+                                          setEditingSubPlan(plan);
+                                          setSubPlanForm({
+                                            name: plan.name,
+                                            price: plan.price,
+                                            maxFamilyMembers: plan.maxFamilyMembers,
+                                            features: plan.features.length > 0 ? plan.features : [''],
+                                          });
+                                          setIsSubPlanModalOpen(true);
+                                        }}
+                                        className="p-1.5 rounded-lg border border-zinc-800 hover:border-purple-200 bg-zinc-900 hover:bg-purple-50 text-zinc-400 hover:text-purple-600 transition-colors cursor-pointer inline-flex items-center justify-center"
+                                        aria-label="Edit subscription plan"
+                                      >
+                                        <Pencil size={12} />
+                                      </button>
+                                      <span className="pointer-events-none absolute bottom-full mb-2 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity bg-zinc-900 border border-zinc-800 text-[10px] text-zinc-200 px-2 py-1 rounded whitespace-nowrap z-35 font-medium shadow-xl">
+                                        Edit subscription plan
+                                      </span>
+                                    </div>
+                                    
+                                    {plan.isActive && (
+                                      <div className="relative group">
+                                        <button
+                                          onClick={() => handleSubPlanDeactivate(plan._id)}
+                                          className="p-1.5 rounded-lg border border-zinc-800 hover:border-red-900 bg-zinc-900 hover:bg-red-950 text-zinc-400 hover:text-red-400 transition-colors cursor-pointer inline-flex items-center justify-center"
+                                          aria-label="Deactivate subscription plan"
+                                        >
+                                          <ShieldX size={12} />
+                                        </button>
+                                        <span className="pointer-events-none absolute bottom-full mb-2 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity bg-zinc-900 border border-zinc-800 text-[10px] text-zinc-200 px-2 py-1 rounded whitespace-nowrap z-35 font-medium shadow-xl">
+                                          Deactivate subscription plan
+                                        </span>
+                                      </div>
+                                    )}
+                                  </div>
+
+                                  {/* Responsive Kebab Dropdown for Smaller Screens */}
+                                  <div className={`lg:hidden inline-block relative text-left ${openKebabId === plan._id ? 'z-30' : ''}`}>
                                     <button
-                                      onClick={() => handleSubPlanDeactivate(plan._id)}
-                                      className="p-1.5 rounded-lg border border-zinc-800 hover:border-red-900/40 bg-zinc-900 text-zinc-400 hover:text-red-400 transition-colors cursor-pointer"
-                                      title="Deactivate"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setOpenKebabId(openKebabId === plan._id ? null : plan._id);
+                                      }}
+                                      className="p-1.5 rounded-lg border border-zinc-800 hover:border-zinc-700 bg-zinc-900 text-zinc-400 hover:text-white transition-colors cursor-pointer inline-flex items-center justify-center"
+                                      title="More Actions"
+                                      aria-label="More Actions"
+                                      aria-haspopup="true"
+                                      aria-expanded={openKebabId === plan._id}
                                     >
-                                      <ShieldX size={12} />
+                                      <MoreVertical size={12} />
                                     </button>
-                                  )}
+
+                                    {openKebabId === plan._id && (
+                                      <>
+                                        <div className="fixed inset-0 z-30" onClick={() => setOpenKebabId(null)} />
+                                        <div className="absolute right-0 mt-1.5 w-64 rounded-xl border border-slate-200/80 bg-white shadow-2xl z-40 overflow-hidden font-medium py-1 text-left animate-fadeIn">
+                                          <button
+                                            onClick={() => {
+                                              setOpenKebabId(null);
+                                              setEditingSubPlan(plan);
+                                              setSubPlanForm({
+                                                name: plan.name,
+                                                price: plan.price,
+                                                maxFamilyMembers: plan.maxFamilyMembers,
+                                                features: plan.features.length > 0 ? plan.features : [''],
+                                              });
+                                              setIsSubPlanModalOpen(true);
+                                            }}
+                                            className="flex items-center gap-2 w-full px-3 py-2 text-xs text-slate-700 hover:bg-slate-50 hover:text-purple-600 transition-colors"
+                                          >
+                                            <Pencil size={12} />
+                                            <span>Edit subscription plan</span>
+                                          </button>
+                                          {plan.isActive && (
+                                            <button
+                                              onClick={() => {
+                                                setOpenKebabId(null);
+                                                handleSubPlanDeactivate(plan._id);
+                                              }}
+                                              className="flex items-center gap-2 w-full px-3 py-2 text-xs text-red-600 hover:bg-red-50 hover:text-red-700 transition-colors"
+                                            >
+                                              <ShieldX size={12} />
+                                              <span>Deactivate subscription plan</span>
+                                            </button>
+                                          )}
+                                        </div>
+                                      </>
+                                    )}
+                                  </div>
                                 </td>
                               </tr>
                             ))}
@@ -1658,33 +1855,58 @@ export const AdminDashboard: React.FC<{ defaultTab?: 'overview' | 'bookings' | '
                             <div className="flex justify-between items-center border-t border-zinc-850/40 pt-3">
                               <span className="font-bold text-emerald-400 text-sm">${plan.price.toFixed(2)}/mo</span>
                               
-                              <div className="flex gap-1.5">
-                                <button
-                                  onClick={() => {
-                                    setEditingSubPlan(plan);
-                                    setSubPlanForm({
-                                      name: plan.name,
-                                      price: plan.price,
-                                      maxFamilyMembers: plan.maxFamilyMembers,
-                                      features: plan.features.length > 0 ? plan.features : [''],
-                                    });
-                                    setIsSubPlanModalOpen(true);
-                                  }}
-                                  className="p-1.5 rounded-lg border border-zinc-800 bg-zinc-900 text-zinc-400 hover:text-white transition-colors cursor-pointer"
-                                  title="Edit"
-                                >
-                                  <Pencil size={12} />
-                                </button>
-                                {plan.isActive && (
-                                  <button
-                                    onClick={() => handleSubPlanDeactivate(plan._id)}
-                                    className="p-1.5 rounded-lg border border-zinc-800 bg-zinc-900 text-zinc-400 hover:text-red-400 transition-colors cursor-pointer"
-                                    title="Deactivate"
-                                  >
-                                    <ShieldX size={12} />
-                                  </button>
-                                )}
-                              </div>
+                            <div className={`inline-block relative text-left ${openKebabId === plan._id ? 'z-30' : ''}`}>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setOpenKebabId(openKebabId === plan._id ? null : plan._id);
+                                }}
+                                className="p-1.5 rounded-lg border border-zinc-800 bg-zinc-900 text-zinc-400 hover:text-white transition-colors cursor-pointer inline-flex items-center justify-center"
+                                title="More Actions"
+                                aria-label="More Actions"
+                                aria-haspopup="true"
+                                aria-expanded={openKebabId === plan._id}
+                              >
+                                <MoreVertical size={14} />
+                              </button>
+
+                              {openKebabId === plan._id && (
+                                <>
+                                  <div className="fixed inset-0 z-30" onClick={() => setOpenKebabId(null)} />
+                                  <div className="absolute right-0 bottom-full mb-1.5 w-64 rounded-xl border border-slate-200/80 bg-white shadow-2xl z-40 overflow-hidden font-medium py-1 text-left animate-fadeIn">
+                                    <button
+                                      onClick={() => {
+                                        setOpenKebabId(null);
+                                        setEditingSubPlan(plan);
+                                        setSubPlanForm({
+                                          name: plan.name,
+                                          price: plan.price,
+                                          maxFamilyMembers: plan.maxFamilyMembers,
+                                          features: plan.features.length > 0 ? plan.features : [''],
+                                        });
+                                        setIsSubPlanModalOpen(true);
+                                      }}
+                                      className="flex items-center gap-2 w-full px-3 py-2 text-xs text-slate-700 hover:bg-slate-50 hover:text-purple-600 transition-colors"
+                                    >
+                                      <Pencil size={12} />
+                                      <span>Edit subscription plan</span>
+                                    </button>
+                                    {plan.isActive && (
+                                      <button
+                                        onClick={() => {
+                                          setOpenKebabId(null);
+                                          handleSubPlanDeactivate(plan._id);
+                                        }}
+                                        className="flex items-center gap-2 w-full px-3 py-2 text-xs text-red-600 hover:bg-red-50 hover:text-red-700 transition-colors"
+                                      >
+                                        <ShieldX size={12} />
+                                        <span>Deactivate subscription plan</span>
+                                      </button>
+                                    )}
+                                  </div>
+                                </>
+                              )}
+                            </div>
                             </div>
                           </div>
                         ))}
@@ -1916,33 +2138,102 @@ export const AdminDashboard: React.FC<{ defaultTab?: 'overview' | 'bookings' | '
                                   {reg.isActive ? 'Active' : 'Inactive'}
                                 </span>
                               </td>
-                              <td className="py-3.5 px-4 text-right space-x-1">
-                                <button
-                                  onClick={() => {
-                                    setEditingRegion(reg);
-                                    setRegionForm({
-                                      city: reg.city,
-                                      name: reg.name,
-                                      country: reg.country,
-                                      isActive: reg.isActive,
-                                    });
-                                    setRegionModalError(null);
-                                    setIsRegionModalOpen(true);
-                                  }}
-                                  className="p-1.5 rounded-lg border border-zinc-800 hover:border-zinc-700 bg-zinc-900 text-zinc-400 hover:text-white transition-colors cursor-pointer"
-                                  title="Edit"
-                                >
-                                  <Pencil size={12} />
-                                </button>
-                                {reg.isActive && (
+                              <td className="py-3.5 px-4 text-right">
+                                {/* Inline Actions for Large Screens */}
+                                <div className="hidden lg:inline-flex items-center gap-1.5">
+                                  <div className="relative group">
+                                    <button
+                                      onClick={() => {
+                                        setEditingRegion(reg);
+                                        setRegionForm({
+                                          city: reg.city,
+                                          name: reg.name,
+                                          country: reg.country,
+                                          isActive: reg.isActive,
+                                        });
+                                        setRegionModalError(null);
+                                        setIsRegionModalOpen(true);
+                                      }}
+                                      className="p-1.5 rounded-lg border border-zinc-800 hover:border-purple-200 bg-zinc-900 hover:bg-purple-50 text-zinc-400 hover:text-purple-600 transition-colors cursor-pointer inline-flex items-center justify-center"
+                                      aria-label="Edit sampling region"
+                                    >
+                                      <Pencil size={12} />
+                                    </button>
+                                    <span className="pointer-events-none absolute bottom-full mb-2 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity bg-zinc-900 border border-zinc-800 text-[10px] text-zinc-200 px-2 py-1 rounded whitespace-nowrap z-35 font-medium shadow-xl">
+                                      Edit sampling region
+                                    </span>
+                                  </div>
+                                  
+                                  {reg.isActive && (
+                                    <div className="relative group">
+                                      <button
+                                        onClick={() => handleRegionDeactivate(reg._id)}
+                                        className="p-1.5 rounded-lg border border-zinc-800 hover:border-red-900 bg-zinc-900 hover:bg-red-950 text-zinc-400 hover:text-red-400 transition-colors cursor-pointer inline-flex items-center justify-center"
+                                        aria-label="Deactivate sampling region"
+                                      >
+                                        <ShieldX size={12} />
+                                      </button>
+                                      <span className="pointer-events-none absolute bottom-full mb-2 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity bg-zinc-900 border border-zinc-800 text-[10px] text-zinc-200 px-2 py-1 rounded whitespace-nowrap z-35 font-medium shadow-xl">
+                                        Deactivate sampling region
+                                      </span>
+                                    </div>
+                                  )}
+                                </div>
+
+                                {/* Responsive Kebab Dropdown for Smaller Screens */}
+                                <div className={`lg:hidden inline-block relative text-left ${openKebabId === reg._id ? 'z-30' : ''}`}>
                                   <button
-                                    onClick={() => handleRegionDeactivate(reg._id)}
-                                    className="p-1.5 rounded-lg border border-zinc-800 hover:border-red-900/40 bg-zinc-900 text-zinc-400 hover:text-red-400 transition-colors cursor-pointer"
-                                    title="Deactivate"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setOpenKebabId(openKebabId === reg._id ? null : reg._id);
+                                    }}
+                                    className="p-1.5 rounded-lg border border-zinc-800 hover:border-zinc-700 bg-zinc-900 text-zinc-400 hover:text-white transition-colors cursor-pointer inline-flex items-center justify-center"
+                                    title="More Actions"
+                                    aria-label="More Actions"
+                                    aria-haspopup="true"
+                                    aria-expanded={openKebabId === reg._id}
                                   >
-                                    <ShieldX size={12} />
+                                    <MoreVertical size={12} />
                                   </button>
-                                )}
+
+                                  {openKebabId === reg._id && (
+                                    <>
+                                      <div className="fixed inset-0 z-30" onClick={() => setOpenKebabId(null)} />
+                                      <div className="absolute right-0 mt-1.5 w-64 rounded-xl border border-slate-200/80 bg-white shadow-2xl z-40 overflow-hidden font-medium py-1 text-left animate-fadeIn">
+                                        <button
+                                          onClick={() => {
+                                            setOpenKebabId(null);
+                                            setEditingRegion(reg);
+                                            setRegionForm({
+                                              city: reg.city,
+                                              name: reg.name,
+                                              country: reg.country,
+                                              isActive: reg.isActive,
+                                            });
+                                            setRegionModalError(null);
+                                            setIsRegionModalOpen(true);
+                                          }}
+                                          className="flex items-center gap-2 w-full px-3 py-2 text-xs text-slate-700 hover:bg-slate-50 hover:text-purple-600 transition-colors"
+                                        >
+                                          <Pencil size={12} />
+                                          <span>Edit sampling region</span>
+                                        </button>
+                                        {reg.isActive && (
+                                          <button
+                                            onClick={() => {
+                                              setOpenKebabId(null);
+                                              handleRegionDeactivate(reg._id);
+                                            }}
+                                            className="flex items-center gap-2 w-full px-3 py-2 text-xs text-red-600 hover:bg-red-50 hover:text-red-700 transition-colors"
+                                          >
+                                            <ShieldX size={12} />
+                                            <span>Deactivate sampling region</span>
+                                          </button>
+                                        )}
+                                      </div>
+                                    </>
+                                  )}
+                                </div>
                               </td>
                             </tr>
                           ))}
@@ -1973,32 +2264,57 @@ export const AdminDashboard: React.FC<{ defaultTab?: 'overview' | 'bookings' | '
                               {reg.city}, {reg.country}
                             </div>
                             
-                            <div className="flex gap-1.5">
+                            <div className={`inline-block relative text-left ${openKebabId === reg._id ? 'z-30' : ''}`}>
                               <button
-                                  onClick={() => {
-                                    setEditingRegion(reg);
-                                    setRegionForm({
-                                      city: reg.city,
-                                      name: reg.name,
-                                      country: reg.country,
-                                      isActive: reg.isActive,
-                                    });
-                                    setRegionModalError(null);
-                                    setIsRegionModalOpen(true);
-                                  }}
-                                className="p-1.5 rounded-lg border border-zinc-800 bg-zinc-900 text-zinc-400 hover:text-white transition-colors cursor-pointer"
-                                title="Edit"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setOpenKebabId(openKebabId === reg._id ? null : reg._id);
+                                }}
+                                className="p-1.5 rounded-lg border border-zinc-800 bg-zinc-900 text-zinc-400 hover:text-white transition-colors cursor-pointer inline-flex items-center justify-center"
+                                title="More Actions"
+                                aria-label="More Actions"
+                                aria-haspopup="true"
+                                aria-expanded={openKebabId === reg._id}
                               >
-                                <Pencil size={12} />
+                                <MoreVertical size={14} />
                               </button>
-                              {reg.isActive && (
-                                <button
-                                  onClick={() => handleRegionDeactivate(reg._id)}
-                                  className="p-1.5 rounded-lg border border-zinc-800 bg-zinc-900 text-zinc-400 hover:text-red-400 transition-colors cursor-pointer"
-                                  title="Deactivate"
-                                >
-                                  <ShieldX size={12} />
-                                </button>
+
+                              {openKebabId === reg._id && (
+                                <>
+                                  <div className="fixed inset-0 z-30" onClick={() => setOpenKebabId(null)} />
+                                  <div className="absolute right-0 bottom-full mb-1.5 w-64 rounded-xl border border-slate-200/80 bg-white shadow-2xl z-40 overflow-hidden font-medium py-1 text-left animate-fadeIn">
+                                    <button
+                                      onClick={() => {
+                                        setOpenKebabId(null);
+                                        setEditingRegion(reg);
+                                        setRegionForm({
+                                          city: reg.city,
+                                          name: reg.name,
+                                          country: reg.country,
+                                          isActive: reg.isActive,
+                                        });
+                                        setRegionModalError(null);
+                                        setIsRegionModalOpen(true);
+                                      }}
+                                      className="flex items-center gap-2 w-full px-3 py-2 text-xs text-slate-700 hover:bg-slate-50 hover:text-purple-600 transition-colors"
+                                    >
+                                      <Pencil size={12} />
+                                      <span>Edit sampling region</span>
+                                    </button>
+                                    {reg.isActive && (
+                                      <button
+                                        onClick={() => {
+                                          setOpenKebabId(null);
+                                          handleRegionDeactivate(reg._id);
+                                        }}
+                                        className="flex items-center gap-2 w-full px-3 py-2 text-xs text-red-600 hover:bg-red-50 hover:text-red-700 transition-colors"
+                                      >
+                                        <ShieldX size={12} />
+                                        <span>Deactivate sampling region</span>
+                                      </button>
+                                    )}
+                                  </div>
+                                </>
                               )}
                             </div>
                           </div>
@@ -2104,39 +2420,150 @@ export const AdminDashboard: React.FC<{ defaultTab?: 'overview' | 'bookings' | '
                                   {member.isActive ? 'Active' : 'Inactive'}
                                 </span>
                               </td>
-                              <td className="py-3.5 px-4 text-right space-x-1">
-                                {member.isActive && (
+                              <td className="py-3.5 px-4 text-right">
+                                {/* Inline Actions for Large Screens */}
+                                <div className="hidden lg:inline-flex items-center gap-1.5">
+                                  {member.isActive && (
+                                    <div className="relative group">
+                                      <button
+                                        onClick={() => {
+                                          setSelectedStaffForRegions(member);
+                                          setStaffRegionsForm(member.assignedRegions);
+                                          setStaffRegionsModalError(null);
+                                          setIsStaffRegionsModalOpen(true);
+                                        }}
+                                        className="p-1.5 rounded-lg border border-zinc-800 hover:border-purple-200 bg-zinc-900 hover:bg-purple-50 text-zinc-400 hover:text-purple-600 transition-colors cursor-pointer inline-flex items-center justify-center"
+                                        aria-label="Manage assigned regions"
+                                      >
+                                        <MapPin size={12} />
+                                      </button>
+                                      <span className="pointer-events-none absolute bottom-full mb-2 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity bg-zinc-900 border border-zinc-800 text-[10px] text-zinc-200 px-2 py-1 rounded whitespace-nowrap z-35 font-medium shadow-xl">
+                                        Manage assigned regions
+                                      </span>
+                                    </div>
+                                  )}
+                                  
+                                  {member.isActive && (
+                                    <div className="relative group">
+                                      <button
+                                        onClick={() => openStaffShiftsModal(member)}
+                                        className="p-1.5 rounded-lg border border-zinc-800 hover:border-purple-200 bg-zinc-900 hover:bg-purple-50 text-zinc-400 hover:text-purple-600 transition-colors cursor-pointer inline-flex items-center justify-center"
+                                        aria-label="Edit shift schedule"
+                                      >
+                                        <Clock size={12} />
+                                      </button>
+                                      <span className="pointer-events-none absolute bottom-full mb-2 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity bg-zinc-900 border border-zinc-800 text-[10px] text-zinc-200 px-2 py-1 rounded whitespace-nowrap z-35 font-medium shadow-xl">
+                                        Edit shift schedule
+                                      </span>
+                                    </div>
+                                  )}
+
+                                  <div className="relative group">
+                                    <button
+                                      onClick={() => handleStaffPasswordReset(member._id, member.name)}
+                                      className="p-1.5 rounded-lg border border-zinc-800 hover:border-purple-200 bg-zinc-900 hover:bg-purple-50 text-zinc-400 hover:text-purple-600 transition-colors cursor-pointer inline-flex items-center justify-center"
+                                      aria-label="Reset password"
+                                    >
+                                      <Key size={12} />
+                                    </button>
+                                    <span className="pointer-events-none absolute bottom-full mb-2 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity bg-zinc-900 border border-zinc-800 text-[10px] text-zinc-200 px-2 py-1 rounded whitespace-nowrap z-35 font-medium shadow-xl">
+                                      Reset password
+                                    </span>
+                                  </div>
+
+                                  <div className="relative group">
+                                    <button
+                                      onClick={() => handleStaffStatusToggle(member._id, member.isActive)}
+                                      className={`p-1.5 rounded-lg border transition-colors cursor-pointer inline-flex items-center justify-center ${
+                                        member.isActive
+                                          ? 'border-zinc-800 hover:border-red-900 bg-zinc-900 hover:bg-red-950 text-zinc-400 hover:text-red-400'
+                                          : 'border-zinc-800 hover:border-emerald-200 bg-zinc-900 hover:bg-emerald-50 text-zinc-400 hover:text-emerald-500'
+                                      }`}
+                                      aria-label={member.isActive ? "Deactivate staff member" : "Activate staff member"}
+                                    >
+                                      {member.isActive ? <ShieldAlert size={12} /> : <ShieldCheck size={12} />}
+                                    </button>
+                                    <span className="pointer-events-none absolute bottom-full mb-2 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity bg-zinc-900 border border-zinc-800 text-[10px] text-zinc-200 px-2 py-1 rounded whitespace-nowrap z-35 font-medium shadow-xl">
+                                      {member.isActive ? "Deactivate staff" : "Activate staff"}
+                                    </span>
+                                  </div>
+                                </div>
+
+                                {/* Responsive Kebab Dropdown for Smaller Screens */}
+                                <div className={`lg:hidden inline-block relative text-left ${openKebabId === member._id ? 'z-30' : ''}`}>
                                   <button
-                                    onClick={() => {
-                                      setSelectedStaffForRegions(member);
-                                      setStaffRegionsForm(member.assignedRegions);
-                                      setStaffRegionsModalError(null);
-                                      setIsStaffRegionsModalOpen(true);
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setOpenKebabId(openKebabId === member._id ? null : member._id);
                                     }}
-                                    className="p-1.5 rounded-lg border border-zinc-800 hover:border-zinc-700 bg-zinc-900 text-zinc-400 hover:text-purple-450 transition-colors cursor-pointer inline-flex items-center justify-center"
-                                    title="Assign Regions"
+                                    className="p-1.5 rounded-lg border border-zinc-800 hover:border-zinc-700 bg-zinc-900 text-zinc-400 hover:text-white transition-colors cursor-pointer inline-flex items-center justify-center"
+                                    title="More Actions"
+                                    aria-label="More Actions"
+                                    aria-haspopup="true"
+                                    aria-expanded={openKebabId === member._id}
                                   >
-                                    <MapPin size={12} />
+                                    <MoreVertical size={12} />
                                   </button>
-                                )}
-                                <button
-                                  onClick={() => handleStaffPasswordReset(member._id, member.name)}
-                                  className="p-1.5 rounded-lg border border-zinc-800 hover:border-zinc-700 bg-zinc-900 text-zinc-400 hover:text-white transition-colors cursor-pointer inline-flex items-center justify-center"
-                                  title="Reset Password"
-                                >
-                                  <Key size={12} />
-                                </button>
-                                <button
-                                  onClick={() => handleStaffStatusToggle(member._id, member.isActive)}
-                                  className={`p-1.5 rounded-lg border transition-colors cursor-pointer inline-flex items-center justify-center ${
-                                    member.isActive
-                                      ? 'border-zinc-800 hover:border-red-950/40 bg-zinc-900 text-zinc-400 hover:text-red-400'
-                                      : 'border-zinc-800 hover:border-emerald-950/40 bg-zinc-900 text-zinc-400 hover:text-emerald-400'
-                                  }`}
-                                  title={member.isActive ? 'Deactivate' : 'Activate'}
-                                >
-                                  {member.isActive ? <ShieldAlert size={12} /> : <ShieldCheck size={12} />}
-                                </button>
+
+                                  {openKebabId === member._id && (
+                                    <>
+                                      <div className="fixed inset-0 z-30" onClick={() => setOpenKebabId(null)} />
+                                      <div className="absolute right-0 mt-1.5 w-64 rounded-xl border border-slate-200/80 bg-white shadow-2xl z-40 overflow-hidden font-medium py-1 text-left animate-fadeIn">
+                                        {member.isActive && (
+                                          <button
+                                            onClick={() => {
+                                              setOpenKebabId(null);
+                                              setSelectedStaffForRegions(member);
+                                              setStaffRegionsForm(member.assignedRegions);
+                                              setStaffRegionsModalError(null);
+                                              setIsStaffRegionsModalOpen(true);
+                                            }}
+                                            className="flex items-center gap-2 w-full px-3 py-2 text-xs text-slate-700 hover:bg-slate-50 hover:text-purple-600 transition-colors"
+                                          >
+                                            <MapPin size={12} />
+                                            <span>Manage assigned regions</span>
+                                          </button>
+                                        )}
+                                        {member.isActive && (
+                                          <button
+                                            onClick={() => {
+                                              setOpenKebabId(null);
+                                              openStaffShiftsModal(member);
+                                            }}
+                                            className="flex items-center gap-2 w-full px-3 py-2 text-xs text-slate-700 hover:bg-slate-50 hover:text-purple-600 transition-colors"
+                                          >
+                                            <Clock size={12} />
+                                            <span>Edit shift schedule</span>
+                                          </button>
+                                        )}
+                                        <button
+                                          onClick={() => {
+                                            setOpenKebabId(null);
+                                            handleStaffPasswordReset(member._id, member.name);
+                                          }}
+                                          className="flex items-center gap-2 w-full px-3 py-2 text-xs text-slate-700 hover:bg-slate-50 hover:text-purple-600 transition-colors"
+                                        >
+                                          <Key size={12} />
+                                          <span>Reset password</span>
+                                        </button>
+                                        <button
+                                          onClick={() => {
+                                            setOpenKebabId(null);
+                                            handleStaffStatusToggle(member._id, member.isActive);
+                                          }}
+                                          className={`flex items-center gap-2 w-full px-3 py-2 text-xs transition-colors ${
+                                            member.isActive 
+                                              ? 'text-red-600 hover:bg-red-50 hover:text-red-700' 
+                                              : 'text-emerald-600 hover:bg-emerald-50 hover:text-emerald-700'
+                                          }`}
+                                        >
+                                          {member.isActive ? <ShieldAlert size={12} /> : <ShieldCheck size={12} />}
+                                          <span>{member.isActive ? 'Deactivate staff member' : 'Activate staff member'}</span>
+                                        </button>
+                                      </div>
+                                    </>
+                                  )}
+                                </div>
                               </td>
                             </tr>
                           ))}
@@ -2177,39 +2604,81 @@ export const AdminDashboard: React.FC<{ defaultTab?: 'overview' | 'bookings' | '
                             </div>
                           </div>
 
-                          <div className="flex justify-end gap-2 border-t border-zinc-850/40 pt-3">
-                            {member.isActive && (
+                          <div className="flex justify-end border-t border-zinc-850/40 pt-3 relative">
+                            <div className={`inline-block relative text-left ${openKebabId === member._id ? 'z-30' : ''}`}>
                               <button
-                                onClick={() => {
-                                  setSelectedStaffForRegions(member);
-                                  setStaffRegionsForm(member.assignedRegions);
-                                  setStaffRegionsModalError(null);
-                                  setIsStaffRegionsModalOpen(true);
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setOpenKebabId(openKebabId === member._id ? null : member._id);
                                 }}
-                                className="p-2 rounded-lg border border-zinc-800 bg-zinc-900 text-zinc-400 hover:text-purple-450 transition-colors cursor-pointer inline-flex items-center justify-center"
-                                title="Assign Regions"
+                                className="p-2 rounded-lg border border-zinc-800 bg-zinc-900 text-zinc-400 hover:text-white transition-colors cursor-pointer inline-flex items-center justify-center"
+                                title="More Actions"
+                                aria-label="More Actions"
+                                aria-haspopup="true"
+                                aria-expanded={openKebabId === member._id}
                               >
-                                <MapPin size={14} />
+                                <MoreVertical size={14} />
                               </button>
-                            )}
-                            <button
-                              onClick={() => handleStaffPasswordReset(member._id, member.name)}
-                              className="p-2 rounded-lg border border-zinc-800 bg-zinc-900 text-zinc-400 hover:text-white transition-colors cursor-pointer inline-flex items-center justify-center"
-                              title="Reset Password"
-                            >
-                              <Key size={14} />
-                            </button>
-                            <button
-                              onClick={() => handleStaffStatusToggle(member._id, member.isActive)}
-                              className={`p-2 rounded-lg border transition-colors cursor-pointer inline-flex items-center justify-center ${
-                                member.isActive
-                                  ? 'border-zinc-800 hover:border-red-950/40 bg-zinc-900 text-zinc-400 hover:text-red-400'
-                                  : 'border-zinc-800 hover:border-emerald-950/40 bg-zinc-900 text-zinc-400 hover:text-emerald-400'
-                              }`}
-                              title={member.isActive ? 'Deactivate' : 'Activate'}
-                            >
-                              {member.isActive ? <ShieldAlert size={14} /> : <ShieldCheck size={14} />}
-                            </button>
+
+                              {openKebabId === member._id && (
+                                <>
+                                  <div className="fixed inset-0 z-30" onClick={() => setOpenKebabId(null)} />
+                                  <div className="absolute right-0 bottom-full mb-1.5 w-64 rounded-xl border border-slate-200/80 bg-white shadow-2xl z-40 overflow-hidden font-medium py-1 text-left animate-fadeIn">
+                                    {member.isActive && (
+                                      <button
+                                        onClick={() => {
+                                          setOpenKebabId(null);
+                                          setSelectedStaffForRegions(member);
+                                          setStaffRegionsForm(member.assignedRegions);
+                                          setStaffRegionsModalError(null);
+                                          setIsStaffRegionsModalOpen(true);
+                                        }}
+                                        className="flex items-center gap-2 w-full px-3 py-2 text-xs text-slate-700 hover:bg-slate-50 hover:text-purple-600 transition-colors"
+                                      >
+                                        <MapPin size={12} />
+                                        <span>Manage assigned regions</span>
+                                      </button>
+                                    )}
+                                    {member.isActive && (
+                                      <button
+                                        onClick={() => {
+                                          setOpenKebabId(null);
+                                          openStaffShiftsModal(member);
+                                        }}
+                                        className="flex items-center gap-2 w-full px-3 py-2 text-xs text-slate-700 hover:bg-slate-50 hover:text-purple-600 transition-colors"
+                                      >
+                                        <Clock size={12} />
+                                        <span>Edit shift schedule</span>
+                                      </button>
+                                    )}
+                                    <button
+                                      onClick={() => {
+                                        setOpenKebabId(null);
+                                        handleStaffPasswordReset(member._id, member.name);
+                                      }}
+                                      className="flex items-center gap-2 w-full px-3 py-2 text-xs text-slate-700 hover:bg-slate-50 hover:text-purple-600 transition-colors"
+                                    >
+                                      <Key size={12} />
+                                      <span>Reset password</span>
+                                    </button>
+                                    <button
+                                      onClick={() => {
+                                        setOpenKebabId(null);
+                                        handleStaffStatusToggle(member._id, member.isActive);
+                                      }}
+                                      className={`flex items-center gap-2 w-full px-3 py-2 text-xs transition-colors ${
+                                        member.isActive 
+                                          ? 'text-red-600 hover:bg-red-50 hover:text-red-700' 
+                                          : 'text-emerald-600 hover:bg-emerald-50 hover:text-emerald-700'
+                                      }`}
+                                    >
+                                      {member.isActive ? <ShieldAlert size={12} /> : <ShieldCheck size={12} />}
+                                      <span>{member.isActive ? 'Deactivate staff member' : 'Activate staff member'}</span>
+                                    </button>
+                                  </div>
+                                </>
+                              )}
+                            </div>
                           </div>
                         </div>
                       ))}
@@ -2838,6 +3307,121 @@ export const AdminDashboard: React.FC<{ defaultTab?: 'overview' | 'bookings' | '
                   className="px-5 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold transition-colors cursor-pointer"
                 >
                   Save Assignments
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Manage Shifts Modal */}
+      {isStaffShiftsModalOpen && selectedStaffForShifts && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="w-full max-w-lg glassmorphic-card rounded-3xl p-6 relative">
+            <h3 className="text-lg font-bold text-zinc-100 mb-2 font-sans">
+              Manage Shifts
+            </h3>
+            <p className="text-xs text-zinc-450 mb-6">
+              Configure working timezone, shifts, and active days for <strong>{selectedStaffForShifts.name}</strong>.
+            </p>
+
+            {staffShiftsModalError && (
+              <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-xl text-red-400 text-xs flex items-center gap-2 mb-4">
+                <AlertTriangle size={14} className="shrink-0" />
+                <span>{staffShiftsModalError}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleStaffShiftsSubmit} className="space-y-4">
+              {/* Timezone Select */}
+              <div className="space-y-1.5">
+                <label className="text-[10px] uppercase font-bold tracking-wider text-zinc-500">Staff Work Timezone</label>
+                <select
+                  value={staffShiftsTimezone}
+                  onChange={(e) => setStaffShiftsTimezone(e.target.value)}
+                  className="w-full px-3 py-2 border border-zinc-800 rounded-xl bg-zinc-900 text-xs text-zinc-200 focus:outline-none focus:border-purple-500/60 focus:ring-1 focus:ring-purple-500/30 accent-purple-650 cursor-pointer font-medium"
+                >
+                  <option value="Asia/Karachi">Pakistan Standard Time (Asia/Karachi - PKT)</option>
+                  <option value="Europe/London">United Kingdom Time (Europe/London - GMT/BST)</option>
+                  <option value="America/New_York">United States Time (America/New_York - EST/EDT)</option>
+                  <option value="America/Los_Angeles">United States Time (America/Los_Angeles - PST/PDT)</option>
+                  <option value="UTC">Coordinated Universal Time (UTC)</option>
+                </select>
+              </div>
+
+              {/* Day Shifts Table */}
+              <div className="space-y-1.5">
+                <label className="text-[10px] uppercase font-bold tracking-wider text-zinc-500">Weekly Shift Schedule</label>
+                <div className="border border-zinc-850 rounded-2xl overflow-hidden bg-zinc-950/40 p-1">
+                  <div className="max-h-[220px] overflow-y-auto space-y-2.5 p-2">
+                    {staffShiftsForm.map((s, index) => {
+                      const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+                      const dayName = dayNames[s.dayOfWeek];
+                      return (
+                        <div key={s.dayOfWeek} className="flex items-center justify-between gap-3 p-2 bg-zinc-900/20 border border-zinc-850 hover:bg-zinc-900/40 rounded-xl transition-colors">
+                          <label className="flex items-center gap-2.5 cursor-pointer shrink-0">
+                            <input
+                              type="checkbox"
+                              checked={s.enabled}
+                              onChange={(e) => {
+                                const copy = [...staffShiftsForm];
+                                copy[index].enabled = e.target.checked;
+                                setStaffShiftsForm(copy);
+                              }}
+                              className="w-4 h-4 rounded border-zinc-800 bg-zinc-900 text-purple-650 focus:ring-purple-500/30 accent-purple-600 cursor-pointer"
+                            />
+                            <span className="text-xs font-semibold text-zinc-350 w-20">{dayName}</span>
+                          </label>
+
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="time"
+                              disabled={!s.enabled}
+                              value={s.startTime}
+                              onChange={(e) => {
+                                const copy = [...staffShiftsForm];
+                                copy[index].startTime = e.target.value;
+                                setStaffShiftsForm(copy);
+                              }}
+                              className="px-2 py-1 rounded bg-zinc-900 border border-zinc-800 text-[11px] text-zinc-200 disabled:opacity-40 disabled:cursor-not-allowed focus:outline-none focus:border-purple-500/60"
+                            />
+                            <span className="text-zinc-500 text-xs">-</span>
+                            <input
+                              type="time"
+                              disabled={!s.enabled}
+                              value={s.endTime}
+                              onChange={(e) => {
+                                const copy = [...staffShiftsForm];
+                                copy[index].endTime = e.target.value;
+                                setStaffShiftsForm(copy);
+                              }}
+                              className="px-2 py-1 rounded bg-zinc-900 border border-zinc-800 text-[11px] text-zinc-200 disabled:opacity-40 disabled:cursor-not-allowed focus:outline-none focus:border-purple-500/60"
+                            />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex gap-3 justify-end pt-4 border-t border-zinc-900 mt-6">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsStaffShiftsModalOpen(false);
+                    setSelectedStaffForShifts(null);
+                    setStaffShiftsModalError(null);
+                  }}
+                  className="px-4 py-2 rounded-xl border border-zinc-800 bg-zinc-900 text-xs font-bold text-zinc-400 hover:text-zinc-200 transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold transition-colors cursor-pointer"
+                >
+                  Save Shifts
                 </button>
               </div>
             </form>

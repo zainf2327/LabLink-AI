@@ -291,3 +291,51 @@ export const resetStaffPassword = asyncHandler(async (req: Request, res: Respons
     message: 'Staff password reset successfully. An email has been sent with their new credentials.',
   });
 });
+
+export const updateStaffShifts = asyncHandler(async (req: Request, res: Response): Promise<void> => {
+  const { shifts } = req.body as {
+    shifts: { dayOfWeek: number; startTime: string; endTime: string; timezone: string }[];
+  };
+
+  const user = await User.findById(req.params.id).select('-passwordHash');
+  if (!user) {
+    res.status(404).json({ success: false, message: 'User not found' });
+    return;
+  }
+
+  if (user.role !== 'staff') {
+    res.status(400).json({
+      success: false,
+      message: 'Assigned shifts can only be set on staff accounts',
+    });
+    return;
+  }
+
+  if (!user.isActive) {
+    res.status(400).json({
+      success: false,
+      message: 'Assigned shifts can only be set on active staff accounts',
+    });
+    return;
+  }
+
+  const oldShifts = [...user.shifts];
+  user.shifts = shifts;
+  await user.save();
+
+  if (req.user) {
+    await logAudit({
+      actorId: req.user.id,
+      actorRole: req.user.role,
+      action: 'UPDATE_STAFF_SHIFTS',
+      targetModel: 'User',
+      targetId: user.id,
+      metadata: { oldShifts, newShifts: shifts },
+    });
+  }
+
+  res.status(200).json({
+    success: true,
+    data: { user },
+  });
+});

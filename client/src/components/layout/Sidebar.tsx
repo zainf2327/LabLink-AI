@@ -10,6 +10,7 @@ import {
   Shield,
   MapPin,
   UserPlus,
+  X,
 } from 'lucide-react';
 import useAuthStore from '../../store/useAuthStore';
 import Logo from '../Logo';
@@ -111,28 +112,39 @@ const Sidebar: React.FC<SidebarProps> = ({
       {mobileOpen && (
         <div
           onClick={onCloseMobile}
-          className="md:hidden fixed inset-0 bg-slate-900/40 backdrop-blur-xs z-40 transition-opacity duration-300"
+          className={`${role === 'admin' ? 'lg:hidden' : 'md:hidden'} fixed inset-0 bg-slate-900/40 backdrop-blur-xs z-40 transition-opacity duration-300`}
         />
       )}
 
       <aside
-        style={{ width: mobileOpen ? 240 : width }}
-        className={`fixed top-0 bottom-0 left-0 z-40 md:static flex flex-col h-full bg-white border-r border-slate-200 overflow-y-auto transition-transform duration-300 md:duration-0 ease-in-out shrink-0 relative select-none ${
-          mobileOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
+        style={{ width: mobileOpen ? 'min(80vw, 280px)' : width }}
+        className={`fixed top-0 bottom-0 left-0 z-40 ${role === 'admin' ? 'lg:static lg:relative' : 'md:static md:relative'} flex flex-col h-full bg-white border-r border-slate-200 overflow-y-auto transition-transform duration-300 ${role === 'admin' ? 'lg:duration-0' : 'md:duration-0'} ease-in-out shrink-0 select-none ${
+          mobileOpen ? 'translate-x-0' : `-translate-x-full ${role === 'admin' ? 'lg:translate-x-0' : 'md:translate-x-0'}`
         }`}
       >
         {/* Resize handle (Desktop only) */}
         <div
           onMouseDown={handleMouseDown}
-          className="hidden md:block absolute top-0 right-0 w-1.5 h-full cursor-col-resize hover:bg-blue-500/20 active:bg-blue-600 transition-colors z-50"
+          className={`${role === 'admin' ? 'hidden lg:block' : 'hidden md:block'} absolute top-0 right-0 w-1.5 h-full cursor-col-resize hover:bg-blue-500/20 active:bg-blue-600 transition-colors z-50`}
         />
 
-      <div className="h-16 flex items-center gap-3 px-5 border-b border-slate-200 shrink-0">
-        <Logo size="sm" />
-        <div>
-          <span className="font-bold text-slate-800 text-sm tracking-tight leading-tight block">LabLink AI</span>
-          <span className="text-[10px] text-slate-400 leading-none capitalize">{role} portal</span>
+      <div className="h-16 flex items-center justify-between px-5 border-b border-slate-200 shrink-0">
+        <div className="flex items-center gap-3">
+          <Logo size="sm" />
+          <div>
+            <span className="font-bold text-slate-800 text-sm tracking-tight leading-tight block">LabLink AI</span>
+            <span className="text-[10px] text-slate-400 leading-none capitalize">{role} portal</span>
+          </div>
         </div>
+        {mobileOpen && (
+          <button
+            onClick={onCloseMobile}
+            className={`${role === 'admin' ? 'lg:hidden' : 'md:hidden'} p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer`}
+            aria-label="Close navigation drawer"
+          >
+            <X size={16} />
+          </button>
+        )}
       </div>
 
       {/* Navigation */}
@@ -142,6 +154,11 @@ const Sidebar: React.FC<SidebarProps> = ({
           <NavLink
             key={item.label}
             to={item.to}
+            onClick={() => {
+              if (mobileOpen) {
+                onCloseMobile();
+              }
+            }}
             className={({ isActive }) =>
               `flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-150 group ${
                 isActive

@@ -8,6 +8,12 @@ export interface StaffMember {
   isActive: boolean;
   isVerified: boolean;
   assignedRegions: string[];
+  shifts?: {
+    dayOfWeek: number;
+    startTime: string;
+    endTime: string;
+    timezone: string;
+  }[];
   createdAt?: string;
   updatedAt?: string;
 }
@@ -55,6 +61,14 @@ export const staffService = {
 
   async updateStaffRegions(id: string, regions: string[]): Promise<{ success: boolean; data: { user: StaffMember } }> {
     const response = await api.patch(`/users/${id}/regions`, { regions });
+    return response.data;
+  },
+
+  async updateStaffShifts(
+    id: string,
+    shifts: { dayOfWeek: number; startTime: string; endTime: string; timezone: string }[]
+  ): Promise<{ success: boolean; data: { user: StaffMember } }> {
+    const response = await api.patch(`/users/${id}/shifts`, { shifts });
     return response.data;
   },
 };

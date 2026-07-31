@@ -161,3 +161,14 @@ export const createStaffSchema = z.object({
   email: z.string().email('Please enter a valid email address'),
 });
 
+export const updateStaffShiftsSchema = z.object({
+  shifts: z.array(
+    z.object({
+      dayOfWeek: z.number().min(0).max(6),
+      startTime: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/, 'Start time must be in HH:MM 24h format'),
+      endTime: z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/, 'End time must be in HH:MM 24h format'),
+      timezone: z.string().min(1, 'Timezone must not be empty'),
+    })
+  ),
+});
+

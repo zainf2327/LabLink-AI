@@ -104,11 +104,11 @@ Example:
     });
 
     const defaultShifts = [
-      { dayOfWeek: 1, startTime: '09:00', endTime: '17:00' },
-      { dayOfWeek: 2, startTime: '09:00', endTime: '17:00' },
-      { dayOfWeek: 3, startTime: '09:00', endTime: '17:00' },
-      { dayOfWeek: 4, startTime: '09:00', endTime: '17:00' },
-      { dayOfWeek: 5, startTime: '09:00', endTime: '17:00' },
+      { dayOfWeek: 1, startTime: '09:00', endTime: '17:00', timezone: 'Asia/Karachi' },
+      { dayOfWeek: 2, startTime: '09:00', endTime: '17:00', timezone: 'Asia/Karachi' },
+      { dayOfWeek: 3, startTime: '09:00', endTime: '17:00', timezone: 'Asia/Karachi' },
+      { dayOfWeek: 4, startTime: '09:00', endTime: '17:00', timezone: 'Asia/Karachi' },
+      { dayOfWeek: 5, startTime: '09:00', endTime: '17:00', timezone: 'Asia/Karachi' },
     ];
 
     const staff1 = await User.create({

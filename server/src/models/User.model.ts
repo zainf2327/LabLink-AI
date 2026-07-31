@@ -4,6 +4,7 @@ export interface IWorkShift {
   dayOfWeek: number; // 0 (Sunday) to 6 (Saturday)
   startTime: string; // "HH:MM" 24h format
   endTime: string;   // "HH:MM" 24h format
+  timezone: string;  // e.g. "Asia/Karachi"
 }
 
 export interface IUser extends Document {
@@ -72,6 +73,7 @@ const UserSchema: Schema = new Schema(
           dayOfWeek: { type: Number, required: true, min: 0, max: 6 },
           startTime: { type: String, required: true },
           endTime: { type: String, required: true },
+          timezone: { type: String, required: true, default: 'Asia/Karachi' },
         },
       ],
       default: [],
