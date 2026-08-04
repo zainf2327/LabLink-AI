@@ -40,17 +40,23 @@ export const stripeWebhookHandler = async (req: Request, res: Response): Promise
     switch (event.type) {
       case 'payment_intent.succeeded': {
         const paymentIntent = event.data.object as Stripe.PaymentIntent;
-        logger.info(`PaymentIntent was successful: ${paymentIntent.id}`);
+        logger.info(`[Webhook] Received payment_intent.succeeded event for Intent: ${paymentIntent.id}`);
         const payment = await Payment.findOne({ stripePaymentIntentId: paymentIntent.id });
         if (payment) {
+          logger.info(`[Webhook] Processing successful payment for Intent: ${paymentIntent.id} (paymentFor: ${payment.paymentFor}, status: ${payment.status})`);
           if (payment.paymentFor === 'subscription') {
             await subscriptionService.confirmSubscriptionPayment(
               payment.patientId.toString(),
               paymentIntent.id
             );
+          } else if (payment.paymentFor === 'wallet_topup') {
+            await paymentService.processSuccessfulTopUp(paymentIntent.id);
           } else {
             await paymentService.processSuccessfulPayment(paymentIntent.id);
           }
+          logger.info(`[Webhook] Completed processing of successful payment for Intent: ${paymentIntent.id}`);
+        } else {
+          logger.warn(`[Webhook] No payment record found for Stripe Intent: ${paymentIntent.id}`);
         }
         break;
       }

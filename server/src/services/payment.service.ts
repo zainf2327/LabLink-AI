@@ -6,6 +6,7 @@ import User from '../models/User.model.js';
 import WalletTransaction from '../models/WalletTransaction.model.js';
 import { stripeService } from './stripe.service.js';
 import { calendarService } from './calendar.service.js';
+import { notifyWalletTopUp } from './notification.service.js';
 import { AppError } from '../utils/AppError.js';
 import logger from '../utils/logger.js';
 
@@ -235,6 +236,7 @@ export const paymentService = {
   },
 
   async confirmPayment(patientId: string, paymentIntentId: string): Promise<IBooking> {
+    logger.info(`[Confirm Endpoint] confirmPayment request received for Intent: ${paymentIntentId}`);
     const payment = await Payment.findOne({ stripePaymentIntentId: paymentIntentId });
     if (!payment) {
       throw new AppError('Payment record not found', 404);
@@ -268,8 +270,21 @@ export const paymentService = {
   },
 
   async processSuccessfulPayment(paymentIntentId: string): Promise<void> {
-    const payment = await Payment.findOne({ stripePaymentIntentId: paymentIntentId });
-    if (!payment || payment.status === 'succeeded') return;
+    // Atomically claim this payment to prevent parallel execution races
+    const payment = await Payment.findOneAndUpdate(
+      { stripePaymentIntentId: paymentIntentId, status: 'pending' },
+      { $set: { status: 'succeeded', paidAt: new Date() } },
+      { returnDocument: 'before' }
+    );
+
+    if (!payment) {
+      // If not found in pending state, verify if it was already processed successfully
+      const processedPayment = await Payment.findOne({ stripePaymentIntentId: paymentIntentId });
+      if (processedPayment && processedPayment.status === 'succeeded') {
+        logger.info(`[Webhook/Confirm] Booking payment already processed (Idempotency Hit) for Intent: ${paymentIntentId}`);
+      }
+      return;
+    }
 
     const booking = await Booking.findById(payment.bookingId);
     if (!booking) return;
@@ -277,17 +292,15 @@ export const paymentService = {
     // Verify PaymentIntent with Stripe
     const stripeIntent = await stripeService.retrievePaymentIntent(paymentIntentId);
     if (stripeIntent.status !== 'succeeded') {
-      payment.status = 'failed';
-      await payment.save();
+      // Rollback status to pending if verification fails
+      await Payment.findOneAndUpdate(
+        { stripePaymentIntentId: paymentIntentId },
+        { $set: { status: 'pending', paidAt: null } }
+      );
       return;
     }
 
-    // 1. Complete payment
-    payment.status = 'succeeded';
-    payment.paidAt = new Date();
-    await payment.save();
-
-    // 2. Update coupon count if coupon applied
+    // 1. Update coupon count if coupon applied
     if (booking.couponId) {
       const coupon = await Coupon.findById(booking.couponId);
       if (coupon) {
@@ -296,13 +309,13 @@ export const paymentService = {
       }
     }
 
-    // 3. Update booking status before any downstream scheduled-booking side effects
+    // 2. Update booking status before any downstream scheduled-booking side effects
     if (booking.status === 'pending_payment') {
       booking.status = 'scheduled';
       await booking.save();
     }
 
-    // 4. Trigger automatic staff assignment or sync to calendar
+    // 3. Trigger automatic staff assignment or sync to calendar
     if (booking.homeSampling.requested) {
       import('./autoAssign.service.js').then(({ autoAssignStaff }) => {
         autoAssignStaff(booking._id.toString()).catch((err) => {
@@ -317,5 +330,73 @@ export const paymentService = {
         logger.error('Failed to sync to Google Calendar:', err);
       }
     }
+
+    logger.info(`[Confirm Endpoint] processSuccessfulPayment completed successfully for Intent: ${paymentIntentId}`);
+  },
+
+  async processSuccessfulTopUp(paymentIntentId: string): Promise<{ walletBalance: number; creditAmount: number }> {
+    // Atomically claim this payment to prevent parallel execution races
+    const payment = await Payment.findOneAndUpdate(
+      { stripePaymentIntentId: paymentIntentId, status: 'pending' },
+      { $set: { status: 'succeeded', paidAt: new Date() } },
+      { returnDocument: 'before' }
+    );
+
+    if (!payment) {
+      // If not found in pending state, verify if it was already processed
+      const processedPayment = await Payment.findOne({ stripePaymentIntentId: paymentIntentId });
+      if (processedPayment && processedPayment.status === 'succeeded') {
+        logger.info(`[Webhook/Confirm] Top-up already processed (Idempotency Hit) for Intent: ${paymentIntentId}`);
+        const user = await User.findById(processedPayment.patientId).select('walletBalance');
+        return {
+          walletBalance: user?.walletBalance ?? 0,
+          creditAmount: processedPayment.amount,
+        };
+      }
+      throw new AppError('Payment record not found or not in pending state', 404);
+    }
+
+    // Verify PaymentIntent with Stripe
+    const stripeIntent = await stripeService.retrievePaymentIntent(paymentIntentId);
+    if (stripeIntent.status !== 'succeeded') {
+      // Rollback status to pending if verification fails
+      await Payment.findOneAndUpdate(
+        { stripePaymentIntentId: paymentIntentId },
+        { $set: { status: 'pending', paidAt: null } }
+      );
+      throw new AppError('Stripe payment has not succeeded', 400);
+    }
+
+    const creditAmount = payment.amount;
+
+    // Atomically increment wallet balance
+    const updatedUser = await User.findByIdAndUpdate(
+      payment.patientId,
+      { $inc: { walletBalance: creditAmount } },
+      { returnDocument: 'after', select: 'walletBalance' }
+    );
+    if (!updatedUser) {
+      throw new AppError('User not found', 404);
+    }
+
+    // Write credit ledger entry — store paymentIntentId in note for idempotency
+    await WalletTransaction.create({
+      userId: payment.patientId,
+      type: 'credit',
+      amount: creditAmount,
+      reason: 'wallet_topup',
+      note: paymentIntentId,
+    });
+
+    // Fire in-app notification (non-blocking)
+    notifyWalletTopUp(payment.patientId.toString(), creditAmount).catch((err) => {
+      logger.error('Failed to notify patient of top-up:', err);
+    });
+
+    logger.info(`[Webhook/Confirm] Top-up processed successfully for Intent: ${paymentIntentId}. Added $${creditAmount.toFixed(2)} to wallet.`);
+    return {
+      walletBalance: updatedUser.walletBalance,
+      creditAmount,
+    };
   },
 };

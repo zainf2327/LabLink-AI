@@ -4,7 +4,8 @@ import useAuthStore from '../store/useAuthStore';
 import useCartStore from '../store/useCartStore';
 import { catalogService } from '../services/catalog.service';
 import type { Category, Test } from '../services/catalog.service';
-import { Search, SlidersHorizontal, Home, ShieldAlert, FileText, ChevronRight, X, CalendarCheck2, ArrowLeft, ShoppingCart } from 'lucide-react';
+import { Search, SlidersHorizontal, Home, ShieldAlert, FileText, ChevronRight, X, ArrowLeft, ShoppingCart } from 'lucide-react';
+import { AlertBanner } from '../components/AlertBanner';
 
 export const Tests: React.FC = () => {
   const navigate = useNavigate();
@@ -133,11 +134,12 @@ export const Tests: React.FC = () => {
 
       {/* Booking Alert Feedback */}
       {bookingFeedback && (
-        <div className="fixed top-20 left-1/2 -translate-x-1/2 z-50 w-full max-w-md px-4">
-          <div className="glassmorphic-card border-emerald-500/50 p-4 rounded-2xl flex gap-3 items-center shadow-2xl animate-bounce">
-            <CalendarCheck2 size={24} className="text-emerald-400 shrink-0" />
-            <div className="text-sm font-medium text-emerald-300">{bookingFeedback}</div>
-          </div>
+        <div className="fixed top-20 left-1/2 -translate-x-1/2 z-50 w-full max-w-md px-4 animate-bounce">
+          <AlertBanner
+            variant="success"
+            message={bookingFeedback}
+            onClose={() => setBookingFeedback(null)}
+          />
         </div>
       )}
 

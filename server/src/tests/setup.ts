@@ -155,6 +155,13 @@ vi.mock('@langchain/groq', () => {
       invoke = vi.fn().mockResolvedValue({
         content: 'Mocked AI assistant response containing diagnostic analysis. This is not medical advice.',
       });
+      stream = vi.fn().mockResolvedValue({
+        [Symbol.asyncIterator]: async function* () {
+          yield { content: 'Mocked ' };
+          yield { content: 'AI ' };
+          yield { content: 'response' };
+        }
+      });
     }
   };
 });

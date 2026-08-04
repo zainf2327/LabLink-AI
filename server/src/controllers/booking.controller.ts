@@ -19,6 +19,14 @@ export const createBooking = asyncHandler(async (req: Request, res: Response): P
   const validated = req.body;
   const booking = await bookingService.createBooking(req.user.id, validated);
 
+  // Trigger Booking Placed Notification
+  try {
+    const { notifyBookingCreated } = await import('../services/notification.service.js');
+    await notifyBookingCreated(req.user.id, booking._id.toString());
+  } catch (err) {
+    logger.error('Failed to trigger booking created notification:', err);
+  }
+
   res.status(201).json({
     success: true,
     data: { booking },
@@ -255,6 +263,21 @@ export const cancelBooking = asyncHandler(async (req: Request, res: Response): P
     logger.error('Failed to remove Google Calendar events on cancel:', err);
   }
 
+  // Trigger Booking Cancelled Notifications
+  try {
+    const { notifyBookingCancelled } = await import('../services/notification.service.js');
+    await notifyBookingCancelled(booking.patientId.toString(), booking._id.toString());
+    if (booking.homeSampling?.assignedStaffId) {
+      await notifyBookingCancelled(
+        booking.homeSampling.assignedStaffId.toString(),
+        booking._id.toString(),
+        'The booking assigned to you has been cancelled.'
+      );
+    }
+  } catch (err) {
+    logger.error('Failed to trigger booking cancelled notifications:', err);
+  }
+
   res.status(200).json({
     success: true,
     message: 'Booking cancelled successfully',
@@ -309,9 +332,21 @@ export const assignStaff = asyncHandler(async (req: Request, res: Response): Pro
 
   await booking.save();
 
-  // 4. Sync calendar for the new staff member (if booking is scheduled)
-  if (booking.status === 'scheduled') {
-    await bookingService.syncBookingToCalendar(booking);
+  // Trigger Staff Assignment & Reassignment Notifications
+  try {
+    const { notifyBookingAssigned, notifyBookingCancelled } = await import('../services/notification.service.js');
+    if (assignedStaffId && booking.homeSampling.scheduledAt) {
+      await notifyBookingAssigned(assignedStaffId, booking._id.toString(), booking.homeSampling.scheduledAt);
+    }
+    if (oldStaffId && oldStaffId.toString() !== assignedStaffId) {
+      await notifyBookingCancelled(
+        oldStaffId.toString(),
+        booking._id.toString(),
+        'This booking has been reassigned to another staff member.'
+      );
+    }
+  } catch (err) {
+    logger.error('Failed to trigger staff assignment notifications:', err);
   }
 
   res.status(200).json({

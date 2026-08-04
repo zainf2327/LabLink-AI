@@ -13,6 +13,7 @@ import Checkout from './pages/patient/Checkout';
 import WalletPage from './pages/patient/WalletPage';
 import { MembershipPage } from './pages/patient/MembershipPage';
 import AiAssistant from './pages/patient/AiAssistant';
+import { GeneralAiAssistant } from './pages/patient/GeneralAiAssistant';
 import StaffDashboard from './pages/staff/Dashboard';
 import AdminDashboard from './pages/admin/Dashboard';
 import ProfileSettings from './pages/ProfileSettings';
@@ -89,6 +90,14 @@ export const App: React.FC = () => {
           element={
             <ProtectedRoute allowedRoles={['patient']}>
               <MembershipPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/patient/ai-assistant"
+          element={
+            <ProtectedRoute allowedRoles={['patient']}>
+              <GeneralAiAssistant />
             </ProtectedRoute>
           }
         />
@@ -173,6 +182,14 @@ export const App: React.FC = () => {
           element={
             <ProtectedRoute allowedRoles={['admin']}>
               <AdminDashboard defaultTab="staff" />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/coupons"
+          element={
+            <ProtectedRoute allowedRoles={['admin']}>
+              <AdminDashboard defaultTab="coupons" />
             </ProtectedRoute>
           }
         />

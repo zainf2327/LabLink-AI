@@ -172,3 +172,13 @@ export const updateStaffShiftsSchema = z.object({
   ),
 });
 
+export const topUpWalletSchema = z.object({
+  amount: z
+    .number()
+    .min(1, 'Minimum top-up is $1.00')
+    .max(500, 'Maximum single top-up is $500.00'),
+});
+
+export const confirmTopUpSchema = z.object({
+  paymentIntentId: z.string().min(1, 'Payment intent ID is required'),
+});

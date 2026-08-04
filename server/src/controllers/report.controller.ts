@@ -124,6 +124,14 @@ export const uploadReport = asyncHandler(async (req: Request, res: Response): Pr
   booking.status = 'report_ready';
   await booking.save();
 
+  // Trigger Report Ready Notification
+  try {
+    const { notifyReportReady } = await import('../services/notification.service.js');
+    await notifyReportReady(booking.patientId.toString(), booking._id.toString());
+  } catch (err) {
+    logger.error('Failed to trigger report ready notification:', err);
+  }
+
   // 8. Log Audit
   await logAudit({
     actorId: req.user.id,

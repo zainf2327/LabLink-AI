@@ -1615,6 +1615,94 @@ export const swaggerPaths = {
       },
     },
   },
+  '/ai/sessions': {
+    post: {
+      summary: 'Create a new general AI chat session (Patient only)',
+      tags: ['AI Assistant'],
+      security: [{ bearerAuth: [] }],
+      responses: {
+        201: { description: 'Chat session created' },
+      },
+    },
+    get: {
+      summary: 'Get all general AI chat sessions (Patient only)',
+      tags: ['AI Assistant'],
+      security: [{ bearerAuth: [] }],
+      responses: {
+        200: { description: 'List of chat sessions' },
+      },
+    },
+  },
+  '/ai/sessions/{sessionId}': {
+    patch: {
+      summary: 'Rename a general AI chat session (Patient only)',
+      tags: ['AI Assistant'],
+      security: [{ bearerAuth: [] }],
+      parameters: [{ in: 'path', name: 'sessionId', required: true, schema: { type: 'string' } }],
+      requestBody: {
+        required: true,
+        content: {
+          'application/json': {
+            schema: {
+              type: 'object',
+              required: ['title'],
+              properties: {
+                title: { type: 'string', example: 'My New Chat Title' },
+              },
+            },
+          },
+        },
+      },
+      responses: {
+        200: { description: 'Chat session renamed' },
+      },
+    },
+    delete: {
+      summary: 'Delete a general AI chat session (Patient only)',
+      tags: ['AI Assistant'],
+      security: [{ bearerAuth: [] }],
+      parameters: [{ in: 'path', name: 'sessionId', required: true, schema: { type: 'string' } }],
+      responses: {
+        200: { description: 'Chat session and its messages deleted' },
+      },
+    },
+  },
+  '/ai/general-chat': {
+    post: {
+      summary: 'Send message to general AI assistant with multi-report RAG (Patient only)',
+      tags: ['AI Assistant'],
+      security: [{ bearerAuth: [] }],
+      requestBody: {
+        required: true,
+        content: {
+          'application/json': {
+            schema: {
+              type: 'object',
+              required: ['sessionId', 'message'],
+              properties: {
+                sessionId: { type: 'string', example: '6a5e0723e3a13ac3110d4a8c' },
+                message: { type: 'string', example: 'How are my glucose trends across my last reports?' },
+              },
+            },
+          },
+        },
+      },
+      responses: {
+        200: { description: 'Streaming response with citation metadata' },
+      },
+    },
+  },
+  '/ai/sessions/{sessionId}/history': {
+    get: {
+      summary: 'Get general AI chat session conversation history (Patient only)',
+      tags: ['AI Assistant'],
+      security: [{ bearerAuth: [] }],
+      parameters: [{ in: 'path', name: 'sessionId', required: true, schema: { type: 'string' } }],
+      responses: {
+        200: { description: 'List of past general chat messages with citations' },
+      },
+    },
+  },
 
   // ------------------ ANALYTICS ------------------
   '/analytics/overview': {

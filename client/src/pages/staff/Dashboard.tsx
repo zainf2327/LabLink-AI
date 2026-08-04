@@ -23,12 +23,14 @@ import { bookingService } from '../../services/booking.service';
 import type { Booking } from '../../services/booking.service';
 import { reportService } from '../../services/report.service';
 import { useConfirm } from '../../hooks/useConfirm';
+import { useToast } from '../../components/Toast';
 
 export const StaffDashboard: React.FC<{ defaultTab?: 'my_assignments' | 'all_bookings' }> = ({
   defaultTab = 'my_assignments',
 }) => {
   const { user } = useAuthStore();
   const { confirm } = useConfirm();
+  const toast = useToast();
   
   // Google sync states
   const [syncingCalendar, setSyncingCalendar] = useState(false);
@@ -119,11 +121,11 @@ export const StaffDashboard: React.FC<{ defaultTab?: 'my_assignments' | 'all_boo
       if (res.success && res.url) {
         window.location.href = res.url;
       } else {
-        alert('Failed to get connection URL.');
+        toast.error('Failed to get connection URL.');
       }
     } catch (err: any) {
       console.error('Calendar sync error:', err);
-      alert(err.response?.data?.message || 'Failed to connect Google Calendar.');
+      toast.error(err.response?.data?.message || 'Failed to connect Google Calendar.');
     } finally {
       setSyncingCalendar(false);
     }
@@ -139,11 +141,11 @@ export const StaffDashboard: React.FC<{ defaultTab?: 'my_assignments' | 'all_boo
         try {
           const res = await authService.disconnectGoogleCalendar();
           if (res.success) {
-            alert('Google Calendar disconnected successfully.');
-            window.location.reload();
+            toast.success('Google Calendar disconnected successfully.');
+            setTimeout(() => window.location.reload(), 1000);
           }
         } catch (err: any) {
-          alert(err.response?.data?.message || 'Failed to disconnect Google Calendar.');
+          toast.error(err.response?.data?.message || 'Failed to disconnect Google Calendar.');
         } finally {
           setSyncingCalendar(false);
         }
@@ -159,7 +161,7 @@ export const StaffDashboard: React.FC<{ defaultTab?: 'my_assignments' | 'all_boo
         fetchBookings();
       }
     } catch (err: any) {
-      alert(err.response?.data?.message || 'Failed to update booking status.');
+      toast.error(err.response?.data?.message || 'Failed to update booking status.');
     } finally {
       setActionLoading(null);
     }
@@ -171,12 +173,12 @@ export const StaffDashboard: React.FC<{ defaultTab?: 'my_assignments' | 'all_boo
     try {
       const res = await reportService.uploadReport(bookingId, file);
       if (res.success) {
-        alert('Report uploaded successfully! Booking status updated to Report Ready.');
+        toast.success('Report uploaded successfully! Booking status updated to Report Ready.');
         fetchBookings();
       }
     } catch (err: any) {
       console.error(err);
-      alert(err.response?.data?.message || 'Failed to upload report.');
+      toast.error(err.response?.data?.message || 'Failed to upload report.');
     } finally {
       setActionLoading(null);
     }
@@ -195,7 +197,7 @@ export const StaffDashboard: React.FC<{ defaultTab?: 'my_assignments' | 'all_boo
             fetchBookings();
           }
         } catch (err: any) {
-          alert(err.response?.data?.message || 'Failed to cancel booking.');
+          toast.error(err.response?.data?.message || 'Failed to cancel booking.');
         } finally {
           setActionLoading(null);
         }
@@ -216,7 +218,7 @@ export const StaffDashboard: React.FC<{ defaultTab?: 'my_assignments' | 'all_boo
         fetchBookings();
       }
     } catch (err: any) {
-      alert(err.response?.data?.message || 'Failed to assign staff.');
+      toast.error(err.response?.data?.message || 'Failed to assign staff.');
     } finally {
       setActionLoading(null);
     }

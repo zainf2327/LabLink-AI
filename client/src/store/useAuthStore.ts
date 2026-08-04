@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import type { User } from '../types/auth';
 import { authService } from '../services/auth.service';
 import { setApiToken, setLogoutCallback } from '../services/api';
+import useNotificationStore from './useNotificationStore';
 
 interface AuthState {
   user: User | null;
@@ -106,6 +107,7 @@ const useAuthStore = create<AuthState>((set) => ({
 
 setLogoutCallback(() => {
   useAuthStore.getState().logoutStore();
+  useNotificationStore.getState().clearStore();
 });
 
 export default useAuthStore;

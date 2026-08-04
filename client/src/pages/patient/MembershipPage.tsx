@@ -471,77 +471,70 @@ const MembershipPageContent: React.FC = () => {
               </div>
 
               {familyMembers.length > 0 ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {familyMembers.map((member) => {
                     const isActive = activeFamilyMemberIdsList.includes(member._id);
+                    const initials = member.name.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase();
                     return (
                       <div
                         key={member._id}
-                        className={`p-4 rounded-2xl border flex items-center gap-4 transition-all duration-300 hover:shadow-md ${
-                          isActive 
-                            ? 'bg-white border-slate-100 hover:border-brand-500/30 shadow-xs' 
-                            : 'border-red-100 bg-red-50/20 hover:border-red-200'
+                        className={`group p-4 rounded-2xl border transition-all duration-200 ${
+                          isActive
+                            ? 'bg-white border-slate-200/80 hover:border-brand-400/50 hover:shadow-md hover:shadow-brand-500/5 shadow-sm'
+                            : 'bg-red-50/30 border-red-100 hover:border-red-200 hover:shadow-sm'
                         }`}
                       >
-                        {/* Avatar */}
-                        <div className={`w-10 h-10 rounded-full flex-shrink-0 flex items-center justify-center font-extrabold text-xs tracking-wider shadow-inner ${
-                          isActive 
-                            ? 'bg-gradient-to-br from-brand-50 to-teal-50 text-brand-600 border border-brand-100' 
-                            : 'bg-red-50 text-red-600 border border-red-100'
-                        }`}>
-                          {member.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
-                        </div>
-
-                        {/* Content */}
-                        <div className="flex-1 min-w-0 space-y-1">
-                          <div className="flex items-center gap-2">
-                            <span className="text-xs font-extrabold text-slate-800 truncate max-w-[100px] sm:max-w-none">
-                              {member.name}
-                            </span>
-                            <span className={`text-[9px] px-2 py-0.5 rounded-full border capitalize font-extrabold tracking-tight shrink-0 ${getRelationshipBadgeStyles(member.relationship)}`}>
-                              {member.relationship}
-                            </span>
-                            {!isActive && (
-                              <span className="text-[8px] px-1.5 py-0.5 rounded-full bg-red-50 border border-red-100 text-red-500 flex items-center gap-0.5 font-bold uppercase tracking-wider shrink-0">
-                                <Lock size={8} className="shrink-0" />
-                                <span>Locked</span>
-                              </span>
-                            )}
+                        <div className="flex items-start gap-3">
+                          {/* Avatar */}
+                          <div className={`w-10 h-10 rounded-xl flex-shrink-0 flex items-center justify-center font-black text-xs tracking-wider mt-0.5 ${
+                            isActive
+                              ? 'bg-gradient-to-br from-brand-100 to-teal-100 text-brand-700'
+                              : 'bg-red-100 text-red-600'
+                          }`}>
+                            {initials}
                           </div>
 
-                          <div className="flex items-center gap-2 text-[10px] text-slate-500 font-semibold whitespace-nowrap overflow-hidden">
-                            <span className="capitalize">{member.gender}</span>
-                            <span className="text-slate-300">•</span>
-                            <div className="flex items-center gap-1 shrink-0">
-                              <Calendar size={11} className="text-slate-400 shrink-0" />
-                              <span>
-                                DOB: {new Date(member.dateOfBirth).toLocaleDateString(undefined, {
-                                  year: 'numeric',
-                                  month: 'short',
-                                  day: 'numeric',
-                                })}
+                          {/* Content */}
+                          <div className="flex-1 min-w-0">
+                            {/* Top row: name + action buttons pinned right */}
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="text-sm font-bold text-slate-800 truncate leading-tight">
+                                {member.name}
                               </span>
+                              <div className="flex items-center gap-0.5 flex-shrink-0">
+                                <button
+                                  onClick={() => handleOpenEditModal(member)}
+                                  disabled={!isActive}
+                                  title={isActive ? 'Edit member' : 'Cannot edit a locked member'}
+                                  className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-300 hover:text-brand-600 hover:bg-brand-50 transition-all cursor-pointer disabled:opacity-25 disabled:pointer-events-none"
+                                >
+                                  <Pencil size={12} />
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteMember(member._id)}
+                                  title="Remove member"
+                                  className="w-7 h-7 rounded-lg flex items-center justify-center text-slate-300 hover:text-red-500 hover:bg-red-50 transition-all cursor-pointer"
+                                >
+                                  <Trash2 size={12} />
+                                </button>
+                              </div>
+                            </div>
+
+                            {/* Bottom row: relationship badge + gender + locked */}
+                            <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
+                              <span className={`text-[9px] px-2 py-0.5 rounded-full border capitalize font-bold tracking-wide ${getRelationshipBadgeStyles(member.relationship)}`}>
+                                {member.relationship}
+                              </span>
+                              <span className="text-slate-300 text-[10px]">·</span>
+                              <span className="capitalize text-[10px] font-medium text-slate-400">{member.gender}</span>
+                              {!isActive && (
+                                <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-red-50 border border-red-200 text-red-500 flex items-center gap-0.5 font-bold tracking-wide">
+                                  <Lock size={8} />
+                                  Locked
+                                </span>
+                              )}
                             </div>
                           </div>
-                        </div>
-
-                        {/* Actions */}
-                        <div className="flex items-center gap-1 flex-shrink-0">
-                          <button
-                            onClick={() => handleOpenEditModal(member)}
-                            disabled={!isActive}
-                            title={isActive ? 'Edit member details' : 'Cannot edit details of a locked member'}
-                            className="w-8 h-8 rounded-xl flex items-center justify-center text-slate-400 hover:text-brand-600 hover:bg-brand-50 border border-transparent hover:border-brand-100 transition-all cursor-pointer disabled:opacity-30 disabled:hover:text-slate-400 disabled:hover:bg-transparent"
-                          >
-                            <Pencil size={12} />
-                          </button>
-                          <button
-                            onClick={() => handleDeleteMember(member._id)}
-                            title="Remove member"
-                            className="w-8 h-8 rounded-xl flex items-center justify-center text-slate-400 hover:text-red-600 hover:bg-red-55/60 border border-transparent hover:border-red-100 transition-all cursor-pointer"
-                          >
-                            <Trash2 size={12} />
-                          </button>
                         </div>
                       </div>
                     );

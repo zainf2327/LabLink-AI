@@ -1,12 +1,15 @@
 import React, { useState, useEffect, useRef } from 'react';
 import useAuthStore from '../store/useAuthStore';
 import AppLayout from '../components/layout/AppLayout';
-import { User, Lock, AlertCircle, CheckCircle2, Calendar, ChevronsUpDown, Search } from 'lucide-react';
+import { User, Lock, Calendar, ChevronsUpDown, Search } from 'lucide-react';
 import { authService } from '../services/auth.service';
 import { api } from '../services/api';
+import { AlertBanner } from '../components/AlertBanner';
+import { useToast } from '../components/Toast';
 
 export const ProfileSettings: React.FC = () => {
   const { user } = useAuthStore();
+  const toast = useToast();
 
   // Profile fields
   const [name, setName] = useState(user?.name || '');
@@ -212,7 +215,7 @@ export const ProfileSettings: React.FC = () => {
         window.location.href = res.url;
       }
     } catch (err: any) {
-      alert(err.response?.data?.message || 'Failed to connect Google Calendar.');
+      toast.error(err.response?.data?.message || 'Failed to connect Google Calendar.');
     } finally {
       setSyncingCalendar(false);
     }
@@ -224,10 +227,10 @@ export const ProfileSettings: React.FC = () => {
       const res = await authService.disconnectGoogleCalendar();
       if (res.success) {
         useAuthStore.setState({ user: { ...user, googleCalendarConnected: false, googleEmail: undefined } as any });
-        alert('Google Calendar disconnected successfully.');
+        toast.success('Google Calendar disconnected successfully.');
       }
     } catch (err: any) {
-      alert(err.response?.data?.message || 'Failed to disconnect Google Calendar.');
+      toast.error(err.response?.data?.message || 'Failed to disconnect Google Calendar.');
     } finally {
       setSyncingCalendar(false);
     }
@@ -246,16 +249,20 @@ export const ProfileSettings: React.FC = () => {
           <p className="text-xs text-slate-400 mb-6">Update your account name and phone details.</p>
 
           {profileSuccess && (
-            <div className="mb-4 p-3 rounded-xl bg-emerald-55 text-emerald-600 border border-emerald-100 text-xs flex gap-2 items-center">
-              <CheckCircle2 size={16} />
-              <span>Profile details updated successfully!</span>
-            </div>
+            <AlertBanner
+              variant="success"
+              message="Profile details updated successfully!"
+              onClose={() => setProfileSuccess(false)}
+              className="mb-4"
+            />
           )}
           {profileError && (
-            <div className="mb-4 p-3 rounded-xl bg-red-50 text-red-500 border border-red-100 text-xs flex gap-2 items-center">
-              <AlertCircle size={16} />
-              <span>{profileError}</span>
-            </div>
+            <AlertBanner
+              variant="error"
+              message={profileError}
+              onClose={() => setProfileError(null)}
+              className="mb-4"
+            />
           )}
 
           <form onSubmit={handleProfileSubmit} className="space-y-4">
@@ -421,16 +428,20 @@ export const ProfileSettings: React.FC = () => {
           </p>
 
           {pwSuccess && (
-            <div className="mb-4 p-3 rounded-xl bg-emerald-55 text-emerald-600 border border-emerald-100 text-xs flex gap-2 items-center">
-              <CheckCircle2 size={16} />
-              <span>Password updated successfully!</span>
-            </div>
+            <AlertBanner
+              variant="success"
+              message="Password updated successfully!"
+              onClose={() => setPwSuccess(false)}
+              className="mb-4"
+            />
           )}
           {pwError && (
-            <div className="mb-4 p-3 rounded-xl bg-red-50 text-red-500 border border-red-100 text-xs flex gap-2 items-center">
-              <AlertCircle size={16} />
-              <span>{pwError}</span>
-            </div>
+            <AlertBanner
+              variant="error"
+              message={pwError}
+              onClose={() => setPwError(null)}
+              className="mb-4"
+            />
           )}
 
           <form onSubmit={handlePasswordSubmit} className="space-y-4">

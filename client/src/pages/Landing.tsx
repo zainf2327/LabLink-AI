@@ -65,53 +65,73 @@ export const Landing: React.FC = () => {
   const fallbackTests: Test[] = [
     {
       _id: 'fb-1',
-      name: 'Comprehensive Metabolic Panel (CMP)',
-      description: 'Evaluates kidney and liver function, electrolyte and fluid balance, and blood glucose levels.',
+      name: 'Complete Blood Count (CBC)',
+      description: 'Evaluates overall health and detects disorders such as anemia and leukemia.',
       type: 'lab',
-      categoryId: { _id: 'cat-1', name: 'General Health' },
-      price: 49.00,
+      categoryId: { _id: 'cat-1', name: 'Hematology' },
+      price: 45.00,
       duration: '24 Hours',
       isHomeCollectionAvailable: true
     },
     {
       _id: 'fb-2',
-      name: 'HbA1c & Fasting Insulin Profile',
-      description: 'Measures average blood sugar levels over the past 3 months and active insulin response.',
+      name: 'Liver Function Test (LFT)',
+      description: 'Measures proteins, liver enzymes, and bilirubin in your blood to diagnose liver health.',
       type: 'lab',
-      categoryId: { _id: 'cat-2', name: 'Diabetes' },
-      price: 39.00,
-      duration: '12 Hours',
+      categoryId: { _id: 'cat-2', name: 'Biochemistry' },
+      price: 60.00,
+      duration: '24 Hours',
       isHomeCollectionAvailable: true
     },
     {
       _id: 'fb-3',
-      name: 'Full Body Radiology Scan (Ultrasound)',
-      description: 'Non-invasive diagnostic ultrasound imaging covering abdominal organs and key vascular pathways.',
-      type: 'radiology',
-      categoryId: { _id: 'cat-3', name: 'Imaging' },
-      price: 189.00,
-      duration: '48 Hours',
-      isHomeCollectionAvailable: false
+      name: 'Lipid Profile',
+      description: 'Checks cholesterol levels (LDL, HDL, triglycerides) to assess cardiovascular risk.',
+      type: 'lab',
+      categoryId: { _id: 'cat-2', name: 'Biochemistry' },
+      price: 55.00,
+      duration: '24 Hours',
+      isHomeCollectionAvailable: true
     },
     {
       _id: 'fb-4',
-      name: 'Complete Thyroid Panel (TSH, Free T3/T4)',
-      description: 'Comprehensive screening of thyroid gland activity to identify hypo- or hyper-thyroidism.',
+      name: 'Fasting Blood Sugar (FBS)',
+      description: 'Measures blood glucose level after fasting to screen for diabetes.',
       type: 'lab',
-      categoryId: { _id: 'cat-1', name: 'General Health' },
-      price: 59.00,
-      duration: '24 Hours',
+      categoryId: { _id: 'cat-2', name: 'Biochemistry' },
+      price: 25.00,
+      duration: '12 Hours',
       isHomeCollectionAvailable: true
     },
     {
       _id: 'fb-5',
-      name: 'Cardiac Risk Marker (Lipid Panel & hs-CRP)',
-      description: 'Assesses total cholesterol, HDL, LDL, triglycerides, and high-sensitivity C-reactive protein levels.',
+      name: 'Thyroid Panel (T3, T4, TSH)',
+      description: 'Checks thyroid hormone levels to identify hyperthyroidism or hypothyroidism.',
       type: 'lab',
-      categoryId: { _id: 'cat-4', name: 'Cardiology' },
-      price: 69.00,
+      categoryId: { _id: 'cat-3', name: 'Immunology' },
+      price: 80.00,
       duration: '24 Hours',
       isHomeCollectionAvailable: true
+    },
+    {
+      _id: 'fb-6',
+      name: 'Vitamin D (25-Hydroxy)',
+      description: 'Measures concentration of Vitamin D in blood to diagnose deficiencies.',
+      type: 'lab',
+      categoryId: { _id: 'cat-3', name: 'Immunology' },
+      price: 95.00,
+      duration: '2 Days',
+      isHomeCollectionAvailable: true
+    },
+    {
+      _id: 'fb-7',
+      name: 'Chest X-Ray',
+      description: 'Uses low dose radiation to image internal structures of chest and lungs.',
+      type: 'radiology',
+      categoryId: { _id: 'cat-4', name: 'Radiology' },
+      price: 120.00,
+      duration: '4 Hours',
+      isHomeCollectionAvailable: false
     }
   ];
 

@@ -11,6 +11,8 @@ import {
   MapPin,
   UserPlus,
   X,
+  Bot,
+  Ticket,
 } from 'lucide-react';
 import useAuthStore from '../../store/useAuthStore';
 import Logo from '../Logo';
@@ -19,6 +21,7 @@ import Logo from '../Logo';
 const NAV_ITEMS = {
   patient: [
     { label: 'Dashboard', icon: LayoutDashboard, to: '/patient/dashboard' },
+    { label: 'AI Assistant', icon: Bot, to: '/patient/ai-assistant' },
     { label: 'Book a Test', icon: FlaskConical, to: '/tests' },
     { label: 'Wallet', icon: Wallet, to: '/patient/wallet' },
     { label: 'Membership', icon: Shield, to: '/patient/membership' },
@@ -35,6 +38,7 @@ const NAV_ITEMS = {
     { label: 'Subscriptions', icon: Shield, to: '/admin/subscriptions' },
     { label: 'Regions', icon: MapPin, to: '/admin/regions' },
     { label: 'Staff Management', icon: UserPlus, to: '/admin/staff' },
+    { label: 'Coupons', icon: Ticket, to: '/admin/coupons' },
   ],
 };
 
@@ -189,9 +193,7 @@ const Sidebar: React.FC<SidebarProps> = ({
               {initials}
             </span>
             {/* Active Status Dot */}
-            <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-500 border-2 border-white flex items-center justify-center">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping absolute"></span>
-            </span>
+            <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-500 border-2 border-white"></span>
           </div>
 
           <div className="flex-1 overflow-hidden min-w-0">

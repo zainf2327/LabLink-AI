@@ -8,6 +8,7 @@ import User from '../models/User.model.js';
 import { stripeService } from './stripe.service.js';
 import { logAudit } from '../utils/auditLogger.js';
 import { AppError } from '../utils/AppError.js';
+import logger from '../utils/logger.js';
 
 export const subscriptionService = {
   /**
@@ -89,106 +90,142 @@ export const subscriptionService = {
     userId: string,
     paymentIntentId: string
   ): Promise<ISubscription> {
-    const payment = await Payment.findOne({
-      patientId: userId,
-      stripePaymentIntentId: paymentIntentId,
-    });
+    logger.info(`[Confirm Endpoint] confirmSubscriptionPayment request received for Intent: ${paymentIntentId}`);
+    // Atomically claim the payment
+    const payment = await Payment.findOneAndUpdate(
+      { patientId: userId, stripePaymentIntentId: paymentIntentId, status: 'pending' },
+      { $set: { status: 'succeeded', paidAt: new Date() } },
+      { returnDocument: 'before' }
+    );
 
     if (!payment) {
-      throw new AppError('Payment record not found', 404);
-    }
-
-    // Race condition protection / Idempotency
-    if (payment.status === 'succeeded') {
-      const existingSub = await Subscription.findById(payment.subscriptionId).populate('planId');
-      if (!existingSub) {
-        throw new AppError('Subscription not found', 404);
+      // If it doesn't exist in pending state, check if it was already processed successfully
+      const processedPayment = await Payment.findOne({
+        patientId: userId,
+        stripePaymentIntentId: paymentIntentId,
+      });
+      if (processedPayment && processedPayment.status === 'succeeded') {
+        if (!processedPayment.subscriptionId) {
+          logger.info(`[Confirm Endpoint] Subscription activation in progress by competing thread for Intent: ${paymentIntentId}`);
+          return { _id: 'in-progress' } as any;
+        }
+        const existingSub = await Subscription.findById(processedPayment.subscriptionId).populate('planId');
+        if (!existingSub) {
+          logger.info(`[Confirm Endpoint] Subscription record not found yet (activation in progress) for Intent: ${paymentIntentId}`);
+          return { _id: 'in-progress' } as any;
+        }
+        return existingSub;
       }
-      return existingSub;
+      throw new AppError('Payment record not found or already processed', 404);
     }
 
     // Validate Stripe payment status (skip for zero-cost bypass)
     if (!payment.stripePaymentIntentId.startsWith('bypass_zero_amount')) {
-      const stripeIntent = await stripeService.retrievePaymentIntent(paymentIntentId);
-      if (stripeIntent.status !== 'succeeded') {
-        throw new AppError('Stripe payment has not succeeded', 400);
+      try {
+        const stripeIntent = await stripeService.retrievePaymentIntent(paymentIntentId);
+        if (stripeIntent.status !== 'succeeded') {
+          throw new AppError('Stripe payment has not succeeded', 400);
+        }
+      } catch (err) {
+        // Rollback payment state
+        await Payment.findOneAndUpdate(
+          { stripePaymentIntentId: paymentIntentId },
+          { $set: { status: 'pending', paidAt: null } }
+        );
+        throw err;
       }
     }
 
     const plan = await SubscriptionPlan.findById(payment.subscriptionPlanId);
     if (!plan) {
+      // Rollback payment state
+      await Payment.findOneAndUpdate(
+        { stripePaymentIntentId: paymentIntentId },
+        { $set: { status: 'pending', paidAt: null } }
+      );
       throw new AppError('Subscription plan not found', 400);
     }
 
     let newSub: any;
 
-    const session = await mongoose.startSession();
-    await session.withTransaction(async () => {
-      // 1. Expire existing active subscription
-      const existingActive = await Subscription.findOne({
-        userId,
-        status: 'active',
-      }).session(session);
+    try {
+      const session = await mongoose.startSession();
+      await session.withTransaction(async () => {
+        // 1. Expire existing active subscription
+        const existingActive = await Subscription.findOne({
+          userId,
+          status: 'active',
+        }).session(session);
 
-      if (existingActive) {
-        existingActive.status = 'expired';
-        await existingActive.save({ session });
-      }
-
-      // 2. Deduct wallet balance if wallet covers any portion
-      if (payment.walletAmountUsed > 0) {
-        const patient = await User.findById(userId).session(session);
-        if (patient) {
-          patient.walletBalance = Math.max(0, patient.walletBalance - payment.walletAmountUsed);
-          await patient.save({ session });
-
-          await WalletTransaction.create([{
-            userId: patient._id,
-            type: 'debit',
-            amount: payment.walletAmountUsed,
-            reason: 'subscription_payment',
-            note: `Debited for subscription ${plan.name}`,
-          }], { session });
+        if (existingActive) {
+          existingActive.status = 'expired';
+          await existingActive.save({ session });
         }
-      }
 
-      // 3. Create new Subscription
-      newSub = await subscriptionService.createSubscriptionFromPlan(
-        userId,
-        plan,
-        { session, status: 'active' }
-      );
+        // 2. Deduct wallet balance if wallet covers any portion
+        if (payment.walletAmountUsed > 0) {
+          const patient = await User.findById(userId).session(session);
+          if (patient) {
+            patient.walletBalance = Math.max(0, patient.walletBalance - payment.walletAmountUsed);
+            await patient.save({ session });
 
-      // 4. Initialize family members
-      newSub = await subscriptionService.initializeFamilyMembers(newSub, plan, { session });
-
-      // 5. Update Payment record
-      payment.status = 'succeeded';
-      payment.subscriptionId = newSub._id;
-      payment.paidAt = new Date();
-      await payment.save({ session });
-
-      // 6. Log audit trail
-      let auditAction: 'PURCHASE_SUBSCRIPTION' | 'UPGRADE_SUBSCRIPTION' | 'DOWNGRADE_SUBSCRIPTION' = 'PURCHASE_SUBSCRIPTION';
-      if (existingActive) {
-        const existingPlan = await SubscriptionPlan.findById(existingActive.planId);
-        if (existingPlan) {
-          auditAction = plan.price >= existingPlan.price ? 'UPGRADE_SUBSCRIPTION' : 'DOWNGRADE_SUBSCRIPTION';
+            await WalletTransaction.create([{
+              userId: patient._id,
+              type: 'debit',
+              amount: payment.walletAmountUsed,
+              reason: 'subscription_payment',
+              note: `Debited for subscription ${plan.name}`,
+            }], { session });
+          }
         }
-      }
 
-      await logAudit({
-        actorId: userId,
-        actorRole: 'patient',
-        action: auditAction,
-        targetModel: 'Subscription',
-        targetId: newSub._id.toString(),
-        metadata: { planId: plan._id.toString(), planName: plan.name, paymentId: payment._id.toString() },
+        // 3. Create new Subscription
+        newSub = await subscriptionService.createSubscriptionFromPlan(
+          userId,
+          plan,
+          { session, status: 'active' }
+        );
+
+        // 4. Initialize family members
+        newSub = await subscriptionService.initializeFamilyMembers(newSub, plan, { session });
+
+        // 5. Update Payment record to link subscriptionId (status was already succeeded)
+        await Payment.findOneAndUpdate(
+          { stripePaymentIntentId: paymentIntentId },
+          { $set: { subscriptionId: newSub._id } },
+          { session }
+        );
+
+        // 6. Log audit trail
+        let auditAction: 'PURCHASE_SUBSCRIPTION' | 'UPGRADE_SUBSCRIPTION' | 'DOWNGRADE_SUBSCRIPTION' = 'PURCHASE_SUBSCRIPTION';
+        if (existingActive) {
+          const existingPlan = await SubscriptionPlan.findById(existingActive.planId);
+          if (existingPlan) {
+            auditAction = plan.price >= existingPlan.price ? 'UPGRADE_SUBSCRIPTION' : 'DOWNGRADE_SUBSCRIPTION';
+          }
+        }
+
+        await logAudit({
+          actorId: userId,
+          actorRole: 'patient',
+          action: auditAction,
+          targetModel: 'Subscription',
+          targetId: newSub._id.toString(),
+          metadata: { planId: plan._id.toString(), planName: plan.name, paymentId: payment._id.toString() },
+        });
       });
-    });
-    await session.endSession();
+      await session.endSession();
 
-    await newSub.populate('planId');
-    return newSub;
-  }
+      await newSub.populate('planId');
+      logger.info(`[Confirm Endpoint] confirmSubscriptionPayment completed successfully for Intent: ${paymentIntentId}`);
+      return newSub;
+    } catch (err) {
+      // Rollback payment status if transaction failed
+      await Payment.findOneAndUpdate(
+        { stripePaymentIntentId: paymentIntentId },
+        { $set: { status: 'pending', paidAt: null } }
+      );
+      throw err;
+    }
+  },
 };

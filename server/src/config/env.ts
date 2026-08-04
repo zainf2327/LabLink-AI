@@ -24,6 +24,7 @@ const envSchema = z.object({
   GOOGLE_REDIRECT_URI: z.string().url('GOOGLE_REDIRECT_URI must be a valid URL'),
   ENCRYPTION_KEY: z.string().min(32, 'ENCRYPTION_KEY must be at least 32 characters').optional(),
   GROQ_API_KEY: z.string().min(1, 'GROQ_API_KEY is required'),
+  GROQ_MODEL_ID: z.string().default('llama-3.3-70b-versatile'),
   GEMINI_API_KEY: z.string().min(1, 'GEMINI_API_KEY is required'),
   FRONTEND_URL: z.string().url('FRONTEND_URL must be a valid URL'),
   AWS_ACCESS_KEY_ID: z.string().optional(),

@@ -4,7 +4,7 @@ export interface IPayment extends Document {
   bookingId?: mongoose.Types.ObjectId | null;
   subscriptionPlanId?: mongoose.Types.ObjectId | null;
   subscriptionId?: mongoose.Types.ObjectId | null;
-  paymentFor: 'booking' | 'subscription';
+  paymentFor: 'booking' | 'subscription' | 'wallet_topup';
   patientId: mongoose.Types.ObjectId;
   amount: number;
   walletAmountUsed: number;
@@ -24,7 +24,7 @@ const PaymentSchema: Schema = new Schema(
     subscriptionId: { type: Schema.Types.ObjectId, ref: 'Subscription', required: false, default: null },
     paymentFor: {
       type: String,
-      enum: ['booking', 'subscription'],
+      enum: ['booking', 'subscription', 'wallet_topup'],
       required: true,
       default: 'booking',
     },

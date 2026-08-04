@@ -306,6 +306,14 @@ export async function autoAssignStaff(bookingId: string): Promise<IUser | null> 
         session.endSession();
 
         logger.warn(`[AutoAssign] No eligible staff found for booking ${bookingId}. Set status to pending_manual_assignment.`);
+        
+        // Trigger Admin manual assignment notification
+        import('./notification.service.js').then(({ notifyAdminsPendingAssignment }) => {
+          notifyAdminsPendingAssignment(bookingId).catch((err) => {
+            logger.error(`[AutoAssign] Failed to notify admins for booking ${bookingId}:`, err);
+          });
+        });
+
         return null;
       }
 
@@ -345,6 +353,19 @@ export async function autoAssignStaff(bookingId: string): Promise<IUser | null> 
       bookingService.syncBookingToCalendar(booking).catch((err) => {
         logger.error(`[AutoAssign] Async Google Calendar sync failed for booking ${bookingId}:`, err);
       });
+
+      // Trigger Staff Auto-Assignment Notification
+      try {
+        import('./notification.service.js').then(({ notifyBookingAssigned }) => {
+          if (booking.homeSampling.scheduledAt) {
+            notifyBookingAssigned(selected._id.toString(), booking._id.toString(), booking.homeSampling.scheduledAt).catch((err) => {
+              logger.error(`[AutoAssign] Notification trigger failed for staff ${selected._id}:`, err);
+            });
+          }
+        });
+      } catch (err) {
+        logger.error('[AutoAssign] Failed to import notification service:', err);
+      }
 
       return selected;
     } catch (error: any) {

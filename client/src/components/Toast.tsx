@@ -49,40 +49,35 @@ const DEFAULT_DURATIONS: Record<ToastVariant, number> = {
 const VARIANT_CONFIG: Record<
   ToastVariant,
   {
-    Icon: React.FC<{ size?: number; className?: string }>;
-    iconClass: string;
-    borderClass: string;
-    bgClass: string;
-    progressClass: string;
+    Icon: React.FC<{ size?: number; className?: string; style?: React.CSSProperties }>;
+    iconStyle: React.CSSProperties;
+    containerClass: string;
+    textStyle: React.CSSProperties;
   }
 > = {
   success: {
     Icon: CheckCircle2,
-    iconClass: 'text-emerald-400',
-    borderClass: 'border-emerald-500/25',
-    bgClass: 'bg-emerald-500/5',
-    progressClass: 'bg-emerald-500',
+    iconStyle: { color: '#059669' }, // emerald-600
+    containerClass: 'bg-emerald-50 border-emerald-500 border-l-4 shadow-md',
+    textStyle: { color: '#064e3b' }, // emerald-900
   },
   error: {
     Icon: XCircle,
-    iconClass: 'text-red-400',
-    borderClass: 'border-red-500/25',
-    bgClass: 'bg-red-500/5',
-    progressClass: 'bg-red-500',
+    iconStyle: { color: '#dc2626' }, // red-600
+    containerClass: 'bg-red-50 border-red-500 border-l-4 shadow-md',
+    textStyle: { color: '#7f1d1d' }, // red-900
   },
   warning: {
     Icon: AlertTriangle,
-    iconClass: 'text-amber-400',
-    borderClass: 'border-amber-500/25',
-    bgClass: 'bg-amber-500/5',
-    progressClass: 'bg-amber-500',
+    iconStyle: { color: '#d97706' }, // amber-600
+    containerClass: 'bg-amber-50 border-amber-500 border-l-4 shadow-md',
+    textStyle: { color: '#78350f' }, // amber-900
   },
   info: {
     Icon: Info,
-    iconClass: 'text-blue-400',
-    borderClass: 'border-blue-500/25',
-    bgClass: 'bg-blue-500/5',
-    progressClass: 'bg-blue-500',
+    iconStyle: { color: '#2563eb' }, // blue-600
+    containerClass: 'bg-blue-50 border-blue-500 border-l-4 shadow-md',
+    textStyle: { color: '#0c4a6e' }, // blue-900
   },
 };
 
@@ -96,8 +91,6 @@ interface ToastItemProps {
 const ToastItem: React.FC<ToastItemProps> = ({ toast, onDismiss }) => {
   const [visible, setVisible] = useState(false);
   const [leaving, setLeaving] = useState(false);
-  const [progress, setProgress] = useState(100);
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const config = VARIANT_CONFIG[toast.variant];
@@ -105,26 +98,12 @@ const ToastItem: React.FC<ToastItemProps> = ({ toast, onDismiss }) => {
 
   const triggerDismiss = useCallback(() => {
     setLeaving(true);
-    if (intervalRef.current) clearInterval(intervalRef.current);
     setTimeout(() => onDismiss(toast.id), 350);
   }, [onDismiss, toast.id]);
 
   useEffect(() => {
     // Slide in
     const enterTimeout = setTimeout(() => setVisible(true), 10);
-
-    // Progress bar countdown
-    const step = 100 / (toast.duration / 100);
-    intervalRef.current = setInterval(() => {
-      setProgress((prev) => {
-        const next = prev - step;
-        if (next <= 0) {
-          if (intervalRef.current) clearInterval(intervalRef.current);
-          return 0;
-        }
-        return next;
-      });
-    }, 100);
 
     // Auto-dismiss
     timeoutRef.current = setTimeout(() => {
@@ -133,7 +112,6 @@ const ToastItem: React.FC<ToastItemProps> = ({ toast, onDismiss }) => {
 
     return () => {
       clearTimeout(enterTimeout);
-      if (intervalRef.current) clearInterval(intervalRef.current);
       if (timeoutRef.current) clearTimeout(timeoutRef.current);
     };
   }, [toast.duration, triggerDismiss]);
@@ -141,38 +119,35 @@ const ToastItem: React.FC<ToastItemProps> = ({ toast, onDismiss }) => {
   return (
     <div
       className={`
-        relative flex items-start gap-3 w-full max-w-sm rounded-2xl px-4 py-3.5 shadow-2xl
-        border backdrop-blur-md overflow-hidden
+        relative flex items-start gap-3 w-full max-w-sm rounded-xl px-4.5 py-4 shadow-lg
+        border border-slate-200/40 overflow-hidden
         transition-all duration-350 ease-out
-        ${config.bgClass} ${config.borderClass}
-        bg-zinc-900/90
+        ${config.containerClass}
         ${visible && !leaving ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-8'}
         ${leaving ? 'opacity-0 translate-x-8' : ''}
       `}
       style={{ transition: 'opacity 350ms ease, transform 350ms ease' }}
     >
       {/* Icon */}
-      <Icon size={18} className={`shrink-0 mt-0.5 ${config.iconClass}`} />
+      <Icon size={18} className="shrink-0 mt-0.5" style={config.iconStyle} />
 
       {/* Message */}
-      <p className="text-sm text-zinc-100 font-medium leading-snug flex-1 pr-1">
+      <p 
+        className="text-xs sm:text-sm font-extrabold leading-snug flex-1 pr-1 font-sans"
+        style={config.textStyle}
+      >
         {toast.message}
       </p>
 
       {/* Close button */}
       <button
         onClick={triggerDismiss}
-        className="shrink-0 text-zinc-500 hover:text-zinc-300 transition-colors cursor-pointer -mt-0.5"
+        className="shrink-0 p-0.5 rounded-lg transition-colors cursor-pointer"
+        style={config.iconStyle}
         aria-label="Dismiss notification"
       >
         <X size={14} />
       </button>
-
-      {/* Progress bar */}
-      <div
-        className={`absolute bottom-0 left-0 h-0.5 ${config.progressClass} transition-none rounded-full opacity-60`}
-        style={{ width: `${progress}%` }}
-      />
     </div>
   );
 };
@@ -189,7 +164,7 @@ const ToastContainer: React.FC<ToastContainerProps> = ({ toasts, onDismiss }) =>
 
   return (
     <div
-      className="fixed bottom-6 right-6 z-[9999] flex flex-col gap-2.5 items-end pointer-events-none"
+      className="fixed top-20 right-6 z-[9999] flex flex-col gap-2.5 items-end pointer-events-none"
       aria-live="polite"
       aria-atomic="false"
     >

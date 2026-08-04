@@ -26,6 +26,7 @@ import auditLogRoutes from './routes/auditLog.routes.js';
 import webhookRoutes from './routes/webhook.routes.js';
 import walletRoutes from './routes/wallet.routes.js';
 import regionRoutes from './routes/region.routes.js';
+import notificationRoutes from './routes/notification.routes.js';
 import swaggerUi from 'swagger-ui-express';
 import { swaggerSpec } from './config/swagger.js';
 
@@ -178,6 +179,7 @@ app.use('/api/v1/analytics', analyticsRoutes);
 app.use('/api/v1/audit-logs', auditLogRoutes);
 app.use('/api/v1/wallet', walletRoutes);
 app.use('/api/v1/regions', regionRoutes);
+app.use('/api/v1/notifications', notificationRoutes);
 
 // 404 handler for unknown routes
 app.use((req: Request, res: Response, next: NextFunction) => {

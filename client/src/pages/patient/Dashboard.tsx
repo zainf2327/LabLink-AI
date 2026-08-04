@@ -11,8 +11,8 @@ import AppLayout from '../../components/layout/AppLayout';
 import { ReportDisclosure } from '../../components/ReportDisclosure';
 import { buildReportFilename } from '../../utils/reportFilename';
 import { useConfirm } from '../../hooks/useConfirm';
+import { useToast } from '../../components/Toast';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
-import Logo from '../../components/Logo';
 
 import {
   Calendar,
@@ -32,11 +32,13 @@ import {
   CreditCard,
   ChevronDown,
   ChevronUp,
+  Bot,
 } from 'lucide-react';
 
 export const PatientDashboard: React.FC = () => {
   const { user } = useAuthStore();
   const { confirm } = useConfirm();
+  const toast = useToast();
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [reports, setReports] = useState<Report[]>([]);
   const [loading, setLoading] = useState(true);
@@ -183,7 +185,7 @@ export const PatientDashboard: React.FC = () => {
       handleViewReport(found);
     } else {
       setActiveTab('reports');
-      alert('Report is still loading. Please check the Reports tab.');
+      toast.warning('Report is still loading. Please check the Reports tab.');
     }
   };
 
@@ -205,7 +207,7 @@ export const PatientDashboard: React.FC = () => {
       setViewingBlobUrl(blobUrl);
     } catch (err) {
       console.error('View report failed:', err);
-      alert('Failed to load report PDF for viewing.');
+      toast.error('Failed to load report PDF for viewing.');
       setViewingReport(null);
     } finally {
       setViewingLoading(false);
@@ -279,7 +281,7 @@ export const PatientDashboard: React.FC = () => {
       URL.revokeObjectURL(blobUrl);
     } catch (err) {
       console.error('Download failed:', err);
-      alert('Failed to download report PDF. Please try again.');
+      toast.error('Failed to download report PDF. Please try again.');
     } finally {
       setDownloadingReportId(null);
       setDownloadProgress(0);
@@ -292,7 +294,7 @@ export const PatientDashboard: React.FC = () => {
       iframe.contentWindow.focus();
       iframe.contentWindow.print();
     } else {
-      alert('Report viewer is still loading or printing is unsupported in this browser.');
+      toast.warning('Report viewer is still loading or printing is unsupported in this browser.');
     }
   };
 
@@ -440,7 +442,6 @@ export const PatientDashboard: React.FC = () => {
             </Link>
           </div>
         )}
-
         <div className="space-y-6">
 
           {/* Stats Row */}
@@ -518,6 +519,49 @@ export const PatientDashboard: React.FC = () => {
               </div>
             </div>
           )}
+
+          {/* Ask LabLink AI Card */}
+          <div className="glassmorphic-card rounded-2xl p-5 border border-zinc-800 bg-white shadow-sm hover:shadow-md hover:scale-[1.002] transition-all duration-300 relative overflow-hidden group">
+            {/* Background glowing effects */}
+            <div className="absolute right-0 top-0 w-32 h-32 bg-brand-500/5 rounded-full blur-2xl pointer-events-none group-hover:bg-brand-500/10 transition-colors" />
+            <div className="absolute left-1/3 bottom-0 w-24 h-24 bg-cyan-500/5 rounded-full blur-2xl pointer-events-none" />
+            
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 relative z-10">
+              <div className="space-y-1.5 max-w-2xl font-sans">
+                <div className="flex items-center gap-2">
+                  <span className="text-[9px] uppercase font-extrabold tracking-widest bg-brand-50 text-brand-600 border border-brand-100 px-2 py-0.5 rounded">
+                    Interactive
+                  </span>
+                  <span className="text-[9px] uppercase font-extrabold tracking-widest bg-teal-50 text-teal-600 border border-teal-100 px-2 py-0.5 rounded">
+                    Autonomous
+                  </span>
+                </div>
+                <h3 className="text-sm md:text-base font-extrabold text-slate-800 flex items-center gap-2">
+                  <Bot size={16} className="text-brand-500 shrink-0" />
+                  <span>Ask LabLink AI</span>
+                </h3>
+                <p className="text-xs text-slate-500 font-medium leading-relaxed">
+                  Get instant medical report analysis, track biomarkers over time, and ask question prompts based on your processed diagnostic samples.
+                </p>
+              </div>
+
+              <div className="shrink-0 w-full sm:w-auto flex flex-col items-start sm:items-end gap-1.5">
+                <Link
+                  to="/patient/ai-assistant"
+                  className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-brand-500 hover:bg-brand-600 text-white text-xs font-bold transition-all shadow-md shadow-brand-500/10 hover:scale-[1.02] cursor-pointer group"
+                >
+                  <Sparkles size={12} className="text-white animate-pulse" />
+                  <span>Consult AI Assistant</span>
+                  <span className="text-[10px] text-brand-100 group-hover:translate-x-0.5 transition-transform">→</span>
+                </Link>
+                <span className="text-[8px] font-extrabold text-slate-400 uppercase tracking-widest block text-center sm:text-right mt-0.5 leading-none w-full">
+                  Interactive AI Actions
+                </span>
+              </div>
+            </div>
+          </div>
+
+
 
           {/* Grid Layout: Health Summary Cards + Spline Chart */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -695,88 +739,6 @@ export const PatientDashboard: React.FC = () => {
             </div>
           </div>
 
-          {/* AI Health Insights Widget */}
-          <div className="glassmorphic-card rounded-2xl p-6 relative overflow-hidden group hover:shadow-lg hover:scale-[1.005] transition-all duration-300">
-            {/* Background decorative glow */}
-            <div className="absolute right-0 top-0 -translate-y-12 translate-x-12 w-48 h-48 bg-gradient-to-br from-brand-400/10 to-accent-400/20 rounded-full blur-3xl group-hover:scale-110 transition-transform duration-500 pointer-events-none" />
-
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 relative z-10">
-              <div className="flex items-start gap-4">
-                <Logo size="md-lg" className="group-hover:scale-105" />
-                <div>
-                  <h3 className="text-base font-extrabold text-slate-800 tracking-tight flex items-center gap-1.5">
-                    <span>AI Health Assistant Insights</span>
-                    <span className="px-2 py-0.5 text-[8px] font-black uppercase tracking-widest bg-brand-500 text-white rounded-md">
-                      Interactive
-                    </span>
-                  </h3>
-                  <p className="text-xs text-slate-500 mt-1 max-w-xl leading-relaxed">
-                    Get instant medical report analysis, track biomarkers over time, and ask question prompts based on your processed diagnostic samples.
-                  </p>
-                </div>
-              </div>
-
-              {/* Action Button */}
-              {reports.length > 0 ? (
-                <Link
-                  to={`/patient/reports/${reports[0]._id}/ai-assistant`}
-                  className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-brand-500 to-brand-600 hover:from-brand-600 hover:to-brand-700 text-white text-xs font-bold transition-all shadow-md shadow-brand-500/15 hover:scale-[1.02] whitespace-nowrap self-start md:self-center"
-                >
-                  Consult AI Assistant
-                </Link>
-              ) : (
-                <button
-                  disabled
-                  className="px-5 py-2.5 rounded-xl bg-slate-100 border border-slate-200 text-slate-400 text-xs font-bold cursor-not-allowed whitespace-nowrap self-start md:self-center"
-                >
-                  No Reports Uploaded Yet
-                </button>
-              )}
-            </div>
-
-            {/* Quick Prompts */}
-            {reports.length > 0 ? (
-              <div className="mt-5 pt-4 border-t border-slate-100/60">
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-1.5">
-                  <Sparkles size={11} className="text-brand-500 animate-pulse" />
-                  <span>Interactive AI Actions</span>
-                </p>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  {[
-                    { label: 'Analyze Glucose', prompt: 'Please analyze my glucose levels and explain if they are within normal range.', desc: 'Check sugar metrics & trends' },
-                    { label: 'Explain Cholesterol', prompt: 'Explain the cholesterol trends from my reports.', desc: 'Interpret HDL/LDL/Triglycerides' },
-                    { label: 'Fasting Guidelines', prompt: 'What are the fasting guidelines for my upcoming diagnostic samples?', desc: 'Preparation rules & checklist' }
-                  ].map((p) => (
-                    <Link
-                      key={p.label}
-                      to={`/patient/reports/${reports[0]._id}/ai-assistant`}
-                      state={{ initialPrompt: p.prompt }}
-                      className="p-3.5 rounded-2xl bg-slate-50/50 hover:bg-brand-50/40 border border-slate-100 hover:border-brand-200 transition-all duration-200 cursor-pointer flex flex-col items-start gap-1 group text-left shadow-sm hover:shadow"
-                    >
-                      <span className="text-xs font-bold text-slate-700 group-hover:text-brand-600 transition-colors">
-                        {p.label}
-                      </span>
-                      <span className="text-[10px] text-slate-400 font-medium leading-normal">
-                        {p.desc}
-                      </span>
-                    </Link>
-                  ))}
-                </div>
-              </div>
-            ) : (
-              <div className="mt-5 pt-4 border-t border-slate-100/60">
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2 flex items-center gap-1.5">
-                  <Sparkles size={11} className="text-slate-400" />
-                  <span>Interactive AI Actions</span>
-                </p>
-                <div className="p-3.5 rounded-2xl bg-slate-50/30 border border-dashed border-slate-200 text-center">
-                  <p className="text-[10px] text-slate-400 font-semibold leading-normal">
-                    Complete your first diagnostic test run to unlock interactive AI biomarker interpreters.
-                  </p>
-                </div>
-              </div>
-            )}
-          </div>
 
             {/* Navigation Tabs */}
             <div className="flex border-b border-slate-200 gap-6 pb-px mb-6">

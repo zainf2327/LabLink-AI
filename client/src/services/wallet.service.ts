@@ -5,7 +5,7 @@ export interface WalletTransaction {
   userId: string;
   type: 'credit' | 'debit';
   amount: number;
-  reason: 'cancellation_refund' | 'booking_payment';
+  reason: 'cancellation_refund' | 'booking_payment' | 'wallet_topup';
   bookingId?: string | null;
   note?: string;
   createdAt: string;
@@ -29,6 +29,23 @@ export const walletService = {
     };
   }> {
     const response = await api.get('/wallet/transactions', { params: { page, limit } });
+    return response.data;
+  },
+
+  async createTopUpIntent(amount: number): Promise<{
+    success: boolean;
+    data: { clientSecret: string; paymentIntentId: string };
+  }> {
+    const response = await api.post('/wallet/topup/intent', { amount });
+    return response.data;
+  },
+
+  async confirmTopUp(paymentIntentId: string): Promise<{
+    success: boolean;
+    message: string;
+    data: { walletBalance: number; creditAmount: number };
+  }> {
+    const response = await api.post('/wallet/topup/confirm', { paymentIntentId });
     return response.data;
   },
 };

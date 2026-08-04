@@ -4,7 +4,7 @@ export interface IWalletTransaction extends Document {
   userId: mongoose.Types.ObjectId;
   type: 'credit' | 'debit';
   amount: number;
-  reason: 'cancellation_refund' | 'booking_payment' | 'subscription_payment';
+  reason: 'cancellation_refund' | 'booking_payment' | 'subscription_payment' | 'wallet_topup';
   bookingId?: mongoose.Types.ObjectId | null;
   note?: string;
   createdAt: Date;
@@ -22,8 +22,8 @@ const WalletTransactionSchema: Schema = new Schema(
     amount: { type: Number, required: true, min: 0 },
     reason: {
       type: String,
-      enum: ['cancellation_refund', 'booking_payment', 'subscription_payment'],
-      required: true,
+      enum: ['cancellation_refund', 'booking_payment', 'subscription_payment', 'wallet_topup'],
+      required: true
     },
     bookingId: { type: Schema.Types.ObjectId, ref: 'Booking', default: null },
     note: { type: String, trim: true },
