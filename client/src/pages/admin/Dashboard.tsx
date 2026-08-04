@@ -103,8 +103,10 @@ export const AdminDashboard: React.FC<{ defaultTab?: 'overview' | 'bookings' | '
   useEffect(() => {
     if (tabParam) {
       setActiveTab(tabParam as any);
+    } else {
+      setActiveTab(defaultTab);
     }
-  }, [tabParam]);
+  }, [tabParam, defaultTab]);
 
 
   // API States
