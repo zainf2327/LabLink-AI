@@ -2,6 +2,7 @@ import mongoose, { Schema, Document } from 'mongoose';
 
 export interface INotification extends Document {
   userId: mongoose.Types.ObjectId;
+  bookingId?: mongoose.Types.ObjectId;
   title: string;
   message: string;
   type: 'booking' | 'report' | 'subscription' | 'general';
@@ -13,6 +14,7 @@ export interface INotification extends Document {
 const NotificationSchema: Schema = new Schema(
   {
     userId: { type: Schema.Types.ObjectId, ref: 'User', required: true, index: true },
+    bookingId: { type: Schema.Types.ObjectId, ref: 'Booking', required: false, index: true },
     title: { type: String, required: true, trim: true },
     message: { type: String, required: true, trim: true },
     type: {

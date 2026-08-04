@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import useAuthStore from '../../store/useAuthStore';
 import {
   User,
@@ -46,10 +47,20 @@ export const StaffDashboard: React.FC<{ defaultTab?: 'my_assignments' | 'all_boo
   useEffect(() => {
     setActiveTab(defaultTab);
   }, [defaultTab]);
+  const [searchParams] = useSearchParams();
+  const searchParam = searchParams.get('search');
+
   const [statusFilter, setStatusFilter] = useState<string>('');
   const [typeFilter, setTypeFilter] = useState<string>('');
   const [dateFilter, setDateFilter] = useState<string>('all');
-  const [searchQuery, setSearchQuery] = useState<string>('');
+  const [searchQuery, setSearchQuery] = useState<string>(searchParam || '');
+
+  useEffect(() => {
+    if (searchParam) {
+      setSearchQuery(searchParam);
+    }
+  }, [searchParam]);
+
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [totalPages, setTotalPages] = useState<number>(1);
 

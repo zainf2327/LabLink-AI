@@ -130,14 +130,18 @@ export const getAllBookings = asyncHandler(async (req: Request, res: Response): 
     ];
   }
 
-  // Patient name search query
+  // Patient name or Booking ID search query
   if (search) {
-    const matchedPatients = await User.find({
-      name: { $regex: search, $options: 'i' },
-      role: 'patient'
-    }).select('_id');
-    const patientIds = matchedPatients.map((u) => u._id);
-    filter.patientId = { $in: patientIds };
+    if (mongoose.isValidObjectId(search)) {
+      filter._id = search;
+    } else {
+      const matchedPatients = await User.find({
+        name: { $regex: search, $options: 'i' },
+        role: 'patient'
+      }).select('_id');
+      const patientIds = matchedPatients.map((u) => u._id);
+      filter.patientId = { $in: patientIds };
+    }
   }
 
   const total = await Booking.countDocuments(filter);

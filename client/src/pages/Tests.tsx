@@ -6,6 +6,7 @@ import { catalogService } from '../services/catalog.service';
 import type { Category, Test } from '../services/catalog.service';
 import { Search, SlidersHorizontal, Home, ShieldAlert, FileText, ChevronRight, X, ArrowLeft, ShoppingCart } from 'lucide-react';
 import { AlertBanner } from '../components/AlertBanner';
+import Logo from '../components/Logo';
 
 export const Tests: React.FC = () => {
   const navigate = useNavigate();
@@ -99,9 +100,7 @@ export const Tests: React.FC = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             <Link to="/" className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-emerald-600 to-teal-400 flex items-center justify-center shadow-lg">
-                <span className="font-extrabold text-black text-lg">LL</span>
-              </div>
+              <Logo size="md" />
               <div>
                 <span className="font-bold text-lg tracking-tight bg-gradient-to-r from-emerald-400 to-teal-300 bg-clip-text text-transparent">
                   LabLink AI

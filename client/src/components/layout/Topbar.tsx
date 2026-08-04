@@ -76,6 +76,21 @@ const formatTimeAgo = (dateStr: string) => {
   }
 };
 
+const getNotificationLink = (noti: any, role?: string) => {
+  if (!noti.bookingId) return null;
+  if (role === 'admin') {
+    return `/admin/dashboard?tab=bookings&search=${noti.bookingId}`;
+  } else if (role === 'staff') {
+    return `/staff/dashboard?search=${noti.bookingId}`;
+  } else if (role === 'patient') {
+    if (noti.type === 'report') {
+      return `/patient/dashboard?tab=reports&reportId=${noti.bookingId}`;
+    }
+    return `/patient/dashboard?tab=bookings&bookingId=${noti.bookingId}`;
+  }
+  return null;
+};
+
 interface TopbarProps {
   pageTitle: string;
   isMobileSidebarOpen?: boolean;
@@ -215,11 +230,23 @@ const Topbar: React.FC<TopbarProps> = ({ pageTitle, isMobileSidebarOpen, onToggl
                   notifications.map((noti) => {
                     const NotiIcon = getNotificationIcon(noti.type);
                     const notiColors = getNotificationColors(noti.type);
+                    const link = getNotificationLink(noti, user?.role);
 
                     return (
                       <div
                         key={noti._id}
+                        onClick={() => {
+                          if (link) {
+                            if (!noti.isRead) {
+                              markAsRead(noti._id);
+                            }
+                            setNotiOpen(false);
+                            navigate(link);
+                          }
+                        }}
                         className={`group px-4 py-3 flex gap-3 items-start transition-colors relative ${
+                          link ? 'cursor-pointer hover:bg-slate-50/80' : ''
+                        } ${
                           noti.isRead ? 'hover:bg-slate-55/60' : 'bg-blue-50/15 hover:bg-blue-50/25'
                         }`}
                       >
@@ -243,7 +270,10 @@ const Topbar: React.FC<TopbarProps> = ({ pageTitle, isMobileSidebarOpen, onToggl
                         <div className="absolute right-3 top-3 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                           {!noti.isRead && (
                             <button
-                              onClick={() => markAsRead(noti._id)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                markAsRead(noti._id);
+                              }}
                               title="Mark as read"
                               className="w-6 h-6 rounded-lg bg-white border border-slate-200 flex items-center justify-center text-slate-400 hover:text-blue-600 hover:border-blue-150 transition-colors shadow-2xs cursor-pointer"
                             >
@@ -251,9 +281,12 @@ const Topbar: React.FC<TopbarProps> = ({ pageTitle, isMobileSidebarOpen, onToggl
                             </button>
                           )}
                           <button
-                            onClick={() => deleteNotification(noti._id)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              deleteNotification(noti._id);
+                            }}
                             title="Delete"
-                            className="w-6 h-6 rounded-lg bg-white border border-slate-200 flex items-center justify-center text-slate-400 hover:text-red-600 hover:border-red-150 transition-colors shadow-2xs cursor-pointer"
+                            className="w-6 h-6 rounded-lg bg-white border border-slate-200 flex items-center justify-center text-slate-400 hover:text-red-650 hover:border-red-150 transition-colors shadow-2xs cursor-pointer"
                           >
                             <Trash2 size={12} />
                           </button>

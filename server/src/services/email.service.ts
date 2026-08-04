@@ -147,4 +147,63 @@ export const emailService = {
       logger.warn('⚠️ Proceeding in non-production environment despite email send failure.');
     }
   },
+
+  async sendBookingAssignmentEmail(
+    email: string,
+    staffName: string,
+    bookingId: string,
+    scheduledAt: Date,
+    patientName: string,
+    address: string,
+    tests: string[]
+  ): Promise<void> {
+    const shortId = bookingId.slice(-6).toUpperCase();
+    const subject = `[LabLink AI] New Booking Assignment - #${shortId}`;
+    const formattedDate = new Date(scheduledAt).toLocaleString();
+    
+    const htmlContent = `
+      <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 8px;">
+        <h2 style="color: #2563eb;">New Booking Assignment</h2>
+        <p>Hello, ${staffName}. You have been assigned to collect samples for a new booking.</p>
+        
+        <div style="padding: 15px; background-color: #f1f5f9; border-radius: 6px; margin: 20px 0; color: #0f172a;">
+          <h3 style="margin-top: 0; color: #0f172a; border-bottom: 1px solid #e2e8f0; padding-bottom: 8px;">Booking Details</h3>
+          <p style="margin: 8px 0;"><strong>Booking Reference:</strong> #${shortId}</p>
+          <p style="margin: 8px 0;"><strong>Scheduled Time:</strong> ${formattedDate}</p>
+          <p style="margin: 8px 0;"><strong>Patient Name:</strong> ${patientName}</p>
+          <p style="margin: 8px 0;"><strong>Collection Address:</strong> ${address}</p>
+          <p style="margin: 8px 0;"><strong>Tests Required:</strong></p>
+          <ul style="margin: 5px 0; padding-left: 20px;">
+            ${tests.map(t => `<li style="margin: 4px 0;">${t}</li>`).join('')}
+          </ul>
+        </div>
+        
+        <p>Please review this booking in your staff dashboard to update its status once sample collection is complete.</p>
+        <div style="text-align: center; margin: 25px 0;">
+          <a href="${env.FRONTEND_URL}/staff/dashboard?search=${bookingId}" style="background-color: #2563eb; color: white; padding: 10px 20px; border-radius: 6px; text-decoration: none; font-weight: bold; display: inline-block;">View in Dashboard</a>
+        </div>
+        <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 20px 0;" />
+        <p style="font-size: 12px; color: #64748b;">This is an automated notification. Please do not reply directly to this email.</p>
+      </div>
+    `;
+    
+    const textContent = `Hello, ${staffName}.\nYou have been assigned to collect samples for Booking #${shortId} scheduled at ${formattedDate}.\n\nPatient: ${patientName}\nAddress: ${address}\nTests to perform:\n${tests.map(t => `- ${t}`).join('\n')}\n\nView this booking on your dashboard at: ${env.FRONTEND_URL}/staff/dashboard?search=${bookingId}`;
+
+    try {
+      await resendClient.emails.send({
+        from: fromEmail,
+        to: email,
+        subject: subject,
+        html: htmlContent,
+        text: textContent,
+      });
+      logger.info(`Booking assignment email sent to staff ${email} for Booking #${shortId}.`);
+    } catch (err) {
+      logger.error(`Failed to send booking assignment email to staff ${email}:`, err);
+      if (env.NODE_ENV === 'production') {
+        throw err;
+      }
+      logger.warn('⚠️ Proceeding in non-production environment despite email send failure.');
+    }
+  },
 };

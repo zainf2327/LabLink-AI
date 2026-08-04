@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { catalogService } from '../../services/catalog.service';
+import { useSearchParams } from 'react-router-dom';
 import type { Category, Test } from '../../services/catalog.service';
 import { analyticsService } from '../../services/analytics.service';
 import { bookingService } from '../../services/booking.service';
@@ -91,11 +92,19 @@ const CustomTooltip = ({ active, payload, label }: any) => {
 export const AdminDashboard: React.FC<{ defaultTab?: 'overview' | 'bookings' | 'tests' | 'categories' | 'subscriptions' | 'regions' | 'staff' | 'coupons' }> = ({
   defaultTab = 'overview',
 }) => {
-  const [activeTab, setActiveTab] = useState<'overview' | 'bookings' | 'tests' | 'categories' | 'subscriptions' | 'regions' | 'staff' | 'coupons'>(defaultTab);
+  const [searchParams] = useSearchParams();
+  const tabParam = searchParams.get('tab');
+  const searchParam = searchParams.get('search');
+
+  const [activeTab, setActiveTab] = useState<'overview' | 'bookings' | 'tests' | 'categories' | 'subscriptions' | 'regions' | 'staff' | 'coupons'>(
+    (tabParam as any) || defaultTab
+  );
 
   useEffect(() => {
-    setActiveTab(defaultTab);
-  }, [defaultTab]);
+    if (tabParam) {
+      setActiveTab(tabParam as any);
+    }
+  }, [tabParam]);
 
 
   // API States
@@ -158,7 +167,13 @@ export const AdminDashboard: React.FC<{ defaultTab?: 'overview' | 'bookings' | '
   const [bookingStatusFilter, setBookingStatusFilter] = useState('');
   const [bookingTypeFilter, setBookingTypeFilter] = useState('');
   const [bookingDateFilter, setBookingDateFilter] = useState('all');
-  const [bookingSearchQuery, setBookingSearchQuery] = useState('');
+  const [bookingSearchQuery, setBookingSearchQuery] = useState(searchParam || '');
+
+  useEffect(() => {
+    if (searchParam) {
+      setBookingSearchQuery(searchParam);
+    }
+  }, [searchParam]);
 
   // Staff Assignment State
   const [staffList, setStaffList] = useState<any[]>([]);

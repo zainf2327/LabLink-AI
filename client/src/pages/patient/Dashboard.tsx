@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import useAuthStore from '../../store/useAuthStore';
 import { bookingService } from '../../services/booking.service';
 import { walletService } from '../../services/wallet.service';
@@ -39,6 +39,11 @@ export const PatientDashboard: React.FC = () => {
   const { user } = useAuthStore();
   const { confirm } = useConfirm();
   const toast = useToast();
+  const [searchParams] = useSearchParams();
+  const tabParam = searchParams.get('tab');
+  const highlightBookingId = searchParams.get('bookingId');
+  const highlightReportId = searchParams.get('reportId');
+
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [reports, setReports] = useState<Report[]>([]);
   const [loading, setLoading] = useState(true);
@@ -46,8 +51,55 @@ export const PatientDashboard: React.FC = () => {
 
   const [walletBalance, setWalletBalance] = useState<number>(0);
   const [cancelMessage, setCancelMessage] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'bookings' | 'reports'>('bookings');
+  const [activeTab, setActiveTab] = useState<'bookings' | 'reports'>(
+    tabParam === 'reports' ? 'reports' : 'bookings'
+  );
   const [expandedReportId, setExpandedReportId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (tabParam === 'reports') {
+      setActiveTab('reports');
+    } else if (tabParam === 'bookings') {
+      setActiveTab('bookings');
+    }
+  }, [tabParam]);
+
+  // Scroll to highlighted booking card
+  useEffect(() => {
+    if (highlightBookingId && !loading && bookings.length > 0) {
+      const element = document.getElementById(`booking-${highlightBookingId}`);
+      if (element) {
+        setTimeout(() => {
+          element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }, 350);
+      }
+    }
+  }, [highlightBookingId, loading, bookings]);
+
+  // Scroll to and expand highlighted report card
+  useEffect(() => {
+    if (highlightReportId && reports.length > 0) {
+      const matchedReport = reports.find(
+        (r) =>
+          r._id === highlightReportId ||
+          (r.bookingId &&
+            (typeof r.bookingId === 'string'
+              ? r.bookingId === highlightReportId
+              : (r.bookingId as any)._id === highlightReportId))
+      );
+      if (matchedReport) {
+        setExpandedReportId(matchedReport._id);
+        const bookingIdStr = matchedReport.bookingId && (typeof matchedReport.bookingId === 'string' ? matchedReport.bookingId : (matchedReport.bookingId as any)._id);
+        const elementId = bookingIdStr ? `report-${bookingIdStr}` : `report-${matchedReport._id}`;
+        setTimeout(() => {
+          const element = document.getElementById(elementId);
+          if (element) {
+            element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }
+        }, 450);
+      }
+    }
+  }, [highlightReportId, reports]);
 
   // Secure report viewer states
   const [viewingReport, setViewingReport] = useState<Report | null>(null);
@@ -790,11 +842,19 @@ export const PatientDashboard: React.FC = () => {
                     {bookings.map((booking) => (
                       <div
                         key={booking._id}
-                        className="border border-slate-200/60 bg-white/60 hover:bg-white hover:border-brand-200/60 p-5 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition-all duration-300 hover:shadow-md hover:scale-[1.01]"
+                        id={`booking-${booking._id}`}
+                        className={`border p-5 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition-all duration-300 hover:shadow-md hover:scale-[1.01] ${
+                          highlightBookingId === booking._id
+                            ? 'border-brand-500 bg-brand-50/10 shadow-lg shadow-brand-500/5 ring-1 ring-brand-500/25'
+                            : 'border-slate-200/60 bg-white/60 hover:bg-white hover:border-brand-200/60'
+                        }`}
                       >
                         <div className="space-y-2">
-                          <div className="flex items-center gap-3">
+                          <div className="flex items-center gap-2.5 flex-wrap">
                             {getStatusIcon(booking.status)}
+                            <span className="text-xs font-mono font-bold text-slate-400 bg-slate-100/80 px-2 py-0.5 rounded border border-slate-200/50">
+                              #{booking._id.substring(18).toUpperCase()}
+                            </span>
                             <span className="text-sm font-bold text-slate-700">
                               {booking.tests.map((t) => t.name).join(', ')}
                             </span>
@@ -879,22 +939,34 @@ export const PatientDashboard: React.FC = () => {
                       <Loader size={32} />
                     </div>
                   ) : reports.length === 0 ? (
-                    <div className="py-12 text-center text-slate-400 text-sm">
+<div className="py-12 text-center text-slate-400 text-sm">
                       No medical reports available yet. Once your samples are processed, your reports will appear here.
                     </div>
                   ) : (
                     <div className="space-y-4">
                       {reports.map((report) => {
                         const isExpanded = expandedReportId === report._id;
+                        const matchesReport = highlightReportId === report._id || (report.bookingId && (typeof report.bookingId === 'string' ? report.bookingId === highlightReportId : (report.bookingId as any)._id === highlightReportId));
+                        const bookingIdStr = report.bookingId && (typeof report.bookingId === 'string' ? report.bookingId : (report.bookingId as any)._id);
                         return (
                           <div
                             key={report._id}
-                            className="border border-slate-200/60 bg-white/60 hover:bg-white hover:border-brand-200/60 p-5 rounded-2xl flex flex-col hover:border-brand-200/60 transition-all duration-300 hover:shadow-md hover:scale-[1.01]"
+                            id={bookingIdStr ? `report-${bookingIdStr}` : `report-${report._id}`}
+                            className={`border p-5 rounded-2xl flex flex-col transition-all duration-300 hover:shadow-md hover:scale-[1.01] ${
+                              matchesReport
+                                ? 'border-brand-500 bg-brand-50/10 shadow-lg shadow-brand-500/5 ring-1 ring-brand-500/25'
+                                : 'border-slate-200/60 bg-white/60 hover:bg-white hover:border-brand-200/60'
+                            }`}
                           >
                             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                               <div className="space-y-1.5 flex-1">
-                                <div className="flex items-center gap-2">
+                                <div className="flex items-center gap-2 flex-wrap">
                                   <FileCheck className="text-teal-400" size={16} />
+                                  {report.bookingId && (
+                                    <span className="text-xs font-mono font-bold text-slate-400 bg-slate-100/80 px-2 py-0.5 rounded border border-slate-200/50">
+                                      #{typeof report.bookingId === 'string' ? report.bookingId.slice(-6).toUpperCase() : (report.bookingId as any)._id.slice(-6).toUpperCase()}
+                                    </span>
+                                  )}
                                   <span className="text-sm font-bold text-slate-700">
                                     {getReportTitle(report)}
                                   </span>

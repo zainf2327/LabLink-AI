@@ -9,11 +9,13 @@ export const createNotification = async (
   userId: string | mongoose.Types.ObjectId,
   title: string,
   message: string,
-  type: 'booking' | 'report' | 'subscription' | 'general' = 'general'
+  type: 'booking' | 'report' | 'subscription' | 'general' = 'general',
+  bookingId?: string | mongoose.Types.ObjectId
 ) => {
   try {
     const notification = new Notification({
       userId,
+      bookingId,
       title,
       message,
       type,
@@ -30,11 +32,17 @@ export const createNotification = async (
  * Helper to notify a patient that their booking has been created successfully.
  */
 export const notifyBookingCreated = async (userId: string, bookingId: string) => {
+  const Booking = (await import('../models/Booking.model.js')).default;
+  const booking = await Booking.findById(bookingId).populate('tests');
+  const testNames = booking ? booking.tests.map((t: any) => t.name).join(', ') : '';
+  const displayStr = testNames ? `${testNames} (#${bookingId.slice(-6).toUpperCase()})` : `#${bookingId.slice(-6).toUpperCase()}`;
+
   return createNotification(
     userId,
     'Booking Placed Successfully',
-    `Your booking #${bookingId.slice(-6).toUpperCase()} has been placed and is pending schedule.`,
-    'booking'
+    `Your booking for ${displayStr} has been placed and is pending schedule.`,
+    'booking',
+    bookingId
   );
 };
 
@@ -42,34 +50,81 @@ export const notifyBookingCreated = async (userId: string, bookingId: string) =>
  * Helper to notify a staff member they have been assigned to a booking.
  */
 export const notifyBookingAssigned = async (staffId: string, bookingId: string, scheduledAt: Date) => {
+  const Booking = (await import('../models/Booking.model.js')).default;
+  const User = (await import('../models/User.model.js')).default;
+
+  const booking = await Booking.findById(bookingId).populate('patientId').populate('tests');
+  const staff = await User.findById(staffId);
+
+  const patientName = booking && (booking.patientId as any) ? (booking.patientId as any).name : 'Patient';
+  const displayStr = `${patientName} (#${bookingId.slice(-6).toUpperCase()})`;
   const formattedDate = new Date(scheduledAt).toLocaleString();
-  return createNotification(
+
+  const notification = await createNotification(
     staffId,
     'New Booking Assignment',
-    `You have been assigned to collect samples for Booking #${bookingId.slice(-6).toUpperCase()} scheduled at ${formattedDate}.`,
-    'booking'
+    `You have been assigned to collect samples for Booking: ${displayStr} scheduled at ${formattedDate}.`,
+    'booking',
+    bookingId
   );
+
+  // Send the email to the staff member
+  if (staff && staff.email) {
+    try {
+      const { emailService } = await import('./email.service.js');
+      const address = booking?.homeSampling?.address || 'Not specified';
+      const testNames = booking ? booking.tests.map((t: any) => t.name) : [];
+
+      emailService.sendBookingAssignmentEmail(
+        staff.email,
+        staff.name,
+        bookingId,
+        scheduledAt,
+        patientName,
+        address,
+        testNames
+      ).catch((err) => {
+        console.error('Failed to send booking assignment email to staff:', err);
+      });
+    } catch (emailErr) {
+      console.error('Failed to import emailService or trigger assignment email:', emailErr);
+    }
+  }
+
+  return notification;
 };
 
 /**
  * Helper to notify a patient and/or staff that a booking has been cancelled.
  */
 export const notifyBookingCancelled = async (userId: string, bookingId: string, reason?: string) => {
+  const Booking = (await import('../models/Booking.model.js')).default;
+  const booking = await Booking.findById(bookingId).populate('tests');
+  const testNames = booking ? booking.tests.map((t: any) => t.name).join(', ') : '';
+  const displayStr = testNames ? `${testNames} (#${bookingId.slice(-6).toUpperCase()})` : `#${bookingId.slice(-6).toUpperCase()}`;
+
   const message = reason 
-    ? `Your booking #${bookingId.slice(-6).toUpperCase()} was cancelled. Reason: ${reason}`
-    : `Your booking #${bookingId.slice(-6).toUpperCase()} has been cancelled.`;
-  return createNotification(userId, 'Booking Cancelled', message, 'booking');
+    ? `Your booking for ${displayStr} was cancelled. Reason: ${reason}`
+    : `Your booking for ${displayStr} has been cancelled.`;
+
+  return createNotification(userId, 'Booking Cancelled', message, 'booking', bookingId);
 };
 
 /**
  * Helper to notify a patient that their test report is ready.
  */
 export const notifyReportReady = async (userId: string, bookingId: string) => {
+  const Booking = (await import('../models/Booking.model.js')).default;
+  const booking = await Booking.findById(bookingId).populate('tests');
+  const testNames = booking ? booking.tests.map((t: any) => t.name).join(', ') : '';
+  const displayStr = testNames ? `${testNames} (#${bookingId.slice(-6).toUpperCase()})` : `#${bookingId.slice(-6).toUpperCase()}`;
+
   return createNotification(
     userId,
     'Diagnostic Report Ready',
-    `Your diagnostic report for Booking #${bookingId.slice(-6).toUpperCase()} is now ready. You can view or download it from your dashboard.`,
-    'report'
+    `Your diagnostic report for ${displayStr} is now ready. You can view or download it from your dashboard.`,
+    'report',
+    bookingId
   );
 };
 
@@ -90,14 +145,20 @@ export const notifySubscriptionPurchased = async (userId: string, planName: stri
  */
 export const notifyAdminsPendingAssignment = async (bookingId: string) => {
   const User = (await import('../models/User.model.js')).default;
+  const Booking = (await import('../models/Booking.model.js')).default;
   try {
+    const booking = await Booking.findById(bookingId).populate('patientId');
+    const patientName = booking && (booking.patientId as any) ? (booking.patientId as any).name : 'Patient';
+    const displayStr = `${patientName} (#${bookingId.slice(-6).toUpperCase()})`;
+
     const admins = await User.find({ role: 'admin', isActive: true });
     for (const admin of admins) {
       await createNotification(
         admin._id,
         'Action Required: Manual Assignment',
-        `Booking #${bookingId.slice(-6).toUpperCase()} could not be auto-assigned and requires manual staff assignment.`,
-        'booking'
+        `Booking for ${displayStr} could not be auto-assigned and requires manual staff assignment.`,
+        'booking',
+        bookingId
       );
     }
   } catch (err) {
