@@ -1517,12 +1517,12 @@ export const AdminDashboard: React.FC<{ defaultTab?: 'overview' | 'bookings' | '
                         </div>
 
                         {/* Right Actions: Staff dropdown and cancellation */}
-                        <div className="flex sm:flex-col items-start sm:items-end gap-2.5 shrink-0 w-full sm:w-auto">
+                        <div className="flex flex-wrap sm:flex-col items-center sm:items-end gap-2 shrink-0 w-full sm:w-auto">
                           
                           {booking.homeSampling.requested && (
                             <div className="w-full sm:w-auto">
                               {assigningBookingId === booking._id ? (
-                                <form onSubmit={handleAssignStaffSubmit} className="flex items-center gap-1.5 w-full">
+                                <form onSubmit={handleAssignStaffSubmit} className="flex flex-wrap items-center gap-1.5 w-full">
                                   <select
                                     value={selectedStaffId}
                                     onChange={(e) => setSelectedStaffId(e.target.value)}
@@ -1537,14 +1537,14 @@ export const AdminDashboard: React.FC<{ defaultTab?: 'overview' | 'bookings' | '
                                   </select>
                                   <button
                                     type="submit"
-                                    className="p-1.5 rounded bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold transition-all cursor-pointer animate-pulse-subtle"
+                                    className="p-1.5 rounded bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold transition-all cursor-pointer animate-pulse-subtle whitespace-nowrap"
                                   >
                                     Assign
                                   </button>
                                   <button
                                     type="button"
                                     onClick={() => setAssigningBookingId(null)}
-                                    className="p-1.5 rounded bg-zinc-800 text-zinc-400 text-xs transition-all cursor-pointer"
+                                    className="p-1.5 rounded bg-zinc-800 text-zinc-400 text-xs transition-all cursor-pointer whitespace-nowrap"
                                   >
                                     Cancel
                                   </button>
@@ -1555,7 +1555,7 @@ export const AdminDashboard: React.FC<{ defaultTab?: 'overview' | 'bookings' | '
                                     setAssigningBookingId(booking._id);
                                     setSelectedStaffId(booking.homeSampling.assignedStaffId ? (booking.homeSampling.assignedStaffId as any)._id || booking.homeSampling.assignedStaffId : '');
                                   }}
-                                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg border border-zinc-800 bg-zinc-900/50 hover:bg-zinc-800 text-zinc-400 hover:text-purple-400 transition-all cursor-pointer"
+                                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg border border-zinc-800 bg-zinc-900/50 hover:bg-zinc-800 text-zinc-400 hover:text-purple-400 transition-all cursor-pointer whitespace-nowrap"
                                 >
                                   <UserPlus size={12} />
                                   <span>
@@ -1572,7 +1572,7 @@ export const AdminDashboard: React.FC<{ defaultTab?: 'overview' | 'bookings' | '
                             <button
                               onClick={() => handleCancelBooking(booking._id)}
                               disabled={actionLoading === booking._id}
-                              className="px-3.5 py-1.5 rounded-lg border border-red-900/20 hover:border-red-900/40 bg-red-950/10 hover:bg-red-950/20 text-red-400 hover:text-red-300 text-xs font-semibold transition-all cursor-pointer"
+                              className="px-3.5 py-1.5 rounded-lg border border-red-900/20 hover:border-red-900/40 bg-red-950/10 hover:bg-red-950/20 text-red-400 hover:text-red-300 text-xs font-semibold transition-all cursor-pointer whitespace-nowrap"
                             >
                               Cancel Booking
                             </button>
@@ -3065,7 +3065,8 @@ export const AdminDashboard: React.FC<{ defaultTab?: 'overview' | 'bookings' | '
                   </div>
                 ) : (
                   <div className="space-y-4">
-                    <div className="overflow-x-auto">
+                    {/* Desktop View */}
+                    <div className="hidden md:block overflow-x-auto">
                       <table className="w-full text-left text-sm border-collapse">
                         <thead>
                           <tr className="border-b border-zinc-800 text-zinc-450 text-xs uppercase tracking-wider font-semibold">
@@ -3227,6 +3228,111 @@ export const AdminDashboard: React.FC<{ defaultTab?: 'overview' | 'bookings' | '
                           })}
                         </tbody>
                       </table>
+                    </div>
+
+                    {/* Mobile Card View */}
+                    <div className="md:hidden space-y-3">
+                      {coupons.map((coupon) => {
+                        const isExpired = coupon.expiresAt ? new Date(coupon.expiresAt).getTime() < Date.now() : false;
+                        return (
+                          <div key={coupon._id} className="p-4 bg-zinc-900/40 border border-zinc-850/60 rounded-xl space-y-3">
+                            <div className="flex justify-between items-start">
+                              <div>
+                                <div className="font-mono font-bold text-zinc-200 text-sm">{coupon.code}</div>
+                                <div className="text-[10px] text-zinc-500 flex flex-col gap-1 mt-1.5">
+                                  <div className="flex flex-wrap items-center gap-1.5">
+                                    <span className="font-bold text-purple-400">
+                                      {coupon.discountType === 'percentage' ? `${coupon.discountValue}% Off` : `$${coupon.discountValue.toFixed(2)} Off`}
+                                    </span>
+                                    <span className="text-zinc-700">•</span>
+                                    <span>Min Order: {coupon.minOrderValue ? `$${coupon.minOrderValue.toFixed(2)}` : 'None'}</span>
+                                  </div>
+                                  <div className="flex flex-wrap items-center gap-1.5">
+                                    <span>Usage: {coupon.usedCount} / {coupon.maxUses ?? '∞'}</span>
+                                    <span className="text-zinc-700">•</span>
+                                    <span>
+                                      Expiry: {coupon.expiresAt ? (
+                                        <span className={isExpired ? 'text-red-400 font-semibold' : ''}>
+                                          {new Date(coupon.expiresAt).toLocaleDateString()} {isExpired && '(Expired)'}
+                                        </span>
+                                      ) : (
+                                        <span className="text-zinc-650 italic">Never</span>
+                                      )}
+                                    </span>
+                                  </div>
+                                </div>
+                              </div>
+                              <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold border ${
+                                coupon.isActive && !isExpired
+                                  ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                                  : 'bg-red-500/10 text-red-400 border-red-500/20'
+                              }`}>
+                                {coupon.isActive ? (isExpired ? 'Expired' : 'Active') : 'Inactive'}
+                              </span>
+                            </div>
+
+                            <div className="flex justify-end items-center border-t border-zinc-850/40 pt-3">
+                              <div className={`inline-block relative text-left ${openKebabId === coupon._id ? 'z-30' : ''}`}>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setOpenKebabId(openKebabId === coupon._id ? null : coupon._id);
+                                  }}
+                                  className="p-1.5 rounded-lg border border-zinc-800 bg-zinc-900 text-zinc-450 hover:text-white transition-colors cursor-pointer inline-flex items-center justify-center"
+                                  title="More Actions"
+                                  aria-label="More Actions"
+                                  aria-haspopup="true"
+                                  aria-expanded={openKebabId === coupon._id}
+                                >
+                                  <MoreVertical size={14} />
+                                </button>
+
+                                {openKebabId === coupon._id && (
+                                  <>
+                                    <div className="fixed inset-0 z-30" onClick={() => setOpenKebabId(null)} />
+                                    <div className="absolute right-0 bottom-full mb-1.5 w-60 rounded-xl border border-slate-200/80 bg-white shadow-2xl z-45 overflow-hidden font-medium py-1 text-left animate-fadeIn">
+                                      <button
+                                        onClick={() => {
+                                          setOpenKebabId(null);
+                                          openEditCoupon(coupon);
+                                        }}
+                                        className="flex items-center gap-2 w-full px-3 py-2 text-xs text-slate-700 hover:bg-slate-50 hover:text-purple-650 transition-colors"
+                                      >
+                                        <Pencil size={12} />
+                                        <span>Edit Coupon</span>
+                                      </button>
+                                      <button
+                                        onClick={() => {
+                                          setOpenKebabId(null);
+                                          handleToggleCouponStatus(coupon);
+                                        }}
+                                        className={`flex items-center gap-2 w-full px-3 py-2 text-xs transition-colors ${
+                                          coupon.isActive
+                                            ? 'text-amber-600 hover:bg-amber-50 hover:text-amber-700'
+                                            : 'text-emerald-600 hover:bg-emerald-50 hover:text-emerald-700'
+                                        }`}
+                                      >
+                                        {coupon.isActive ? <ShieldAlert size={12} /> : <ShieldCheck size={12} />}
+                                        <span>{coupon.isActive ? 'Deactivate Coupon' : 'Activate Coupon'}</span>
+                                      </button>
+                                      <button
+                                        onClick={() => {
+                                          setOpenKebabId(null);
+                                          handleCouponDelete(coupon._id);
+                                        }}
+                                        className="flex items-center gap-2 w-full px-3 py-2 text-xs text-red-650 hover:bg-red-50 hover:text-red-700 transition-colors"
+                                      >
+                                        <Trash2 size={12} />
+                                        <span>Delete Coupon</span>
+                                      </button>
+                                    </div>
+                                  </>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
                 )}

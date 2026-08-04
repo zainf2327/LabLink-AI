@@ -149,12 +149,12 @@ const Topbar: React.FC<TopbarProps> = ({ pageTitle, isMobileSidebarOpen, onToggl
           </button>
         )}
         
-        <div className={`${user?.role === 'admin' ? 'lg:hidden' : 'md:hidden'} flex items-center shrink-0 ml-0.5`}>
+        <div className={`${user?.role === 'admin' ? 'hidden sm:flex lg:hidden' : 'hidden sm:flex md:hidden'} items-center shrink-0 ml-0.5`}>
           <Logo size="sm" />
         </div>
 
         <div className="min-w-0">
-          <h1 className="text-sm sm:text-base md:text-lg font-semibold text-slate-800 leading-tight truncate max-w-[90px] xs:max-w-[130px] sm:max-w-none">{pageTitle}</h1>
+          <h1 className="text-sm sm:text-base md:text-lg font-semibold text-slate-800 leading-tight truncate max-w-[150px] xs:max-w-[200px] sm:max-w-none">{pageTitle}</h1>
         </div>
       </div>
 
@@ -178,7 +178,7 @@ const Topbar: React.FC<TopbarProps> = ({ pageTitle, isMobileSidebarOpen, onToggl
           </button>
 
           {notiOpen && (
-            <div className="absolute right-0 mt-2 w-80 sm:w-96 bg-white rounded-2xl border border-slate-200 shadow-xl shadow-slate-200/60 overflow-hidden z-50 animate-fadeIn flex flex-col max-h-[480px]">
+            <div className="fixed sm:absolute top-16 sm:top-auto right-4 sm:right-0 mt-2 w-[calc(100vw-32px)] sm:w-96 bg-white rounded-2xl border border-slate-200 shadow-xl shadow-slate-200/60 overflow-hidden z-50 animate-fadeIn flex flex-col max-h-[calc(100vh-5rem)] sm:max-h-[480px]">
               {/* Header */}
               <div className="px-4 py-3.5 border-b border-slate-100 bg-slate-50/40 flex items-center justify-between shrink-0">
                 <div className="flex items-center gap-2">
@@ -200,7 +200,7 @@ const Topbar: React.FC<TopbarProps> = ({ pageTitle, isMobileSidebarOpen, onToggl
               </div>
 
               {/* List */}
-              <div className="flex-1 overflow-y-auto divide-y divide-slate-100 py-1 max-h-[360px]">
+              <div className="flex-1 overflow-y-auto divide-y divide-slate-100 py-1 max-h-[calc(100vh-10rem)] sm:max-h-[360px]">
                 {notifications.length === 0 ? (
                   <div className="px-4 py-12 flex flex-col items-center justify-center text-center gap-3">
                     <div className="w-12 h-12 rounded-full bg-slate-50 flex items-center justify-center border border-slate-100 text-slate-350">
