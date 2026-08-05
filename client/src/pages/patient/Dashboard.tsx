@@ -39,7 +39,7 @@ export const PatientDashboard: React.FC = () => {
   const { user } = useAuthStore();
   const { confirm } = useConfirm();
   const toast = useToast();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const tabParam = searchParams.get('tab');
   const highlightBookingId = searchParams.get('bookingId');
   const highlightReportId = searchParams.get('reportId');
@@ -63,6 +63,27 @@ export const PatientDashboard: React.FC = () => {
       setActiveTab('bookings');
     }
   }, [tabParam]);
+
+  // Handle Google Calendar connection success/error toasts
+  const toastShownRef = React.useRef(false);
+  useEffect(() => {
+    if (toastShownRef.current) return;
+    const calendarStatus = searchParams.get('calendar');
+    const errorStatus = searchParams.get('error');
+    if (calendarStatus === 'connected') {
+      toastShownRef.current = true;
+      toast.success('Google Calendar connected successfully.');
+      const newParams = new URLSearchParams(searchParams);
+      newParams.delete('calendar');
+      setSearchParams(newParams, { replace: true });
+    } else if (errorStatus) {
+      toastShownRef.current = true;
+      toast.error(decodeURIComponent(errorStatus).replace(/_/g, ' '));
+      const newParams = new URLSearchParams(searchParams);
+      newParams.delete('error');
+      setSearchParams(newParams, { replace: true });
+    }
+  }, [searchParams, setSearchParams, toast]);
 
   // Scroll to highlighted booking card
   useEffect(() => {

@@ -47,7 +47,7 @@ export const StaffDashboard: React.FC<{ defaultTab?: 'my_assignments' | 'all_boo
   useEffect(() => {
     setActiveTab(defaultTab);
   }, [defaultTab]);
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const searchParam = searchParams.get('search');
 
   const [statusFilter, setStatusFilter] = useState<string>('');
@@ -60,6 +60,27 @@ export const StaffDashboard: React.FC<{ defaultTab?: 'my_assignments' | 'all_boo
       setSearchQuery(searchParam);
     }
   }, [searchParam]);
+
+  // Handle Google Calendar connection success/error toasts
+  const toastShownRef = React.useRef(false);
+  useEffect(() => {
+    if (toastShownRef.current) return;
+    const calendarStatus = searchParams.get('calendar');
+    const errorStatus = searchParams.get('error');
+    if (calendarStatus === 'connected') {
+      toastShownRef.current = true;
+      toast.success('Google Calendar connected successfully.');
+      const newParams = new URLSearchParams(searchParams);
+      newParams.delete('calendar');
+      setSearchParams(newParams, { replace: true });
+    } else if (errorStatus) {
+      toastShownRef.current = true;
+      toast.error(decodeURIComponent(errorStatus).replace(/_/g, ' '));
+      const newParams = new URLSearchParams(searchParams);
+      newParams.delete('error');
+      setSearchParams(newParams, { replace: true });
+    }
+  }, [searchParams, setSearchParams, toast]);
 
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [totalPages, setTotalPages] = useState<number>(1);
