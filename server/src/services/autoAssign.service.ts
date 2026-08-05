@@ -1,7 +1,6 @@
 import mongoose from 'mongoose';
 import Booking, { IBooking } from '../models/Booking.model.js';
 import User, { IUser } from '../models/User.model.js';
-import { calendarService } from './calendar.service.js';
 import { bookingService } from './booking.service.js';
 import logger from '../utils/logger.js';
 
@@ -263,26 +262,7 @@ export async function autoAssignStaff(bookingId: string): Promise<IUser | null> 
           continue;
         }
 
-        // 4. Google Calendar check (using checkFreeBusy)
-        let calendarBusy = false;
-        if (staff.googleCalendarConnected && staff.googleRefreshToken) {
-          try {
-            const { decrypt } = await import('../utils/crypto.js');
-            const decryptedToken = decrypt(staff.googleRefreshToken);
-            calendarBusy = await calendarService.checkFreeBusy(
-              decryptedToken,
-              staff.googleEmail || staff.email,
-              startTime,
-              endTime
-            );
-          } catch (err) {
-            logger.error(`[AutoAssign] Failed to check Google Calendar for staff ${staff._id}:`, err);
-          }
-        }
-        logger.debug(`[AutoAssign Debug] Staff: ${staff.name} | Google Calendar busy check: ${calendarBusy ? 'BUSY' : 'FREE'}`);
-        if (calendarBusy) {
-          continue;
-        }
+
 
         // 5. Calculate workload today
         const { start: startOfDay, end: endOfDay } = getDayBoundsInTimezone(booking.homeSampling.scheduledAt, timezone);

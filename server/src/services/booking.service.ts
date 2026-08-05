@@ -298,27 +298,6 @@ export const bookingService = {
         409
       );
     }
-
-    // 2. Google Calendar conflict checking (FreeBusy API)
-    const staff = await User.findById(staffId);
-    if (staff && staff.googleCalendarConnected && staff.googleRefreshToken) {
-      const { decrypt } = await import('../utils/crypto.js');
-      const decryptedToken = decrypt(staff.googleRefreshToken);
-      
-      const isBusy = await calendarService.checkFreeBusy(
-        decryptedToken,
-        staff.googleEmail || staff.email,
-        startTime,
-        endTime
-      );
-
-      if (isBusy) {
-        throw new AppError(
-          'Staff member has a scheduling conflict on Google Calendar.',
-          409
-        );
-      }
-    }
   },
 
   async syncBookingToCalendar(booking: IBooking): Promise<void> {
